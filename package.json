@@ -1,0 +1,47 @@
+{
+  "name": "support-brain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "worker": "tsx worker/index.ts",
+    "worker:once": "tsx worker/index.ts --once",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "seed:admin": "tsx scripts/seed-admin.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "backup": "bash scripts/backup.sh"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.38.3",
+    "imapflow": "^1.0.171",
+    "mailparser": "^3.7.2",
+    "next": "^15.1.3",
+    "next-auth": "^5.0.0-beta.25",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^7.0.7",
+    "pg": "^8.13.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/mailparser": "^3.4.5",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "drizzle-kit": "^0.30.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

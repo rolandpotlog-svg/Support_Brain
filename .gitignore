@@ -1,0 +1,19 @@
+# Secrets / Env
+.env
+.env.*
+!.env.example
+
+# Node / Next
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+
+# Backups (lokale DB-Dumps nicht ins Repo)
+backups/
+
+# Archiv des alten Gerüsts
+_archiv/
+
+# OS
+.DS_Store
