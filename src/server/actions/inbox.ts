@@ -64,9 +64,16 @@ export async function replyToThread(threadId: string, bodyText: string) {
   await assertShopAccess(user, t.shopId);
   if (!bodyText.trim()) throw new Error("Leere Antwort");
 
-  const mailbox = await db.query.shopMailboxes.findFirst({
-    where: eq(schema.shopMailboxes.shopId, t.shopId),
-  });
+  // Antwort geht über das Postfach des Tickets raus (Fallback: erstes Postfach des Shops).
+  const mailbox =
+    (t.mailboxId
+      ? await db.query.shopMailboxes.findFirst({
+          where: eq(schema.shopMailboxes.id, t.mailboxId),
+        })
+      : null) ??
+    (await db.query.shopMailboxes.findFirst({
+      where: eq(schema.shopMailboxes.shopId, t.shopId),
+    }));
   if (!mailbox) throw new Error("Shop hat keine Postfach-Konfiguration");
 
   const lastInbound = await db.query.messages.findFirst({

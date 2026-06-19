@@ -15,9 +15,16 @@ async function sendOne(job: { id: string; messageId: string }): Promise<void> {
     where: eq(schema.threads.id, msg.threadId),
   });
   if (!thread) throw new Error("Thread nicht gefunden");
-  const mb = await db.query.shopMailboxes.findFirst({
-    where: eq(schema.shopMailboxes.shopId, thread.shopId),
-  });
+  // Über das Postfach senden, an das das Ticket gerichtet war; sonst erstes Postfach des Shops.
+  const mb =
+    (thread.mailboxId
+      ? await db.query.shopMailboxes.findFirst({
+          where: eq(schema.shopMailboxes.id, thread.mailboxId),
+        })
+      : null) ??
+    (await db.query.shopMailboxes.findFirst({
+      where: eq(schema.shopMailboxes.shopId, thread.shopId),
+    }));
   if (!mb) throw new Error("Shop ohne Postfach-Konfiguration");
 
   const transport = nodemailer.createTransport({

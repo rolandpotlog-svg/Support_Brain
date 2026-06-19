@@ -114,6 +114,15 @@ function mapCustomer(c: any): ShopifyCustomer {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/** Leichte Verbindungsprüfung: Shop-Name abrufen. Wirft bei ungültigen Credentials. */
+export async function getShopInfo(creds: ShopifyCreds): Promise<{ name: string; domain: string }> {
+  const data = await gql<{ shop: { name: string; myshopifyDomain: string } }>(
+    creds,
+    `query { shop { name myshopifyDomain } }`,
+  );
+  return { name: data.shop.name, domain: data.shop.myshopifyDomain };
+}
+
 /** Bestellung exakt über die Bestellnummer (z. B. "335675775" oder "#335675775"). */
 export async function getOrderByName(
   creds: ShopifyCreds,

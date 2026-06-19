@@ -41,29 +41,30 @@ export default async function InboxPage({
 }) {
   const { folder = "all-open", ticket } = await searchParams;
   const user = await requireUser();
-  const shopIds = await accessibleShopIds(user);
+  const accessible = await accessibleShopIds(user);
+
+  // Umschalter zeigt nur AKTIVE Shops, auf die der Nutzer Zugriff hat.
+  const shopList = accessible.length
+    ? await db
+        .select({ id: schema.shops.id, name: schema.shops.name })
+        .from(schema.shops)
+        .where(and(inArray(schema.shops.id, accessible), eq(schema.shops.active, true)))
+        .orderBy(schema.shops.name)
+    : [];
+  const activeIds = shopList.map((s) => s.id);
 
   // Aktiver Shop = genau einer im Fokus. Ein geöffnetes Ticket "zieht" den aktiven
-  // Shop auf seinen eigenen (damit z. B. Eskalations-Links shop-übergreifend funktionieren).
-  let activeShopId = await getActiveShopId(shopIds);
+  // Shop auf seinen eigenen (damit z. B. Eskalations-Links funktionieren).
+  let activeShopId = await getActiveShopId(activeIds);
   let selectedThread: typeof schema.threads.$inferSelect | null = null;
   if (ticket) {
     const t = await db.query.threads.findFirst({ where: eq(schema.threads.id, ticket) });
-    if (t && shopIds.includes(t.shopId)) {
+    if (t && activeIds.includes(t.shopId)) {
       selectedThread = t;
       activeShopId = t.shopId;
     }
   }
   const hasShops = activeShopId !== null;
-
-  // Shops für den Umschalter (nur die, die der Nutzer sehen darf)
-  const shopList = hasShops
-    ? await db
-        .select({ id: schema.shops.id, name: schema.shops.name })
-        .from(schema.shops)
-        .where(inArray(schema.shops.id, shopIds))
-        .orderBy(schema.shops.name)
-    : [];
 
   // Ordnerzähler (nur aktiver Shop)
   const counts: Record<string, number> = {};

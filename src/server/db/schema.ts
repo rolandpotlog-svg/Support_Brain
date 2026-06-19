@@ -43,29 +43,37 @@ export const shops = pgTable("shops", {
   id: uuid("id").defaultRandom().primaryKey(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
+  // Aktiv/inaktiv: inaktive Shops werden nicht gepollt und nicht im Umschalter gezeigt.
+  active: boolean("active").notNull().default(true),
   // Kill-Switch: true => KI aus, reiner manueller Posteingang.
   killSwitch: boolean("kill_switch").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Postfach-Konfiguration je Shop. Passwörter AES-256-GCM-verschlüsselt.
-export const shopMailboxes = pgTable("shop_mailboxes", {
-  shopId: uuid("shop_id")
-    .primaryKey()
-    .references(() => shops.id, { onDelete: "cascade" }),
-  imapHost: text("imap_host").notNull(),
-  imapPort: integer("imap_port").notNull().default(993),
-  imapUser: text("imap_user").notNull(),
-  imapPasswordEnc: text("imap_password_enc").notNull(),
-  smtpHost: text("smtp_host").notNull(),
-  smtpPort: integer("smtp_port").notNull().default(465),
-  smtpUser: text("smtp_user").notNull(),
-  smtpPasswordEnc: text("smtp_password_enc").notNull(),
-  fromEmail: text("from_email").notNull(),
-  fromName: text("from_name"),
-  lastSeenUid: bigint("last_seen_uid", { mode: "number" }),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// Postfach-Konfiguration — MEHRERE pro Shop möglich (z. B. support@ + info@).
+// Passwörter AES-256-GCM-verschlüsselt.
+export const shopMailboxes = pgTable(
+  "shop_mailboxes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    imapHost: text("imap_host").notNull(),
+    imapPort: integer("imap_port").notNull().default(993),
+    imapUser: text("imap_user").notNull(),
+    imapPasswordEnc: text("imap_password_enc").notNull(),
+    smtpHost: text("smtp_host").notNull(),
+    smtpPort: integer("smtp_port").notNull().default(465),
+    smtpUser: text("smtp_user").notNull(),
+    smtpPasswordEnc: text("smtp_password_enc").notNull(),
+    fromEmail: text("from_email").notNull(),
+    fromName: text("from_name"),
+    lastSeenUid: bigint("last_seen_uid", { mode: "number" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("shop_mailboxes_shop_idx").on(t.shopId)],
+);
 
 // Shopify-Admin-API-Zugang je Shop. Token AES-256-GCM-verschlüsselt.
 export const shopShopify = pgTable("shop_shopify", {
@@ -101,6 +109,8 @@ export const threads = pgTable(
     shopId: uuid("shop_id")
       .notNull()
       .references(() => shops.id, { onDelete: "cascade" }),
+    // Über welches Postfach das Ticket reinkam -> Antwort geht über dasselbe SMTP raus.
+    mailboxId: uuid("mailbox_id").references(() => shopMailboxes.id, { onDelete: "set null" }),
     subject: text("subject"),
     customerEmail: text("customer_email").notNull(),
     customerName: text("customer_name"),

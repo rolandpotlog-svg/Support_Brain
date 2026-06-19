@@ -17,6 +17,7 @@ function normalizeSubject(subject: string | null | undefined): string {
 
 async function resolveThreadId(
   shopId: string,
+  mailboxId: string,
   customerEmail: string,
   subject: string | null,
   refIds: string[],
@@ -49,17 +50,17 @@ async function resolveThreadId(
 
   const [created] = await db
     .insert(schema.threads)
-    .values({ shopId, subject: subject ?? null, customerEmail })
+    .values({ shopId, mailboxId, subject: subject ?? null, customerEmail })
     .returning({ id: schema.threads.id });
   return created.id;
 }
 
-async function ingestShop(shop: typeof schema.shops.$inferSelect): Promise<number> {
-  const mb = await db.query.shopMailboxes.findFirst({
-    where: eq(schema.shopMailboxes.shopId, shop.id),
-  });
-  if (!mb) return 0;
+type MailboxRow = typeof schema.shopMailboxes.$inferSelect;
 
+async function ingestMailbox(
+  shop: typeof schema.shops.$inferSelect,
+  mb: MailboxRow,
+): Promise<number> {
   const client = new ImapFlow({
     host: mb.imapHost,
     port: mb.imapPort,
@@ -106,7 +107,7 @@ async function ingestShop(shop: typeof schema.shops.$inferSelect): Promise<numbe
       const refIds = [inReplyTo, ...references].filter(Boolean) as string[];
 
       await db.transaction(async (tx) => {
-        const threadId = await resolveThreadId(shop.id, fromEmail, subject, refIds);
+        const threadId = await resolveThreadId(shop.id, mb.id, fromEmail, subject, refIds);
         await tx
           .insert(schema.messages)
           .values({
@@ -140,7 +141,7 @@ async function ingestShop(shop: typeof schema.shops.$inferSelect): Promise<numbe
     await db
       .update(schema.shopMailboxes)
       .set({ lastSeenUid: maxUid, updatedAt: new Date() })
-      .where(eq(schema.shopMailboxes.shopId, shop.id));
+      .where(eq(schema.shopMailboxes.id, mb.id));
   }
 
   await client.logout();
@@ -149,12 +150,19 @@ async function ingestShop(shop: typeof schema.shops.$inferSelect): Promise<numbe
 
 export async function ingestAll(): Promise<number> {
   let total = 0;
-  const shops = await db.select().from(schema.shops);
+  // Nur aktive Shops pollen.
+  const shops = await db.select().from(schema.shops).where(eq(schema.shops.active, true));
   for (const shop of shops) {
-    try {
-      total += await ingestShop(shop);
-    } catch (err) {
-      console.error(`[ingest] Shop ${shop.slug} Fehler:`, err);
+    const mailboxes = await db
+      .select()
+      .from(schema.shopMailboxes)
+      .where(eq(schema.shopMailboxes.shopId, shop.id));
+    for (const mb of mailboxes) {
+      try {
+        total += await ingestMailbox(shop, mb);
+      } catch (err) {
+        console.error(`[ingest] Shop ${shop.slug} / ${mb.fromEmail} Fehler:`, err);
+      }
     }
   }
   return total;

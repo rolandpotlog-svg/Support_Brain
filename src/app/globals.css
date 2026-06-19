@@ -257,3 +257,29 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .row > * { flex: 1; min-width: 160px; }
 .empty { display: grid; place-items: center; height: 100%; color: var(--muted); text-align: center; padding: 40px; }
+
+/* ── Shop-Verwaltung (Admin) ──────────────────────────────────────────── */
+.cardhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.cardhead h2 { margin: 0; }
+.formhead { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.formhead h1 { margin: 0; font-size: 22px; }
+.back { font-size: 13px; color: var(--muted); }
+.btnlink {
+  display: inline-grid; place-items: center; padding: 7px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.btnlink:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+.formerror { background: var(--tag-rose-bg, #fde8e8); color: #b42318; border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; font-size: 14px; }
+.ok-text { color: #067647; font-weight: 600; }
+.bad-text { color: #b42318; font-weight: 600; }
+.shopform { max-width: 640px; }
+.mailbox { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 12px; background: var(--panel-2); }
+.mbhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.mblabel { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; margin: 10px 0 6px; }
+.formactions { display: flex; gap: 10px; margin: 4px 0 8px; }
+.testline { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
+.testline .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.testline.ok .dot { background: #067647; }
+.testline.bad .dot { background: #b42318; }
+.testline.bad { color: #b42318; }
