@@ -155,6 +155,8 @@ export const messages = pgTable(
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
     direction: messageDirection("direction").notNull(),
+    // Interne Team-Notiz (nicht an den Kunden, wird nie versendet).
+    internal: boolean("internal").notNull().default(false),
     fromEmail: text("from_email").notNull(),
     toEmail: text("to_email"),
     subject: text("subject"),

@@ -298,6 +298,11 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 }
 /* Assignee schiebt sich (und die Nummer) nach rechts; Nummer sonst weiter via margin-auto. */
 .assignee + .num { margin-left: 6px; }
+/* Interne Notiz im Verlauf */
+.note-msg { background: var(--tag-amber-bg); border: 1px solid #f0d9a0; border-radius: 10px; padding: 10px 14px; margin: 8px 24px; }
+.note-msg .mhead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.note-msg .note-tag { font-size: 12px; font-weight: 700; color: var(--tag-amber-fg); }
+.note-msg .mbody { white-space: pre-wrap; margin: 0; font-size: 14px; color: var(--text); }
 
 /* ── Shop-Profil (Antwort-Gehirn) ─────────────────────────────────────── */
 .tabnav { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }

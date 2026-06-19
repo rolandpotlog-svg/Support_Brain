@@ -36,6 +36,13 @@
       "when": 1781877353838,
       "tag": "0004_brown_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781878283564,
+      "tag": "0005_pretty_skaar",
+      "breakpoints": true
     }
   ]
 }

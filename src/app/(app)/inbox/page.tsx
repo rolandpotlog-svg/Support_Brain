@@ -155,6 +155,7 @@ export default async function InboxPage({
         messages: messages.map((m) => ({
           id: m.id,
           direction: m.direction,
+          internal: m.internal,
           fromEmail: m.fromEmail,
           subject: m.subject,
           bodyText: m.bodyText,
@@ -278,6 +279,7 @@ export default async function InboxPage({
 type Msg = {
   id: string;
   direction: "inbound" | "outbound";
+  internal: boolean;
   fromEmail: string;
   subject: string | null;
   bodyText: string | null;

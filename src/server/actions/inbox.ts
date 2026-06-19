@@ -47,6 +47,23 @@ export async function setThreadTag(threadId: string, tag: string | null) {
   revalidatePath("/inbox");
 }
 
+/** Interne Notiz am Ticket (nicht an den Kunden, wird nie versendet). */
+export async function addNote(threadId: string, bodyText: string) {
+  const user = await requireUser();
+  const t = await loadThread(threadId);
+  await assertShopAccess(user, t.shopId);
+  if (!bodyText.trim()) throw new Error("Leere Notiz");
+  await db.insert(schema.messages).values({
+    threadId,
+    direction: "outbound",
+    internal: true,
+    fromEmail: user.email,
+    bodyText,
+    sentBy: user.id,
+  });
+  revalidatePath("/inbox");
+}
+
 export async function setThreadStatus(threadId: string, status: string) {
   const user = await requireUser();
   const t = await loadThread(threadId);

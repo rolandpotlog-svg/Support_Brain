@@ -2,6 +2,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  addNote,
   assignThread,
   escalateThread,
   replyToThread,
@@ -15,6 +16,7 @@ const TAG_PRESETS = ["Bestellstatus", "Beschädigte Ware", "Retoure/Umtausch", "
 type Msg = {
   id: string;
   direction: "inbound" | "outbound";
+  internal: boolean;
   fromEmail: string;
   subject: string | null;
   bodyText: string | null;
@@ -45,6 +47,7 @@ export function Conversation({
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
   const [text, setText] = useState("");
+  const [noteText, setNoteText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -123,25 +126,36 @@ export function Conversation({
 
       <div className="body">
         {error && <p className="error">{error}</p>}
-        {messages.map((m) => (
-          <article key={m.id} className={`mail ${m.direction}`}>
-            <div className="mhead">
-              <div className="mavatar">
-                {m.direction === "inbound" ? initials(thread.customerName, thread.customerEmail) : "S"}
+        {messages.map((m) =>
+          m.internal ? (
+            <article key={m.id} className="note-msg">
+              <div className="mhead">
+                <span className="note-tag">📝 Interne Notiz</span>
+                <span className="muted" style={{ fontSize: 12 }}>{m.fromEmail}</span>
+                <div className="mtime">{timeAgo(new Date(m.createdAt))}</div>
               </div>
-              <div>
-                <div className="mfrom">
-                  {m.direction === "inbound" ? thread.customerName || thread.customerEmail : "Support"}
+              <pre className="mbody">{m.bodyText || ""}</pre>
+            </article>
+          ) : (
+            <article key={m.id} className={`mail ${m.direction}`}>
+              <div className="mhead">
+                <div className="mavatar">
+                  {m.direction === "inbound" ? initials(thread.customerName, thread.customerEmail) : "S"}
                 </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {m.direction === "inbound" ? m.fromEmail : supportEmail}
+                <div>
+                  <div className="mfrom">
+                    {m.direction === "inbound" ? thread.customerName || thread.customerEmail : "Support"}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {m.direction === "inbound" ? m.fromEmail : supportEmail}
+                  </div>
                 </div>
+                <div className="mtime">{timeAgo(new Date(m.createdAt))}</div>
               </div>
-              <div className="mtime">{timeAgo(new Date(m.createdAt))}</div>
-            </div>
-            <pre className="mbody">{m.bodyText || "(kein Text)"}</pre>
-          </article>
-        ))}
+              <pre className="mbody">{m.bodyText || "(kein Text)"}</pre>
+            </article>
+          ),
+        )}
       </div>
 
       <div className="editor">
@@ -177,7 +191,27 @@ export function Conversation({
             </div>
           </>
         ) : (
-          <p className="muted">Interne Notizen kommen in einer späteren Phase.</p>
+          <>
+            <textarea
+              placeholder="Interne Notiz (nur fürs Team, der Kunde sieht sie nicht)…"
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+            />
+            <div className="actions">
+              <span className="spacer" />
+              <button
+                disabled={pending || !noteText.trim()}
+                onClick={() =>
+                  run(async () => {
+                    await addNote(thread.id, noteText);
+                    setNoteText("");
+                  })
+                }
+              >
+                {pending ? "Speichert…" : "Notiz speichern"}
+              </button>
+            </div>
+          </>
         )}
       </div>
     </section>
