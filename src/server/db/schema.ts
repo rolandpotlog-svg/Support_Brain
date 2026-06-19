@@ -160,6 +160,73 @@ export const disputeAudit = pgTable("dispute_audit", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Social-Kanal (Meta): FB-Seite / IG-Business-Konto je Shop. Tokens verschlüsselt.
+export const socialAccount = pgTable(
+  "social_account",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(), // 'facebook' | 'instagram'
+    pageId: text("page_id").notNull(), // FB-Page-ID bzw. IG-Business-Account-ID
+    pageName: text("page_name"),
+    accessTokenEnc: text("access_token_enc").notNull(),
+    appSecretEnc: text("app_secret_enc"), // für Webhook-Signaturprüfung
+    verifyToken: text("verify_token"), // Webhook-Verify-Handshake
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("social_account_shop_channel_uidx").on(t.shopId, t.channel)],
+);
+
+export const socialConversation = pgTable(
+  "social_conversation",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => socialAccount.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    externalUserId: text("external_user_id").notNull(), // PSID / IGSID
+    userName: text("user_name"),
+    // Best-effort-Verknüpfung zur Shopify-Bestellung/Kunde (vom Menschen bestätigt).
+    customerName: text("customer_name"),
+    customerEmail: text("customer_email"),
+    orderId: text("order_id"),
+    orderName: text("order_name"),
+    status: text("status").notNull().default("open"),
+    lastInboundAt: timestamp("last_inbound_at", { withTimezone: true }), // für 24-h-Fenster
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("social_conv_account_user_uidx").on(t.accountId, t.externalUserId),
+    index("social_conv_shop_idx").on(t.shopId, t.lastMessageAt),
+  ],
+);
+
+export const socialMessage = pgTable(
+  "social_message",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => socialConversation.id, { onDelete: "cascade" }),
+    direction: messageDirection("direction").notNull(),
+    text: text("text"),
+    externalId: text("external_id"), // Meta-Message-ID (Dedup)
+    sentBy: uuid("sent_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("social_msg_conv_idx").on(t.conversationId, t.createdAt),
+    uniqueIndex("social_msg_external_uidx").on(t.externalId).where(sql`${t.externalId} is not null`),
+  ],
+);
+
 // Welcher Agent sieht welche Shops (Admins sehen alles, in Code geprüft).
 export const userShops = pgTable(
   "user_shops",

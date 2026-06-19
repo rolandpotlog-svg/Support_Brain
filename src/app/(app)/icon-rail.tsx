@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 export function IconRail({ isAdmin }: { isAdmin: boolean }) {
   const path = usePathname();
   const onInbox = path.startsWith("/inbox") || path.startsWith("/threads");
+  const onSocial = path.startsWith("/social");
   const onCases = path.startsWith("/cases");
   const onAdmin = path.startsWith("/admin");
 
@@ -16,6 +17,11 @@ export function IconRail({ isAdmin }: { isAdmin: boolean }) {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 12h-6l-2 3h-4l-2-3H2" />
           <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+        </svg>
+      </Link>
+      <Link href="/social" className={onSocial ? "active" : ""} title="Social (Meta)" aria-label="Social">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
         </svg>
       </Link>
       {isAdmin && (

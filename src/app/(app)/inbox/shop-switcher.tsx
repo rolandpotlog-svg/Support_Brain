@@ -3,7 +3,15 @@ import { setActiveShop } from "@/server/actions/inbox";
 
 type Shop = { id: string; name: string };
 
-export function ShopSwitcher({ shops, activeId }: { shops: Shop[]; activeId: string }) {
+export function ShopSwitcher({
+  shops,
+  activeId,
+  redirectTo = "/inbox",
+}: {
+  shops: Shop[];
+  activeId: string;
+  redirectTo?: string;
+}) {
   const active = shops.find((s) => s.id === activeId);
   // Nur ein Shop -> kein Umschalter nötig, nur Anzeige.
   if (shops.length <= 1) {
@@ -13,7 +21,7 @@ export function ShopSwitcher({ shops, activeId }: { shops: Shop[]; activeId: str
     <select
       className="shopswitch"
       value={activeId}
-      onChange={(e) => setActiveShop(e.target.value)}
+      onChange={(e) => setActiveShop(e.target.value, redirectTo)}
       aria-label="Aktiven Shop wählen"
     >
       {shops.map((s) => (

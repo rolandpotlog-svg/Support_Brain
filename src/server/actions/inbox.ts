@@ -8,13 +8,13 @@ import { db, schema } from "@/server/db";
 import { assertShopAccess, requireUser } from "@/server/access";
 import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
 
-/** Aktiven Shop wechseln (vom Shop-Umschalter im Posteingang aufgerufen). */
-export async function setActiveShop(shopId: string) {
+/** Aktiven Shop wechseln (vom Shop-Umschalter aufgerufen). */
+export async function setActiveShop(shopId: string, redirectTo: string = "/inbox") {
   const user = await requireUser();
   await assertShopAccess(user, shopId);
   const store = await cookies();
   store.set(ACTIVE_SHOP_COOKIE, shopId, { httpOnly: true, sameSite: "lax", path: "/" });
-  redirect("/inbox");
+  redirect(redirectTo);
 }
 
 async function loadThread(threadId: string) {

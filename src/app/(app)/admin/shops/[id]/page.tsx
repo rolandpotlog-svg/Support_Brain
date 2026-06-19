@@ -3,8 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/server/access";
 import { loadShopForEdit } from "@/server/shop-config";
 import { loadProfile } from "@/server/profile";
+import { loadSocialAccounts } from "@/server/social-config";
 import { ShopForm } from "../shop-form";
 import { ProfileForm } from "../profile-form";
+import { SocialConfig } from "../social-config";
 
 export default async function EditShopPage({
   params,
@@ -20,8 +22,9 @@ export default async function EditShopPage({
   const shop = await loadShopForEdit(id);
   if (!shop) notFound();
 
-  const activeTab = tab === "profil" ? "profil" : "zugang";
+  const activeTab = tab === "profil" ? "profil" : tab === "social" ? "social" : "zugang";
   const profile = activeTab === "profil" ? await loadProfile(id) : null;
+  const social = activeTab === "social" ? await loadSocialAccounts(id) : null;
 
   return (
     <div className="adminwrap">
@@ -37,11 +40,13 @@ export default async function EditShopPage({
         <Link href={`/admin/shops/${id}?tab=profil`} className={activeTab === "profil" ? "active" : ""}>
           Shop-Profil
         </Link>
+        <Link href={`/admin/shops/${id}?tab=social`} className={activeTab === "social" ? "active" : ""}>
+          Social (Meta)
+        </Link>
       </div>
 
-      {activeTab === "zugang" ? (
-        <ShopForm initial={shop} hideHead />
-      ) : (
+      {activeTab === "zugang" && <ShopForm initial={shop} hideHead />}
+      {activeTab === "profil" && (
         <ProfileForm
           shopId={id}
           shopName={shop.name}
@@ -49,6 +54,7 @@ export default async function EditShopPage({
           initial={profile!}
         />
       )}
+      {activeTab === "social" && <SocialConfig shopId={id} accounts={social!} />}
     </div>
   );
 }
