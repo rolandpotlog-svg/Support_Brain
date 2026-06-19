@@ -7,6 +7,7 @@ import { initials, tagColor, timeAgo } from "@/lib/format";
 import { Conversation } from "./conversation";
 import { ShopifyPanel } from "./shopify-panel";
 import { ShopSwitcher } from "./shop-switcher";
+import { SyncButton } from "./sync-button";
 
 const OPEN: ("open" | "pending" | "escalated")[] = ["open", "pending", "escalated"];
 
@@ -180,6 +181,7 @@ export default async function InboxPage({
         )}
         <div className="head">
           <h1>Posteingang</h1>
+          <SyncButton />
         </div>
         <div className="group-label">Tickets</div>
         {FOLDERS.map((f) => (
