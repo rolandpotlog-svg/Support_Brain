@@ -1,5 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   addNote,
@@ -38,11 +39,13 @@ export function Conversation({
   messages,
   supportEmail,
   assignees,
+  disputeId,
 }: {
   thread: Thread;
   messages: Msg[];
   supportEmail: string;
   assignees: Assignee[];
+  disputeId?: string | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
@@ -70,6 +73,11 @@ export function Conversation({
     <section className="convo">
       <div className="chead">
         <h2>{thread.subject || "(kein Betreff)"}</h2>
+        {disputeId && (
+          <Link href={`/cases/${disputeId}`} className="disputebadge" title="Verknüpfter Zahlungsstreitfall">
+            ⚠ Dispute
+          </Link>
+        )}
         <button className="icon-btn ghost" title="Eskalieren" onClick={() => {
           const reason = window.prompt("Grund für die Eskalation an die Geschäftsführung?") ?? "";
           run(() => escalateThread(thread.id, reason));

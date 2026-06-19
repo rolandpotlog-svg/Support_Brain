@@ -180,6 +180,127 @@ export async function getShopProfileData(creds: ShopifyCreds): Promise<ShopProfi
   };
 }
 
+export type ShopifyDispute = {
+  id: string;
+  evidenceId: string | null;
+  amount: string | null;
+  currency: string | null;
+  status: string;
+  type: string;
+  reason: string | null;
+  reasonCode: string | null;
+  evidenceDueBy: string | null;
+  evidenceSentOn: string | null;
+  finalizedOn: string | null;
+  initiatedAt: string | null;
+  orderId: string | null;
+  orderName: string | null;
+  customerEmail: string | null;
+  customerName: string | null;
+};
+
+/** Shopify-Payments-Disputes des Shops, inkl. verknüpfter Bestellung + Evidence-ID. */
+export async function getDisputes(creds: ShopifyCreds, first = 100): Promise<ShopifyDispute[]> {
+  const data = await gql<{
+    shopifyPaymentsAccount: {
+      disputes: {
+        nodes: {
+          id: string;
+          amount: Money | null;
+          evidenceDueBy: string | null;
+          evidenceSentOn: string | null;
+          finalizedOn: string | null;
+          initiatedAt: string | null;
+          reasonDetails: { reason: string | null; networkReasonCode: string | null } | null;
+          status: string;
+          type: string;
+          disputeEvidence: { id: string } | null;
+          order: { id: string; name: string; email: string | null; customer: { displayName: string } | null } | null;
+        }[];
+      };
+    } | null;
+  }>(
+    creds,
+    `query($first: Int!) {
+       shopifyPaymentsAccount {
+         disputes(first: $first) {
+           nodes {
+             id
+             amount { amount currencyCode }
+             evidenceDueBy evidenceSentOn finalizedOn initiatedAt
+             reasonDetails { reason networkReasonCode }
+             status type
+             disputeEvidence { id }
+             order { id name email customer { displayName } }
+           }
+         }
+       }
+     }`,
+    { first },
+  );
+  const nodes = data.shopifyPaymentsAccount?.disputes.nodes ?? [];
+  return nodes.map((d) => ({
+    id: d.id,
+    evidenceId: d.disputeEvidence?.id ?? null,
+    amount: d.amount?.amount ?? null,
+    currency: d.amount?.currencyCode ?? null,
+    status: d.status,
+    type: d.type,
+    reason: d.reasonDetails?.reason ?? null,
+    reasonCode: d.reasonDetails?.networkReasonCode ?? null,
+    evidenceDueBy: d.evidenceDueBy,
+    evidenceSentOn: d.evidenceSentOn,
+    finalizedOn: d.finalizedOn,
+    initiatedAt: d.initiatedAt,
+    orderId: d.order?.id ?? null,
+    orderName: d.order?.name ?? null,
+    customerEmail: d.order?.email ?? null,
+    customerName: d.order?.customer?.displayName ?? null,
+  }));
+}
+
+export type DisputeEvidenceInput = {
+  customerEmailAddress?: string;
+  customerFirstName?: string;
+  customerLastName?: string;
+  uncategorizedText?: string;
+  accessActivityLog?: string;
+  cancellationRebuttal?: string;
+  refundPolicyDisclosure?: string;
+  refundRefusalExplanation?: string;
+};
+
+/** Beweis-Evidence aktualisieren und optional einreichen (submit=true ist geldbewegend). */
+export async function submitDisputeEvidence(
+  creds: ShopifyCreds,
+  evidenceId: string,
+  input: DisputeEvidenceInput,
+  submit: boolean,
+): Promise<{ ok: boolean; errors: string[]; evidenceSentOn: string | null; status: string | null }> {
+  const data = await gql<{
+    disputeEvidenceUpdate: {
+      disputeEvidence: { dispute: { evidenceSentOn: string | null; status: string } } | null;
+      userErrors: { field: string[] | null; message: string }[];
+    };
+  }>(
+    creds,
+    `mutation($id: ID!, $input: ShopifyPaymentsDisputeEvidenceUpdateInput!) {
+       disputeEvidenceUpdate(id: $id, input: $input) {
+         disputeEvidence { dispute { evidenceSentOn status } }
+         userErrors { field message }
+       }
+     }`,
+    { id: evidenceId, input: { ...input, submitEvidence: submit } },
+  );
+  const errors = (data.disputeEvidenceUpdate.userErrors ?? []).map((e) => e.message);
+  return {
+    ok: errors.length === 0,
+    errors,
+    evidenceSentOn: data.disputeEvidenceUpdate.disputeEvidence?.dispute?.evidenceSentOn ?? null,
+    status: data.disputeEvidenceUpdate.disputeEvidence?.dispute?.status ?? null,
+  };
+}
+
 /** Bestellung exakt über die Bestellnummer (z. B. "335675775" oder "#335675775"). */
 export async function getOrderByName(
   creds: ShopifyCreds,

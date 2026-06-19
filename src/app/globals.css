@@ -309,6 +309,22 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .note-msg .note-tag { font-size: 12px; font-weight: 700; color: var(--tag-amber-fg); }
 .note-msg .mbody { white-space: pre-wrap; margin: 0; font-size: 14px; color: var(--text); }
 
+/* ── Fälle / Disputes ─────────────────────────────────────────────────── */
+.report { display: flex; flex-wrap: wrap; gap: 28px; }
+.rstat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.rstat .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
+.due { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.due .due-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.due.green { color: #067647; } .due.green .due-dot { background: #067647; }
+.due.amber { color: #92600a; } .due.amber .due-dot { background: #d9a300; }
+.due.rose { color: #b42318; } .due.rose .due-dot { background: #b42318; }
+.due.muted { color: var(--muted); } .due.muted .due-dot { background: var(--muted); }
+.disputebadge {
+  background: var(--tag-rose-bg, #fde8e8); color: #b42318; padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.disputebadge:hover { text-decoration: none; filter: brightness(0.97); }
+
 /* ── Shop-Profil (Antwort-Gehirn) ─────────────────────────────────────── */
 .tabnav { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
 .tabnav a {

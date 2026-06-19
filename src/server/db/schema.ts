@@ -106,6 +106,60 @@ export const shopProfile = pgTable("shop_profile", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Einheitliches Fall-Objekt (provider-agnostisch): Shopify-Payments-Chargebacks
+// (volle Bearbeitung) und PayPal-Käuferschutzfälle (read-only). `source` + `raw`
+// halten das Modell offen für spätere Quellen/Alert-Feeds.
+export const disputeCase = pgTable(
+  "dispute_case",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    source: text("source").notNull(), // 'shopify_payments' | 'paypal'
+    providerCaseId: text("provider_case_id").notNull(), // Shopify-Dispute-GID / PayPal-ID
+    providerEvidenceId: text("provider_evidence_id"), // Shopify Dispute-Evidence-GID (zum Einreichen)
+    orderId: text("order_id"), // Shopify-Bestell-GID
+    orderName: text("order_name"), // z. B. #1264
+    threadId: uuid("thread_id").references(() => threads.id, { onDelete: "set null" }),
+    customerEmail: text("customer_email"),
+    customerName: text("customer_name"),
+    amount: text("amount"),
+    currency: text("currency"),
+    reason: text("reason"), // Reason-Enum (z. B. FRAUDULENT)
+    reasonCode: text("reason_code"), // Network-Reason-Code (z. B. 4827)
+    type: text("type"), // CHARGEBACK | INQUIRY
+    status: text("status").notNull().default("needs_response"),
+    dueBy: timestamp("due_by", { withTimezone: true }),
+    initiatedAt: timestamp("initiated_at", { withTimezone: true }),
+    evidence: jsonb("evidence").$type<Record<string, string>>(), // Beweis-Textfelder (Entwurf)
+    decision: text("decision"), // 'fight' | 'accept' | null (Mensch)
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    outcome: text("outcome"), // 'won' | 'lost' | null
+    externalUrl: text("external_url"), // PayPal-Link
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    raw: jsonb("raw").$type<any>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("dispute_case_provider_uidx").on(t.shopId, t.source, t.providerCaseId),
+    index("dispute_case_due_idx").on(t.status, t.dueBy),
+  ],
+);
+
+// Audit-Log: jede Einreichung/Entscheidung protokollieren (wer/wann/was).
+export const disputeAudit = pgTable("dispute_audit", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  caseId: uuid("case_id")
+    .notNull()
+    .references(() => disputeCase.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id),
+  action: text("action").notNull(), // submitted | decision_fight | decision_accept | evidence_saved | synced
+  detail: text("detail"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Welcher Agent sieht welche Shops (Admins sehen alles, in Code geprüft).
 export const userShops = pgTable(
   "user_shops",

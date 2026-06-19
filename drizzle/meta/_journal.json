@@ -43,6 +43,13 @@
       "when": 1781878283564,
       "tag": "0005_pretty_skaar",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781891625553,
+      "tag": "0006_regular_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

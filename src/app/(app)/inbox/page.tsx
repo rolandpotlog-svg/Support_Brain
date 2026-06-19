@@ -167,6 +167,16 @@ export default async function InboxPage({
   }
 
   const assignees = selected && activeShopId ? await assignableUsers(activeShopId) : [];
+
+  // Verknüpfter Dispute-Fall (Badge in der Konversation).
+  let disputeId: string | null = null;
+  if (selectedThread) {
+    const dc = await db.query.disputeCase.findFirst({
+      where: eq(schema.disputeCase.threadId, selectedThread.id),
+    });
+    disputeId = dc?.id ?? null;
+  }
+
   const activeFolder = FOLDERS.find((f) => f.key === folder) ?? FOLDERS[0];
 
   return (
@@ -258,6 +268,7 @@ export default async function InboxPage({
           messages={selected.messages}
           supportEmail={supportEmail}
           assignees={assignees}
+          disputeId={disputeId}
         />
       ) : (
         <section className="convo">
