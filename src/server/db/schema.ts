@@ -285,6 +285,9 @@ export const messages = pgTable(
     bodyHtml: text("body_html"),
     messageId: text("message_id"),
     inReplyTo: text("in_reply_to"),
+    // Serverseitige IMAP-Position (für Ordner-Spiegelung): aktuelle UID + Ordner.
+    imapUid: bigint("imap_uid", { mode: "number" }),
+    imapFolder: text("imap_folder"),
     sentBy: uuid("sent_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
