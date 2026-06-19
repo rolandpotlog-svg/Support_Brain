@@ -25,7 +25,9 @@ export type ShopInput = {
   name: string;
   active: boolean;
   shopifyDomain: string; // leer = Shopify trennen
-  shopifyToken: string; // leer = bestehenden Token behalten
+  shopifyClientId: string; // Client-Credentials-Grant (primär)
+  shopifyClientSecret: string; // leer = bestehendes behalten
+  shopifyToken: string; // Legacy shpat_-Token (Fallback); leer = behalten
   mailboxes: MailboxInput[];
 };
 
@@ -41,7 +43,10 @@ function slugify(name: string): string {
 }
 
 function cleanDomain(raw: string): string {
-  return raw.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  return raw
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/[/.\s]+$/, ""); // abschließende Slashes, Punkte, Leerzeichen entfernen
 }
 
 async function uniqueSlug(base: string, exceptId?: string): Promise<string> {
@@ -86,24 +91,52 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
 
     // --- Shopify-Zugang ---
     const domain = cleanDomain(input.shopifyDomain);
-    const token = input.shopifyToken.trim();
+    const clientId = input.shopifyClientId.trim();
+    const clientSecret = input.shopifyClientSecret.trim();
+    const legacyToken = input.shopifyToken.trim();
     const existingShopify = await tx.query.shopShopify.findFirst({
       where: eq(schema.shopShopify.shopId, id),
     });
-    if (!domain) {
-      if (existingShopify) {
-        await tx.delete(schema.shopShopify).where(eq(schema.shopShopify.shopId, id));
-      }
-    } else {
-      if (!token && !existingShopify) throw new Error("Shopify-Token nötig (oder Domain leer lassen)");
-      const adminTokenEnc = token ? encrypt(token) : existingShopify!.adminTokenEnc;
-      await tx
+
+    const upsertShopify = (vals: Omit<typeof schema.shopShopify.$inferInsert, "shopId">) =>
+      tx
         .insert(schema.shopShopify)
-        .values({ shopId: id, storeDomain: domain, adminTokenEnc })
+        .values({ shopId: id, ...vals })
         .onConflictDoUpdate({
           target: schema.shopShopify.shopId,
-          set: { storeDomain: domain, adminTokenEnc, updatedAt: new Date() },
+          set: { ...vals, updatedAt: new Date() },
         });
+
+    if (!domain) {
+      if (existingShopify) await tx.delete(schema.shopShopify).where(eq(schema.shopShopify.shopId, id));
+    } else if (clientId) {
+      // Client-Credentials-Grant (Dev-Dashboard-App)
+      const clientSecretEnc = clientSecret ? encrypt(clientSecret) : existingShopify?.clientSecretEnc ?? null;
+      if (!clientSecretEnc) throw new Error("Client Secret nötig");
+      await upsertShopify({
+        storeDomain: domain,
+        clientId,
+        clientSecretEnc,
+        adminTokenEnc: null,
+        tokenExpiresAt: null,
+      });
+    } else if (legacyToken) {
+      // Legacy shpat_-Token
+      await upsertShopify({
+        storeDomain: domain,
+        adminTokenEnc: encrypt(legacyToken),
+        clientId: null,
+        clientSecretEnc: null,
+        tokenExpiresAt: null,
+      });
+    } else if (existingShopify) {
+      // Nur Domain geändert -> Modus/Creds behalten, Token-Cache invalidieren.
+      await tx
+        .update(schema.shopShopify)
+        .set({ storeDomain: domain, tokenExpiresAt: null, updatedAt: new Date() })
+        .where(eq(schema.shopShopify.shopId, id));
+    } else {
+      throw new Error("Bitte Client-ID + Client Secret angeben (oder einen Legacy-Token).");
     }
 
     // --- Postfächer (mehrere) ---

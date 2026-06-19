@@ -45,6 +45,8 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
   const [name, setName] = useState(initial?.name ?? "");
   const [active, setActive] = useState(initial?.active ?? true);
   const [shopifyDomain, setShopifyDomain] = useState(initial?.shopify.domain ?? "");
+  const [shopifyClientId, setShopifyClientId] = useState(initial?.shopify.clientId ?? "");
+  const [shopifyClientSecret, setShopifyClientSecret] = useState("");
   const [shopifyToken, setShopifyToken] = useState("");
   const [rows, setRows] = useState<Row[]>(rowsFrom(initial));
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +76,8 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
       name,
       active,
       shopifyDomain,
+      shopifyClientId,
+      shopifyClientSecret,
       shopifyToken,
       mailboxes: rows.map((r) => ({
         id: r.id,
@@ -142,22 +146,41 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
       <section className="card">
         <h2>Shopify-Zugang</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          {initial?.shopify.configured ? "Verbunden — Token gesetzt." : "Optional. Token wird verschlüsselt gespeichert."}
+          {initial?.shopify.configured
+            ? `Verbunden (${initial.shopify.clientId ? "Client-Credentials" : "Legacy-Token"}). Das Tool holt den Token selbst.`
+            : "Client-Credentials-Grant: Client-ID + Secret aus der Dev-Dashboard-App. Das Tool holt den Admin-API-Token automatisch (verschlüsselt gespeichert)."}
         </p>
         <div className="invite">
           <input
-            placeholder="store.myshopify.com"
+            placeholder="store.myshopify.com (z. B. repello-1157.myshopify.com)"
             value={shopifyDomain}
             onChange={(e) => setShopifyDomain(e.target.value)}
           />
           <input
-            type="password"
-            placeholder={initial?.shopify.configured ? "Token (leer = behalten)" : "Admin-API-Token (shpat_…)"}
-            value={shopifyToken}
-            onChange={(e) => setShopifyToken(e.target.value)}
+            placeholder="Client-ID"
+            value={shopifyClientId}
+            onChange={(e) => setShopifyClientId(e.target.value)}
           />
+          <input
+            type="password"
+            placeholder={initial?.shopify.hasClientSecret ? "Client Secret (leer = behalten)" : "Client Secret"}
+            value={shopifyClientSecret}
+            onChange={(e) => setShopifyClientSecret(e.target.value)}
+          />
+          <details>
+            <summary className="muted" style={{ fontSize: 12, cursor: "pointer" }}>
+              Alternative: Legacy Admin-API-Token (shpat_…)
+            </summary>
+            <input
+              type="password"
+              style={{ marginTop: 8, width: "100%" }}
+              placeholder={initial?.shopify.hasLegacyToken ? "Token (leer = behalten)" : "shpat_… (nur falls keine Client-ID)"}
+              value={shopifyToken}
+              onChange={(e) => setShopifyToken(e.target.value)}
+            />
+          </details>
           <span className="muted" style={{ fontSize: 12 }}>
-            Domain leer lassen entfernt die Shopify-Verbindung.
+            Scopes werden im Dev Dashboard gesetzt. Domain leer lassen entfernt die Verbindung.
           </span>
         </div>
       </section>

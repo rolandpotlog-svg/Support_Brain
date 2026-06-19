@@ -83,7 +83,12 @@ export const shopShopify = pgTable("shop_shopify", {
     .primaryKey()
     .references(() => shops.id, { onDelete: "cascade" }),
   storeDomain: text("store_domain").notNull(), // z. B. deinshop.myshopify.com
-  adminTokenEnc: text("admin_token_enc").notNull(),
+  // Aktiver Admin-API-Token: entweder Legacy-shpat_ ODER der gecachte CCG-Token.
+  adminTokenEnc: text("admin_token_enc"),
+  // Client-Credentials-Grant (Dev-Dashboard-App): Tool holt den Token selbst.
+  clientId: text("client_id"),
+  clientSecretEnc: text("client_secret_enc"),
+  tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

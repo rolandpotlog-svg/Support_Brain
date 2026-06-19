@@ -1,7 +1,7 @@
 // Shopify Admin GraphQL API. Credentials kommen PRO SHOP aus der DB (shop_shopify),
 // nicht mehr global aus .env — jeder Shop spricht seinen eigenen Store an.
 // Die MCP-Verbindung bleibt bewusst für spätere KI-Aktionen reserviert.
-const API_VERSION = "2025-01";
+const API_VERSION = "2026-01";
 
 /** Zugangsdaten eines einzelnen Shopify-Stores (entschlüsselt, kurzlebig). */
 export type ShopifyCreds = { domain: string; token: string };

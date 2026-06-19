@@ -53,7 +53,13 @@ export type ShopDetail = {
   name: string;
   slug: string;
   active: boolean;
-  shopify: { configured: boolean; domain: string | null };
+  shopify: {
+    configured: boolean;
+    domain: string | null;
+    clientId: string | null;
+    hasClientSecret: boolean;
+    hasLegacyToken: boolean;
+  };
   mailboxes: MailboxView[];
 };
 
@@ -64,7 +70,7 @@ export async function loadShopForEdit(shopId: string): Promise<ShopDetail | null
 
   const sh = await db.query.shopShopify.findFirst({
     where: eq(schema.shopShopify.shopId, shopId),
-    columns: { storeDomain: true },
+    columns: { storeDomain: true, clientId: true, clientSecretEnc: true, adminTokenEnc: true },
   });
 
   const mbs = await db
@@ -88,7 +94,13 @@ export async function loadShopForEdit(shopId: string): Promise<ShopDetail | null
     name: shop.name,
     slug: shop.slug,
     active: shop.active,
-    shopify: { configured: Boolean(sh), domain: sh?.storeDomain ?? null },
+    shopify: {
+      configured: Boolean(sh),
+      domain: sh?.storeDomain ?? null,
+      clientId: sh?.clientId ?? null,
+      hasClientSecret: Boolean(sh?.clientSecretEnc),
+      hasLegacyToken: Boolean(sh?.adminTokenEnc),
+    },
     mailboxes: mbs.map((m) => ({ ...m, passwordsSet: true })),
   };
 }
