@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { and, count, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNull, or, type SQL } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { accessibleShopIds, requireUser } from "@/server/access";
+import { accessibleShopIds, assignableUsers, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { initials, tagColor, timeAgo } from "@/lib/format";
 import { Conversation } from "./conversation";
@@ -37,9 +37,10 @@ function folderConds(folder: string, userId: string, shopId: string): SQL[] {
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ folder?: string; ticket?: string }>;
+  searchParams: Promise<{ folder?: string; ticket?: string; q?: string }>;
 }) {
-  const { folder = "all-open", ticket } = await searchParams;
+  const { folder = "all-open", ticket, q } = await searchParams;
+  const search = q?.trim() ?? "";
   const user = await requireUser();
   const accessible = await accessibleShopIds(user);
 
@@ -81,7 +82,21 @@ export default async function InboxPage({
     );
   }
 
-  // Ticket-Liste des aktiven Ordners (nur aktiver Shop)
+  // Ticket-Liste: bei Suche shop-weit über alle Status, sonst aktiver Ordner.
+  function listWhere(shopId: string): SQL {
+    if (search) {
+      const like = `%${search}%`;
+      const parts: SQL[] = [
+        ilike(schema.threads.subject, like),
+        ilike(schema.threads.customerEmail, like),
+        ilike(schema.threads.customerName, like),
+      ];
+      if (/^\d+$/.test(search)) parts.push(eq(schema.threads.number, Number(search)));
+      return and(eq(schema.threads.shopId, shopId), or(...parts)!)!;
+    }
+    return and(...folderConds(folder, user.id, shopId))!;
+  }
+
   const tickets = activeShopId
     ? await db
         .select({
@@ -92,13 +107,25 @@ export default async function InboxPage({
           customerName: schema.threads.customerName,
           tag: schema.threads.tag,
           status: schema.threads.status,
+          assigneeId: schema.threads.assigneeId,
           lastMessageAt: schema.threads.lastMessageAt,
         })
         .from(schema.threads)
-        .where(and(...folderConds(folder, user.id, activeShopId)))
+        .where(listWhere(activeShopId))
         .orderBy(desc(schema.threads.lastMessageAt))
         .limit(100)
     : [];
+
+  // Namen der zugewiesenen Agents für die Badges.
+  const assigneeIds = [...new Set(tickets.map((t) => t.assigneeId).filter(Boolean))] as string[];
+  const assigneeMap = new Map<string, string>();
+  if (assigneeIds.length) {
+    const us = await db
+      .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+      .from(schema.users)
+      .where(inArray(schema.users.id, assigneeIds));
+    for (const u of us) assigneeMap.set(u.id, u.name || u.email);
+  }
 
   // Ausgewähltes Ticket laden (früh aufgelöster Thread)
   let selected: (typeof tickets[number] & { messages: Msg[] }) | null = null;
@@ -123,6 +150,7 @@ export default async function InboxPage({
         customerName: t.customerName,
         tag: t.tag,
         status: t.status,
+        assigneeId: t.assigneeId,
         lastMessageAt: t.lastMessageAt,
         messages: messages.map((m) => ({
           id: m.id,
@@ -136,6 +164,7 @@ export default async function InboxPage({
     }
   }
 
+  const assignees = selected && activeShopId ? await assignableUsers(activeShopId) : [];
   const activeFolder = FOLDERS.find((f) => f.key === folder) ?? FOLDERS[0];
 
   return (
@@ -150,8 +179,6 @@ export default async function InboxPage({
         )}
         <div className="head">
           <h1>Posteingang</h1>
-          <button className="icon-btn ghost" aria-label="Suche">⌕</button>
-          <button className="icon-btn primary" aria-label="Neu">+</button>
         </div>
         <div className="group-label">Tickets</div>
         {FOLDERS.map((f) => (
@@ -171,9 +198,16 @@ export default async function InboxPage({
       <section className="tickets">
         <div className="head">
           <span className="title">
-            <span className="play">▶</span> {activeFolder.label}
+            <span className="play">▶</span> {search ? `Suche: „${search}"` : activeFolder.label}
           </span>
         </div>
+        {hasShops && (
+          <form className="searchbar" action="/inbox">
+            <input type="hidden" name="folder" value={folder} />
+            <input name="q" defaultValue={search} placeholder="Suchen… (Name, E-Mail, Betreff, #Nr.)" />
+            {search && <Link href={`/inbox?folder=${folder}`} className="clear" title="Suche löschen">✕</Link>}
+          </form>
+        )}
         <div className="list">
           {tickets.map((t) => (
             <Link
@@ -189,6 +223,11 @@ export default async function InboxPage({
               <div className="subj">{t.subject || "(kein Betreff)"}</div>
               <div className="bottom">
                 {t.tag && <span className={`tag ${tagColor(t.tag)}`}>{t.tag}</span>}
+                {t.assigneeId && (
+                  <span className="assignee" title={`Zugewiesen: ${assigneeMap.get(t.assigneeId) ?? "?"}`}>
+                    {initials(assigneeMap.get(t.assigneeId) ?? null, "?")}
+                  </span>
+                )}
                 <span className="num">#{t.number}</span>
               </div>
             </Link>
@@ -210,9 +249,12 @@ export default async function InboxPage({
             customerEmail: selected.customerEmail,
             customerName: selected.customerName,
             status: selected.status,
+            assigneeId: selected.assigneeId,
+            tag: selected.tag,
           }}
           messages={selected.messages}
           supportEmail={supportEmail}
+          assignees={assignees}
         />
       ) : (
         <section className="convo">

@@ -283,3 +283,18 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .testline.ok .dot { background: #067647; }
 .testline.bad .dot { background: #b42318; }
 .testline.bad { color: #b42318; }
+
+/* ── Posteingang: Toolbar, Suche, Assignee ────────────────────────────── */
+.ctoolbar { display: flex; gap: 16px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.ctool { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.ctool select { padding: 4px 6px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel-2); font-size: 13px; color: var(--text); }
+.searchbar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.searchbar input { flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); font-size: 13px; }
+.searchbar .clear { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
+.searchbar .clear:hover { background: var(--panel-2); text-decoration: none; }
+.assignee {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent-weak); color: var(--accent); font-size: 10px; font-weight: 700; margin-left: auto;
+}
+/* Assignee schiebt sich (und die Nummer) nach rechts; Nummer sonst weiter via margin-auto. */
+.assignee + .num { margin-left: 6px; }

@@ -1,8 +1,16 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { escalateThread, replyToThread, setThreadStatus } from "@/server/actions/inbox";
+import {
+  assignThread,
+  escalateThread,
+  replyToThread,
+  setThreadStatus,
+  setThreadTag,
+} from "@/server/actions/inbox";
 import { initials, timeAgo } from "@/lib/format";
+
+const TAG_PRESETS = ["Bestellstatus", "Beschädigte Ware", "Retoure/Umtausch", "Sonstiges"];
 
 type Msg = {
   id: string;
@@ -12,22 +20,27 @@ type Msg = {
   bodyText: string | null;
   createdAt: string;
 };
+type Assignee = { id: string; name: string | null; email: string };
 type Thread = {
   id: string;
   subject: string | null;
   customerEmail: string;
   customerName: string | null;
   status: string;
+  assigneeId: string | null;
+  tag: string | null;
 };
 
 export function Conversation({
   thread,
   messages,
   supportEmail,
+  assignees,
 }: {
   thread: Thread;
   messages: Msg[];
   supportEmail: string;
+  assignees: Assignee[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
@@ -47,6 +60,9 @@ export function Conversation({
     });
   }
 
+  const isClosed = thread.status === "closed";
+  const isSpam = thread.status === "spam";
+
   return (
     <section className="convo">
       <div className="chead">
@@ -55,13 +71,54 @@ export function Conversation({
           const reason = window.prompt("Grund für die Eskalation an die Geschäftsführung?") ?? "";
           run(() => escalateThread(thread.id, reason));
         }}>⚑</button>
+        {isClosed ? (
+          <button disabled={pending} onClick={() => run(() => setThreadStatus(thread.id, "open"))}>
+            ↩ Wieder öffnen
+          </button>
+        ) : (
+          <button className="green" disabled={pending} onClick={() => run(() => setThreadStatus(thread.id, "closed"))}>
+            ✓ Schließen
+          </button>
+        )}
         <button
-          className="green"
+          className={isSpam ? "" : "warn"}
           disabled={pending}
-          onClick={() => run(() => setThreadStatus(thread.id, "closed"))}
+          onClick={() => run(() => setThreadStatus(thread.id, isSpam ? "open" : "spam"))}
         >
-          ✓ Schließen
+          {isSpam ? "Kein Spam" : "⊘ Spam"}
         </button>
+      </div>
+
+      <div className="ctoolbar">
+        <label className="ctool">
+          <span>Zugewiesen</span>
+          <select
+            value={thread.assigneeId ?? ""}
+            disabled={pending}
+            onChange={(e) => run(() => assignThread(thread.id, e.target.value || null))}
+          >
+            <option value="">— niemand</option>
+            {assignees.map((u) => (
+              <option key={u.id} value={u.id}>{u.name || u.email}</option>
+            ))}
+          </select>
+        </label>
+        <label className="ctool">
+          <span>Tag</span>
+          <select
+            value={thread.tag ?? ""}
+            disabled={pending}
+            onChange={(e) => run(() => setThreadTag(thread.id, e.target.value || null))}
+          >
+            <option value="">— kein Tag</option>
+            {TAG_PRESETS.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+            {thread.tag && !TAG_PRESETS.includes(thread.tag) && (
+              <option value={thread.tag}>{thread.tag}</option>
+            )}
+          </select>
+        </label>
       </div>
 
       <div className="body">

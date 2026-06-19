@@ -25,6 +25,28 @@ async function loadThread(threadId: string) {
   return t;
 }
 
+export async function assignThread(threadId: string, assigneeId: string | null) {
+  const user = await requireUser();
+  const t = await loadThread(threadId);
+  await assertShopAccess(user, t.shopId);
+  await db
+    .update(schema.threads)
+    .set({ assigneeId })
+    .where(eq(schema.threads.id, threadId));
+  revalidatePath("/inbox");
+}
+
+export async function setThreadTag(threadId: string, tag: string | null) {
+  const user = await requireUser();
+  const t = await loadThread(threadId);
+  await assertShopAccess(user, t.shopId);
+  await db
+    .update(schema.threads)
+    .set({ tag: tag && tag.trim() ? tag.trim() : null })
+    .where(eq(schema.threads.id, threadId));
+  revalidatePath("/inbox");
+}
+
 export async function setThreadStatus(threadId: string, status: string) {
   const user = await requireUser();
   const t = await loadThread(threadId);
