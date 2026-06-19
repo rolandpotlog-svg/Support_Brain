@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 export function IconRail({ isAdmin }: { isAdmin: boolean }) {
   const path = usePathname();
   const onInbox = path.startsWith("/inbox") || path.startsWith("/threads");
+  const onCases = path.startsWith("/cases");
   const onAdmin = path.startsWith("/admin");
 
   return (
@@ -17,6 +18,14 @@ export function IconRail({ isAdmin }: { isAdmin: boolean }) {
           <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
         </svg>
       </Link>
+      {isAdmin && (
+        <Link href="/cases" className={onCases ? "active" : ""} title="Fälle (Disputes)" aria-label="Fälle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <path d="M9 12l2 2 4-4" />
+          </svg>
+        </Link>
+      )}
       {isAdmin && (
         <Link href="/admin" className={onAdmin ? "active" : ""} title="Admin" aria-label="Admin">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
