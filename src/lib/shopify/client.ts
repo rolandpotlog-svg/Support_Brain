@@ -1,8 +1,10 @@
-// Shopify Admin GraphQL API. Token + Domain als Secret aus .env — NICHT im Code.
-//   SHOPIFY_STORE_DOMAIN=deinshop.myshopify.com
-//   SHOPIFY_ADMIN_TOKEN=shpat_...   (Admin-API-Token einer Custom App)
+// Shopify Admin GraphQL API. Credentials kommen PRO SHOP aus der DB (shop_shopify),
+// nicht mehr global aus .env — jeder Shop spricht seinen eigenen Store an.
 // Die MCP-Verbindung bleibt bewusst für spätere KI-Aktionen reserviert.
 const API_VERSION = "2025-01";
+
+/** Zugangsdaten eines einzelnen Shopify-Stores (entschlüsselt, kurzlebig). */
+export type ShopifyCreds = { domain: string; token: string };
 
 export type Money = { amount: string; currencyCode: string };
 export type ShopifyCustomer = {
@@ -31,20 +33,19 @@ export type ShopifyOrder = {
   lineItems: LineItem[];
 };
 
-export function isConfigured(): boolean {
-  return Boolean(process.env.SHOPIFY_STORE_DOMAIN && process.env.SHOPIFY_ADMIN_TOKEN);
-}
-
 class ShopifyError extends Error {}
 
-async function gql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-  if (!isConfigured()) throw new ShopifyError("Shopify nicht konfiguriert");
-  const domain = process.env.SHOPIFY_STORE_DOMAIN!;
-  const res = await fetch(`https://${domain}/admin/api/${API_VERSION}/graphql.json`, {
+async function gql<T>(
+  creds: ShopifyCreds,
+  query: string,
+  variables: Record<string, unknown> = {},
+): Promise<T> {
+  if (!creds.domain || !creds.token) throw new ShopifyError("Shopify nicht konfiguriert");
+  const res = await fetch(`https://${creds.domain}/admin/api/${API_VERSION}/graphql.json`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN!,
+      "X-Shopify-Access-Token": creds.token,
     },
     body: JSON.stringify({ query, variables }),
     cache: "no-store",
@@ -115,11 +116,13 @@ function mapCustomer(c: any): ShopifyCustomer {
 
 /** Bestellung exakt über die Bestellnummer (z. B. "335675775" oder "#335675775"). */
 export async function getOrderByName(
+  creds: ShopifyCreds,
   raw: string,
 ): Promise<{ order: ShopifyOrder; customer: ShopifyCustomer | null } | null> {
   const num = raw.replace(/[^0-9]/g, "");
   if (!num) return null;
   const data = await gql<{ orders: { nodes: any[] } }>(
+    creds,
     `query($q: String!) { orders(first: 1, query: $q) { nodes { ${ORDER_FIELDS} customer { ${CUSTOMER_FIELDS} } } } }`,
     { q: `name:${num}` },
   );
@@ -129,8 +132,12 @@ export async function getOrderByName(
 }
 
 /** Kunde exakt über die E-Mail-Adresse. */
-export async function findCustomerByEmail(email: string): Promise<ShopifyCustomer | null> {
+export async function findCustomerByEmail(
+  creds: ShopifyCreds,
+  email: string,
+): Promise<ShopifyCustomer | null> {
   const data = await gql<{ customers: { nodes: any[] } }>(
+    creds,
     `query($q: String!) { customers(first: 1, query: $q) { nodes { ${CUSTOMER_FIELDS} } } }`,
     { q: `email:${email}` },
   );
@@ -139,10 +146,14 @@ export async function findCustomerByEmail(email: string): Promise<ShopifyCustome
 }
 
 /** Namensabgleich (Fallback) — kann mehrdeutig sein, daher Liste. */
-export async function findCustomersByName(name: string): Promise<ShopifyCustomer[]> {
+export async function findCustomersByName(
+  creds: ShopifyCreds,
+  name: string,
+): Promise<ShopifyCustomer[]> {
   const clean = name.trim();
   if (!clean) return [];
   const data = await gql<{ customers: { nodes: any[] } }>(
+    creds,
     `query($q: String!) { customers(first: 10, query: $q) { nodes { ${CUSTOMER_FIELDS} } } }`,
     { q: clean },
   );
@@ -151,10 +162,12 @@ export async function findCustomersByName(name: string): Promise<ShopifyCustomer
 
 /** Bestellungen eines Kunden, durchblätterbar. */
 export async function getCustomerOrders(
+  creds: ShopifyCreds,
   customerId: string,
   after: string | null = null,
 ): Promise<{ orders: ShopifyOrder[]; cursor: string | null; hasNext: boolean; total: number }> {
   const data = await gql<{ customer: any }>(
+    creds,
     `query($id: ID!, $after: String) {
        customer(id: $id) {
          numberOfOrders

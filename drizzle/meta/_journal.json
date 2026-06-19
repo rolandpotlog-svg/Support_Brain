@@ -15,6 +15,13 @@
       "when": 1781849959924,
       "tag": "0001_yummy_landau",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781868069595,
+      "tag": "0002_skinny_bill_hollister",
+      "breakpoints": true
     }
   ]
 }

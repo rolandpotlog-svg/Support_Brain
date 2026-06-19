@@ -6,6 +6,11 @@ import { requireAdmin } from "@/server/access";
 import { encrypt } from "@/lib/mailbox/crypto";
 import { hashPassword } from "@/lib/password";
 
+/** Store-Domain normalisieren: ohne Protokoll, ohne abschließenden Slash. */
+function cleanDomain(raw: string): string {
+  return raw.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+}
+
 export async function createUser(formData: FormData) {
   await requireAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -37,6 +42,10 @@ export async function createShop(formData: FormData) {
   const imapHost = String(formData.get("imapHost") ?? "").trim();
   const hasMailbox = imapHost.length > 0;
 
+  const shopifyDomain = cleanDomain(String(formData.get("shopifyDomain") ?? ""));
+  const shopifyToken = String(formData.get("shopifyToken") ?? "").trim();
+  const hasShopify = shopifyDomain.length > 0 && shopifyToken.length > 0;
+
   await db.transaction(async (tx) => {
     const [s] = await tx
       .insert(schema.shops)
@@ -57,7 +66,39 @@ export async function createShop(formData: FormData) {
         fromName: String(formData.get("fromName") ?? "") || null,
       });
     }
+    if (hasShopify) {
+      await tx.insert(schema.shopShopify).values({
+        shopId: s.id,
+        storeDomain: shopifyDomain,
+        adminTokenEnc: encrypt(shopifyToken),
+      });
+    }
   });
+  revalidatePath("/admin");
+}
+
+/** Shopify-Zugang eines Shops setzen/aktualisieren. Token leer = bestehenden behalten. */
+export async function setShopifyConfig(formData: FormData) {
+  await requireAdmin();
+  const shopId = String(formData.get("shopId") ?? "");
+  const domain = cleanDomain(String(formData.get("storeDomain") ?? ""));
+  const token = String(formData.get("adminToken") ?? "").trim();
+  if (!shopId) throw new Error("Shop fehlt");
+  if (!domain) throw new Error("Store-Domain nötig (z. B. deinshop.myshopify.com)");
+
+  const existing = await db.query.shopShopify.findFirst({
+    where: eq(schema.shopShopify.shopId, shopId),
+  });
+  if (!token && !existing) throw new Error("Admin-API-Token nötig");
+  const adminTokenEnc = token ? encrypt(token) : existing!.adminTokenEnc;
+
+  await db
+    .insert(schema.shopShopify)
+    .values({ shopId, storeDomain: domain, adminTokenEnc })
+    .onConflictDoUpdate({
+      target: schema.shopShopify.shopId,
+      set: { storeDomain: domain, adminTokenEnc, updatedAt: new Date() },
+    });
   revalidatePath("/admin");
 }
 

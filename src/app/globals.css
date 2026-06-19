@@ -96,6 +96,20 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
 }
+.folders .shopbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.folders .shopbar .shoplabel {
+  font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.folders .shopbar .shopswitch {
+  flex: 1; min-width: 0; padding: 6px 8px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--panel-2);
+  font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer;
+}
+.folders .shopbar .shopcur { flex: 1; font-size: 14px; font-weight: 700; }
 .folders .head {
   display: flex; align-items: center; gap: 8px;
   padding: 16px 16px 10px;

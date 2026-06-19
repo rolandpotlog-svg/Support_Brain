@@ -108,7 +108,7 @@ function CustomerHead({ customer }: { customer: ShopifyCustomer | null }) {
   );
 }
 
-function ManualSearch({ onResult }: { onResult: (r: Resolution) => void }) {
+function ManualSearch({ shopId, onResult }: { shopId: string; onResult: (r: Resolution) => void }) {
   const [type, setType] = useState<"order" | "email" | "name">("order");
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -126,7 +126,7 @@ function ManualSearch({ onResult }: { onResult: (r: Resolution) => void }) {
           disabled={busy || !q.trim()}
           onClick={async () => {
             setBusy(true);
-            onResult(await manualSearch(type, q));
+            onResult(await manualSearch(shopId, type, q));
             setBusy(false);
           }}
         >
@@ -137,7 +137,7 @@ function ManualSearch({ onResult }: { onResult: (r: Resolution) => void }) {
   );
 }
 
-export function ShopifyPanel({ threadId }: { threadId: string }) {
+export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: string }) {
   const [res, setRes] = useState<Resolution | null>(null);
   // Lokale Navigation für E-Mail/Kunden-Modus (durchblätterbare Bestellungen).
   const [orders, setOrders] = useState<ShopifyOrder[]>([]);
@@ -173,7 +173,7 @@ export function ShopifyPanel({ threadId }: { threadId: string }) {
     if (idx + 1 < orders.length) return setIdx(idx + 1);
     if (!cursorNext) return;
     setNavBusy(true);
-    const o = await loadCustomerOrders(customer.id, cursorNext);
+    const o = await loadCustomerOrders(shopId, customer.id, cursorNext);
     setNavBusy(false);
     if (o.orders.length) {
       setOrders([...orders, ...o.orders]);
@@ -188,8 +188,9 @@ export function ShopifyPanel({ threadId }: { threadId: string }) {
     return (
       <div className="sec">
         <div className="note">
-          Shopify ist noch nicht verbunden. Hinterlege <b>SHOPIFY_STORE_DOMAIN</b> und{" "}
-          <b>SHOPIFY_ADMIN_TOKEN</b> in <b>.env</b>, dann erscheinen hier Kunde &amp; Bestellungen.
+          Shopify ist für diesen Shop noch nicht verbunden. Im <b>Admin</b> unter
+          {" "}<b>Shopify-Zugang</b> Store-Domain &amp; Admin-API-Token hinterlegen, dann
+          erscheinen hier Kunde &amp; Bestellungen.
         </div>
       </div>
     );
@@ -199,7 +200,7 @@ export function ShopifyPanel({ threadId }: { threadId: string }) {
     return (
       <>
         <div className="sec"><div className="note">Shopify-Fehler: {res.message}</div></div>
-        <ManualSearch onResult={apply} />
+        <ManualSearch shopId={shopId} onResult={apply} />
       </>
     );
   }
@@ -209,7 +210,7 @@ export function ShopifyPanel({ threadId }: { threadId: string }) {
       <>
         <CustomerHead customer={res.customer} />
         <OrderBlock order={res.order} />
-        <ManualSearch onResult={apply} />
+        <ManualSearch shopId={shopId} onResult={apply} />
       </>
     );
   }
@@ -225,7 +226,7 @@ export function ShopifyPanel({ threadId }: { threadId: string }) {
             <button
               key={c.id}
               className="candidate"
-              onClick={async () => setRes(await pickCandidate(c))}
+              onClick={async () => setRes(await pickCandidate(shopId, c))}
             >
               <div className="cav">{initials(c.displayName, c.email ?? "?")}</div>
               <div style={{ minWidth: 0 }}>
@@ -235,7 +236,7 @@ export function ShopifyPanel({ threadId }: { threadId: string }) {
             </button>
           ))}
         </div>
-        <ManualSearch onResult={apply} />
+        <ManualSearch shopId={shopId} onResult={apply} />
       </>
     );
   }
@@ -244,7 +245,7 @@ export function ShopifyPanel({ threadId }: { threadId: string }) {
     return (
       <>
         <div className="sec"><div className="note">Keine Shopify-Bestellung gefunden.</div></div>
-        <ManualSearch onResult={apply} />
+        <ManualSearch shopId={shopId} onResult={apply} />
       </>
     );
   }

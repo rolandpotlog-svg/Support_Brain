@@ -3,13 +3,15 @@ import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { requireUser } from "@/server/access";
-import { createShop, createUser, setKillSwitch } from "@/server/actions/admin";
+import { createShop, createUser, setKillSwitch, setShopifyConfig } from "@/server/actions/admin";
+import { shopifyStatus } from "@/server/shopify-config";
 
 export default async function AdminPage() {
   const user = await requireUser();
   if (user.role !== "admin") redirect("/inbox");
 
   const shops = await db.select().from(schema.shops).orderBy(schema.shops.name);
+  const shopifyStates = await Promise.all(shops.map((s) => shopifyStatus(s.id)));
   const users = await db.select().from(schema.users).orderBy(schema.users.createdAt);
   const assignments = await db.select().from(schema.userShops);
   const shopsByUser = new Map<string, number>();
@@ -106,6 +108,13 @@ export default async function AdminPage() {
             <input name="fromEmail" type="email" placeholder="Absender-E-Mail" />
             <input name="fromName" placeholder="Absender-Name" />
           </div>
+          <p className="muted" style={{ margin: "4px 0" }}>
+            Shopify (optional — lässt sich auch später unten setzen):
+          </p>
+          <div className="row">
+            <input name="shopifyDomain" placeholder="store.myshopify.com" />
+            <input name="shopifyToken" type="password" placeholder="Admin-API-Token (shpat_…)" />
+          </div>
           <button className="primary" type="submit">Shop anlegen</button>
         </form>
       </section>
@@ -141,6 +150,47 @@ export default async function AdminPage() {
             )}
           </tbody>
         </table>
+      </section>
+
+      <section className="card">
+        <h2>Shopify-Zugang</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Pro Shop ein eigener Store. Token wird verschlüsselt gespeichert und nie angezeigt.
+        </p>
+        {shops.length === 0 && <p className="muted">Noch keine Shops.</p>}
+        {shops.map((s, i) => (
+          <form
+            key={s.id}
+            className="invite"
+            action={setShopifyConfig}
+            style={{ marginBottom: 18, maxWidth: 560 }}
+          >
+            <input type="hidden" name="shopId" value={s.id} />
+            <div className="row" style={{ alignItems: "center" }}>
+              <strong style={{ flex: "0 0 auto" }}>{s.name}</strong>
+              <span className={shopifyStates[i].configured ? "sbadge paid" : "muted"}>
+                {shopifyStates[i].configured
+                  ? `verbunden · ${shopifyStates[i].domain}`
+                  : "nicht verbunden"}
+              </span>
+            </div>
+            <div className="row">
+              <input
+                name="storeDomain"
+                placeholder="store.myshopify.com"
+                defaultValue={shopifyStates[i].domain ?? ""}
+              />
+              <input
+                name="adminToken"
+                type="password"
+                placeholder={
+                  shopifyStates[i].configured ? "Token (leer = behalten)" : "Admin-API-Token (shpat_…)"
+                }
+              />
+            </div>
+            <button className="primary" type="submit">Speichern</button>
+          </form>
+        ))}
       </section>
 
       <section className="card">

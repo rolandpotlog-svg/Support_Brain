@@ -67,6 +67,16 @@ export const shopMailboxes = pgTable("shop_mailboxes", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Shopify-Admin-API-Zugang je Shop. Token AES-256-GCM-verschlüsselt.
+export const shopShopify = pgTable("shop_shopify", {
+  shopId: uuid("shop_id")
+    .primaryKey()
+    .references(() => shops.id, { onDelete: "cascade" }),
+  storeDomain: text("store_domain").notNull(), // z. B. deinshop.myshopify.com
+  adminTokenEnc: text("admin_token_enc").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Welcher Agent sieht welche Shops (Admins sehen alles, in Code geprüft).
 export const userShops = pgTable(
   "user_shops",

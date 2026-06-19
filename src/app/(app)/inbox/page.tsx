@@ -2,9 +2,11 @@ import Link from "next/link";
 import { and, count, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accessibleShopIds, requireUser } from "@/server/access";
+import { getActiveShopId } from "@/server/active-shop";
 import { initials, tagColor, timeAgo } from "@/lib/format";
 import { Conversation } from "./conversation";
 import { ShopifyPanel } from "./shopify-panel";
+import { ShopSwitcher } from "./shop-switcher";
 
 const OPEN: ("open" | "pending" | "escalated")[] = ["open", "pending", "escalated"];
 
@@ -16,8 +18,8 @@ const FOLDERS = [
   { key: "spam", label: "Spam", ico: "⊘" },
 ] as const;
 
-function folderConds(folder: string, userId: string, shopIds: string[]): SQL[] {
-  const base: SQL[] = [inArray(schema.threads.shopId, shopIds)];
+function folderConds(folder: string, userId: string, shopId: string): SQL[] {
+  const base: SQL[] = [eq(schema.threads.shopId, shopId)];
   switch (folder) {
     case "mine":
       return [...base, eq(schema.threads.assigneeId, userId), inArray(schema.threads.status, OPEN)];
@@ -40,24 +42,46 @@ export default async function InboxPage({
   const { folder = "all-open", ticket } = await searchParams;
   const user = await requireUser();
   const shopIds = await accessibleShopIds(user);
-  const hasShops = shopIds.length > 0;
 
-  // Ordnerzähler
+  // Aktiver Shop = genau einer im Fokus. Ein geöffnetes Ticket "zieht" den aktiven
+  // Shop auf seinen eigenen (damit z. B. Eskalations-Links shop-übergreifend funktionieren).
+  let activeShopId = await getActiveShopId(shopIds);
+  let selectedThread: typeof schema.threads.$inferSelect | null = null;
+  if (ticket) {
+    const t = await db.query.threads.findFirst({ where: eq(schema.threads.id, ticket) });
+    if (t && shopIds.includes(t.shopId)) {
+      selectedThread = t;
+      activeShopId = t.shopId;
+    }
+  }
+  const hasShops = activeShopId !== null;
+
+  // Shops für den Umschalter (nur die, die der Nutzer sehen darf)
+  const shopList = hasShops
+    ? await db
+        .select({ id: schema.shops.id, name: schema.shops.name })
+        .from(schema.shops)
+        .where(inArray(schema.shops.id, shopIds))
+        .orderBy(schema.shops.name)
+    : [];
+
+  // Ordnerzähler (nur aktiver Shop)
   const counts: Record<string, number> = {};
-  if (hasShops) {
+  if (activeShopId) {
+    const shopId = activeShopId;
     await Promise.all(
       FOLDERS.map(async (f) => {
         const [r] = await db
           .select({ c: count() })
           .from(schema.threads)
-          .where(and(...folderConds(f.key, user.id, shopIds)));
+          .where(and(...folderConds(f.key, user.id, shopId)));
         counts[f.key] = r.c;
       }),
     );
   }
 
-  // Ticket-Liste des aktiven Ordners
-  const tickets = hasShops
+  // Ticket-Liste des aktiven Ordners (nur aktiver Shop)
+  const tickets = activeShopId
     ? await db
         .select({
           id: schema.threads.id,
@@ -70,17 +94,17 @@ export default async function InboxPage({
           lastMessageAt: schema.threads.lastMessageAt,
         })
         .from(schema.threads)
-        .where(and(...folderConds(folder, user.id, shopIds)))
+        .where(and(...folderConds(folder, user.id, activeShopId)))
         .orderBy(desc(schema.threads.lastMessageAt))
         .limit(100)
     : [];
 
-  // Ausgewähltes Ticket laden
-  let selected: typeof tickets[number] & { messages: Msg[] } | null = null;
+  // Ausgewähltes Ticket laden (früh aufgelöster Thread)
+  let selected: (typeof tickets[number] & { messages: Msg[] }) | null = null;
   let supportEmail = "support@";
-  if (ticket) {
-    const t = await db.query.threads.findFirst({ where: eq(schema.threads.id, ticket) });
-    if (t && shopIds.includes(t.shopId)) {
+  if (selectedThread) {
+    {
+      const t = selectedThread;
       const messages = await db
         .select()
         .from(schema.messages)
@@ -117,6 +141,12 @@ export default async function InboxPage({
     <>
       {/* Spalte: Ordner */}
       <aside className="folders">
+        {hasShops && activeShopId && (
+          <div className="shopbar">
+            <span className="shoplabel">Shop</span>
+            <ShopSwitcher shops={shopList} activeId={activeShopId} />
+          </div>
+        )}
         <div className="head">
           <h1>Posteingang</h1>
           <button className="icon-btn ghost" aria-label="Suche">⌕</button>
@@ -192,8 +222,8 @@ export default async function InboxPage({
       {/* Spalte: Kundendetails / Shopify */}
       <aside className="panel">
         <div className="phead"><h3>Kundendetails</h3></div>
-        {selected ? (
-          <ShopifyPanel threadId={selected.id} />
+        {selected && activeShopId ? (
+          <ShopifyPanel threadId={selected.id} shopId={activeShopId} />
         ) : (
           <div className="sec muted">Kein Ticket gewählt.</div>
         )}

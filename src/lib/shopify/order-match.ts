@@ -5,7 +5,7 @@ import {
   findCustomersByName,
   getCustomerOrders,
   getOrderByName,
-  isConfigured,
+  type ShopifyCreds,
   type ShopifyCustomer,
   type ShopifyOrder,
 } from "./client";
@@ -37,26 +37,28 @@ export function extractOrderNumber(subject: string | null, body: string | null):
   return null;
 }
 
-export async function resolveForThread(input: {
-  email: string;
-  subject: string | null;
-  body: string | null;
-  name: string | null;
-}): Promise<Resolution> {
-  if (!isConfigured()) return { mode: "unconfigured" };
+export async function resolveForThread(
+  creds: ShopifyCreds,
+  input: {
+    email: string;
+    subject: string | null;
+    body: string | null;
+    name: string | null;
+  },
+): Promise<Resolution> {
   try {
     // 1) Bestellnummer
     const num = extractOrderNumber(input.subject, input.body);
     if (num) {
-      const hit = await getOrderByName(num);
+      const hit = await getOrderByName(creds, num);
       if (hit) return { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number" };
     }
 
     // 2) E-Mail
     if (input.email && !input.email.includes("unknown")) {
-      const customer = await findCustomerByEmail(input.email);
+      const customer = await findCustomerByEmail(creds, input.email);
       if (customer) {
-        const o = await getCustomerOrders(customer.id);
+        const o = await getCustomerOrders(creds, customer.id);
         return {
           mode: "customer",
           customer,
@@ -72,7 +74,7 @@ export async function resolveForThread(input: {
 
     // 3) Name (Fallback) — niemals stillschweigend zuordnen: immer Auswahl zeigen.
     if (input.name) {
-      const candidates = await findCustomersByName(input.name);
+      const candidates = await findCustomersByName(creds, input.name);
       if (candidates.length > 0) return { mode: "candidates", candidates };
     }
 
