@@ -13,12 +13,12 @@ export default async function EditShopPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; shopify?: string; shopify_error?: string }>;
 }) {
   const user = await requireUser();
   if (user.role !== "admin") redirect("/inbox");
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, shopify, shopify_error } = await searchParams;
   const shop = await loadShopForEdit(id);
   if (!shop) notFound();
 
@@ -32,6 +32,13 @@ export default async function EditShopPage({
         <Link href="/admin/shops" className="back">← Shops</Link>
         <h1>{shop.name}</h1>
       </div>
+
+      {shopify === "ok" && (
+        <div className="formerror" style={{ background: "#dcfce7", color: "#166534" }}>
+          ✓ Shopify autorisiert — Token gespeichert. „Verbindung testen" zur Kontrolle.
+        </div>
+      )}
+      {shopify_error && <div className="formerror">Shopify-OAuth-Fehler: {shopify_error}</div>}
 
       <div className="tabnav">
         <Link href={`/admin/shops/${id}`} className={activeTab === "zugang" ? "active" : ""}>

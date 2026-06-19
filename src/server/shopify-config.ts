@@ -37,19 +37,24 @@ async function fetchCcgToken(
   return { token: json.access_token, expiresIn: Number(json.expires_in) || 86399 };
 }
 
-/** Entschlüsselte Credentials eines Shops oder null. Holt/erneuert den CCG-Token bei Bedarf. */
+/** Entschlüsselte Credentials eines Shops oder null. Erneuert CCG-Token bei Ablauf. */
 export async function loadShopifyCreds(shopId: string): Promise<ShopifyCreds | null> {
   const row = await db.query.shopShopify.findFirst({
     where: eq(schema.shopShopify.shopId, shopId),
   });
   if (!row) return null;
 
-  // Client-Credentials-Grant
-  if (row.clientId && row.clientSecretEnc) {
-    const cached =
-      row.adminTokenEnc && row.tokenExpiresAt && row.tokenExpiresAt.getTime() > Date.now() + 60_000;
-    if (cached) return { domain: row.storeDomain, token: decrypt(row.adminTokenEnc!) };
+  // 1) Gültiger Token vorhanden: Offline-OAuth-Token (expiry null), Legacy-shpat_, oder
+  //    noch gültiger CCG-Cache.
+  if (
+    row.adminTokenEnc &&
+    (!row.tokenExpiresAt || row.tokenExpiresAt.getTime() > Date.now() + 60_000)
+  ) {
+    return { domain: row.storeDomain, token: decrypt(row.adminTokenEnc) };
+  }
 
+  // 2) Client-Credentials-Grant: Token (neu) holen + cachen.
+  if (row.clientId && row.clientSecretEnc) {
     const { token, expiresIn } = await fetchCcgToken(
       row.storeDomain,
       row.clientId,
@@ -66,9 +71,35 @@ export async function loadShopifyCreds(shopId: string): Promise<ShopifyCreds | n
     return { domain: row.storeDomain, token };
   }
 
-  // Legacy-Token
+  // 3) Abgelaufener Token ohne CCG -> trotzdem zurückgeben.
   if (row.adminTokenEnc) return { domain: row.storeDomain, token: decrypt(row.adminTokenEnc) };
   return null;
+}
+
+/** OAuth: Authorization-Code gegen einen (langlebigen) Offline-Token tauschen + speichern.
+ *  Installiert die App im Store als Nebeneffekt. */
+export async function exchangeShopifyCode(shopId: string, shop: string, code: string): Promise<void> {
+  const row = await db.query.shopShopify.findFirst({
+    where: eq(schema.shopShopify.shopId, shopId),
+  });
+  if (!row?.clientId || !row.clientSecretEnc) throw new Error("Keine Client-Credentials gespeichert");
+  const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: row.clientId,
+      client_secret: decrypt(row.clientSecretEnc),
+      code,
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || typeof json.access_token !== "string") {
+    throw new Error(String(json.error_description || json.error || `HTTP ${res.status}`));
+  }
+  await db
+    .update(schema.shopShopify)
+    .set({ adminTokenEnc: encrypt(json.access_token), tokenExpiresAt: null, updatedAt: new Date() })
+    .where(eq(schema.shopShopify.shopId, shopId));
 }
 
 /** Status für die Admin-UI (ohne Token-Klartext). */

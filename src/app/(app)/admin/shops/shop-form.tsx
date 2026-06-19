@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { saveShop, type ShopInput } from "@/server/actions/shops";
+import { startShopifyOAuth } from "@/server/actions/shopify-oauth";
 import { testConnection, type TestResult } from "@/server/actions/test-connection";
 import type { ShopDetail } from "@/server/shop-config";
 
@@ -182,6 +183,20 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
           <span className="muted" style={{ fontSize: 12 }}>
             Scopes werden im Dev Dashboard gesetzt. Domain leer lassen entfernt die Verbindung.
           </span>
+          {initial && initial.shopify.clientId && (
+            <div className="srcrow" style={{ marginTop: 4 }}>
+              <form action={startShopifyOAuth.bind(null, initial.id)}>
+                <button className="btnlink" type="submit">
+                  {initial.shopify.hasLegacyToken ? "Shopify neu autorisieren" : "Mit Shopify verbinden (autorisieren)"}
+                </button>
+              </form>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {initial.shopify.hasLegacyToken
+                  ? "✓ autorisiert"
+                  : "Zuerst speichern, dann hier autorisieren — installiert die App im Store."}
+              </span>
+            </div>
+          )}
         </div>
       </section>
 
