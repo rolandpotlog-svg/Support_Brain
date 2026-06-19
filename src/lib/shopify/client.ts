@@ -123,6 +123,63 @@ export async function getShopInfo(creds: ShopifyCreds): Promise<{ name: string; 
   return { name: data.shop.name, domain: data.shop.myshopifyDomain };
 }
 
+export type ShopPolicy = { type: string; title: string; body: string; url: string | null };
+export type ShopProfileData = {
+  shopName: string;
+  currencyCode: string;
+  productTypes: string[];
+  sampleProducts: { title: string; productType: string | null }[];
+  collections: string[];
+  policies: ShopPolicy[];
+};
+
+/** Datenrückgrat fürs Shop-Profil: Shop-Infos, Produkte, Kollektionen, Richtlinien-Seiten. */
+export async function getShopProfileData(creds: ShopifyCreds): Promise<ShopProfileData> {
+  const data = await gql<{
+    shop: {
+      name: string;
+      currencyCode: string;
+      shopPolicies: { type: string; title: string; body: string | null; url: string | null }[];
+    };
+    products: { nodes: { title: string; productType: string | null }[] };
+    collections: { nodes: { title: string }[] };
+  }>(
+    creds,
+    `query {
+       shop {
+         name
+         currencyCode
+         shopPolicies { type title body url }
+       }
+       products(first: 50, sortKey: BEST_SELLING) { nodes { title productType } }
+       collections(first: 50) { nodes { title } }
+     }`,
+  );
+
+  const sampleProducts = data.products.nodes.map((p) => ({
+    title: p.title,
+    productType: p.productType || null,
+  }));
+  const productTypes = [
+    ...new Set(sampleProducts.map((p) => p.productType).filter((t): t is string => Boolean(t))),
+  ];
+  const policies: ShopPolicy[] = (data.shop.shopPolicies ?? []).map((p) => ({
+    type: p.type,
+    title: p.title,
+    body: (p.body ?? "").slice(0, 8000),
+    url: p.url ?? null,
+  }));
+
+  return {
+    shopName: data.shop.name,
+    currencyCode: data.shop.currencyCode,
+    productTypes,
+    sampleProducts: sampleProducts.slice(0, 20),
+    collections: data.collections.nodes.map((c) => c.title),
+    policies,
+  };
+}
+
 /** Bestellung exakt über die Bestellnummer (z. B. "335675775" oder "#335675775"). */
 export async function getOrderByName(
   creds: ShopifyCreds,

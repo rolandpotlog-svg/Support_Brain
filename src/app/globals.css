@@ -298,3 +298,30 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 }
 /* Assignee schiebt sich (und die Nummer) nach rechts; Nummer sonst weiter via margin-auto. */
 .assignee + .num { margin-left: 6px; }
+
+/* ── Shop-Profil (Antwort-Gehirn) ─────────────────────────────────────── */
+.tabnav { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.tabnav a {
+  padding: 8px 14px; font-size: 14px; font-weight: 600; color: var(--muted);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabnav a:hover { color: var(--text); text-decoration: none; }
+.tabnav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+.profile { max-width: 720px; }
+.pfield { display: grid; gap: 5px; margin-bottom: 12px; }
+.plabel { font-size: 13px; font-weight: 600; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+.prow { display: flex; gap: 12px; flex-wrap: wrap; }
+.prow > .pfield { flex: 1; min-width: 200px; }
+.srcrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.listrow { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; }
+.listrow textarea { flex: 1; }
+.faqrow { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--panel-2); }
+.fbadge { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; }
+.fbadge.amber { background: var(--tag-amber-bg); color: var(--tag-amber-fg); }
+.fbadge.green { background: #dcfce7; color: #166534; }
+.fbadge.rose { background: var(--tag-rose-bg, #fde8e8); color: #b42318; }
+.promptview {
+  white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.5;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; max-height: 360px; overflow-y: auto; margin: 0;
+}

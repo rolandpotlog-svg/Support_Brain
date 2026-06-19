@@ -40,7 +40,7 @@ function rowsFrom(initial: ShopDetail | null): Row[] {
   }));
 }
 
-export function ShopForm({ initial }: { initial: ShopDetail | null }) {
+export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hideHead?: boolean }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
   const [active, setActive] = useState(initial?.active ?? true);
@@ -119,10 +119,12 @@ export function ShopForm({ initial }: { initial: ShopDetail | null }) {
 
   return (
     <div className="shopform">
-      <div className="formhead">
-        <Link href="/admin/shops" className="back">← Shops</Link>
-        <h1>{initial ? `Shop bearbeiten: ${initial.name}` : "Shop hinzufügen"}</h1>
-      </div>
+      {!hideHead && (
+        <div className="formhead">
+          <Link href="/admin/shops" className="back">← Shops</Link>
+          <h1>{initial ? `Shop bearbeiten: ${initial.name}` : "Shop hinzufügen"}</h1>
+        </div>
+      )}
 
       {error && <div className="formerror">{error}</div>}
 

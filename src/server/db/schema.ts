@@ -6,6 +6,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -15,6 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { ProfileData, ProfileSources } from "@/lib/profile/types";
 
 export const userRole = pgEnum("user_role", ["agent", "admin"]);
 export const threadStatus = pgEnum("thread_status", [
@@ -82,6 +84,25 @@ export const shopShopify = pgTable("shop_shopify", {
     .references(() => shops.id, { onDelete: "cascade" }),
   storeDomain: text("store_domain").notNull(), // z. B. deinshop.myshopify.com
   adminTokenEnc: text("admin_token_enc").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Shop-Profil ("Antwort-Gehirn") je Shop: Felder, Feld-Herkunft, gebauter
+// System-Prompt und der Roh-Quellen-Cache (Shopify-Snapshot + gescrapte Seiten).
+export const shopProfile = pgTable("shop_profile", {
+  shopId: uuid("shop_id")
+    .primaryKey()
+    .references(() => shops.id, { onDelete: "cascade" }),
+  data: jsonb("data").$type<ProfileData>(),
+  sources: jsonb("sources").$type<ProfileSources>(),
+  systemPrompt: text("system_prompt"),
+  websiteUrl: text("website_url"),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  shopifyData: jsonb("shopify_data").$type<any>(),
+  shopifyFetchedAt: timestamp("shopify_fetched_at", { withTimezone: true }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  scrapedData: jsonb("scraped_data").$type<any>(),
+  scrapedAt: timestamp("scraped_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
