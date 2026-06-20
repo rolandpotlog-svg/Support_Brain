@@ -8,6 +8,7 @@ export function IconRail({ isAdmin }: { isAdmin: boolean }) {
   const onInbox = path.startsWith("/inbox") || path.startsWith("/threads");
   const onSocial = path.startsWith("/social");
   const onCases = path.startsWith("/cases");
+  const onReports = path.startsWith("/reports");
   const onAdmin = path.startsWith("/admin");
 
   return (
@@ -29,6 +30,15 @@ export function IconRail({ isAdmin }: { isAdmin: boolean }) {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             <path d="M9 12l2 2 4-4" />
+          </svg>
+        </Link>
+      )}
+      {isAdmin && (
+        <Link href="/reports" className={onReports ? "active" : ""} title="Auswertung" aria-label="Auswertung">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
           </svg>
         </Link>
       )}

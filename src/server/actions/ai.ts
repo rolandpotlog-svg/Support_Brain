@@ -1,7 +1,7 @@
 "use server";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireUser } from "@/server/access";
+import { assertShopAccess, requireAdmin, requireUser } from "@/server/access";
 import { complete } from "@/server/ai";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
@@ -105,4 +105,48 @@ export async function draftReply(threadId: string): Promise<string> {
   ].join("\n");
 
   return complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 2000 });
+}
+
+/** KI-Analyse der häufigsten Beschwerden im Zeitraum (für die wöchentliche Auswertung). */
+export async function analyzeComplaints(shopId: string, days: number): Promise<string> {
+  await requireAdmin();
+  const since = new Date(Date.now() - days * 86_400_000);
+  const rows = await db
+    .select({ subject: schema.threads.subject, body: schema.messages.bodyText })
+    .from(schema.messages)
+    .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+    .where(
+      and(
+        eq(schema.threads.shopId, shopId),
+        eq(schema.messages.direction, "inbound"),
+        eq(schema.messages.internal, false),
+        gte(schema.messages.createdAt, since),
+      ),
+    )
+    .orderBy(desc(schema.messages.createdAt))
+    .limit(300);
+
+  if (!rows.length) return "Keine eingehenden Nachrichten im Zeitraum — nichts zu analysieren.";
+
+  const shop = await db.query.shops.findFirst({ where: eq(schema.shops.id, shopId) });
+  const corpus = rows
+    .map(
+      (r, i) =>
+        `#${i + 1} Betreff: ${r.subject ?? "(kein)"}\n${(r.body ?? "").replace(/\s+/g, " ").trim().slice(0, 500)}`,
+    )
+    .join("\n\n");
+
+  const system =
+    "Du bist Analyst für einen E-Commerce-Kundensupport. Werte die Support-Anfragen eines Zeitraums aus " +
+    "und liefere eine knappe, strukturierte Auswertung in deutschem Markdown. Erfinde nichts; stütze dich nur auf die Nachrichten.";
+  const userMsg =
+    `Shop: ${shop?.name ?? "?"} · Zeitraum: letzte ${days} Tage · ${rows.length} eingehende Nachrichten.\n\n` +
+    "AUFGABE:\n" +
+    "1. **Top-Kategorien** der Anliegen/Beschwerden als Liste, je mit geschätzter Anzahl/Anteil und 1–2 Stichworten.\n" +
+    "2. **Auffälligkeiten/Trends** (z. B. gehäufte Lieferprobleme, ein bestimmtes Produkt, ein Zeitpunkt).\n" +
+    "3. **2–3 konkrete Handlungsempfehlungen**.\n" +
+    "Kurz und konkret, keine Einleitung.\n\n" +
+    `NACHRICHTEN:\n${corpus}`;
+
+  return complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 1500 });
 }
