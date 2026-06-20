@@ -10,6 +10,7 @@ import {
   setThreadStatus,
   setThreadTag,
 } from "@/server/actions/inbox";
+import { draftReply } from "@/server/actions/ai";
 import { initials, timeAgo } from "@/lib/format";
 
 const TAG_PRESETS = ["Bestellstatus", "Beschädigte Ware", "Retoure/Umtausch", "Sonstiges"];
@@ -51,6 +52,7 @@ export function Conversation({
   const [tab, setTab] = useState<"reply" | "note">("reply");
   const [text, setText] = useState("");
   const [noteText, setNoteText] = useState("");
+  const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -183,10 +185,27 @@ export function Conversation({
               onChange={(e) => setText(e.target.value)}
             />
             <div className="actions">
+              <button
+                disabled={drafting || pending}
+                title="Antwortentwurf von der KI (Shop-Profil + Bestelldaten)"
+                onClick={async () => {
+                  setError(null);
+                  setDrafting(true);
+                  try {
+                    setText(await draftReply(thread.id));
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setDrafting(false);
+                  }
+                }}
+              >
+                {drafting ? "Entwirft…" : "✨ KI-Entwurf"}
+              </button>
               <span className="spacer" />
               <button
                 className="primary"
-                disabled={pending || !text.trim()}
+                disabled={pending || drafting || !text.trim()}
                 onClick={() =>
                   run(async () => {
                     await replyToThread(thread.id, text);
