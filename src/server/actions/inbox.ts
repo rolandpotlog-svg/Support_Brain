@@ -70,7 +70,11 @@ export async function setThreadStatus(threadId: string, status: string) {
   await assertShopAccess(user, t.shopId);
   await db
     .update(schema.threads)
-    .set({ status: status as "open" | "pending" | "escalated" | "closed" })
+    .set({
+      status: status as "open" | "pending" | "escalated" | "closed",
+      // Lösungszeit-Tracking: beim Schließen Zeitstempel setzen, beim Wieder-Öffnen löschen.
+      closedAt: status === "closed" ? new Date() : null,
+    })
     .where(eq(schema.threads.id, threadId));
   revalidatePath(`/threads/${threadId}`);
   revalidatePath("/inbox");
@@ -128,6 +132,14 @@ export async function replyToThread(threadId: string, bodyText: string) {
     : `Re: ${t.subject ?? ""}`.trim();
   const newMsgId = `<${randomUUID().replace(/-/g, "")}@support-brain>`;
 
+  // KI-Entwurf-Nutzung messen: 1:1 übernommen, bearbeitet oder ganz ohne Entwurf.
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+  const aiOutcome = t.lastAiDraft
+    ? norm(bodyText) === norm(t.lastAiDraft)
+      ? "verbatim"
+      : "edited"
+    : "manual";
+
   await db.transaction(async (tx) => {
     const [msg] = await tx
       .insert(schema.messages)
@@ -140,13 +152,20 @@ export async function replyToThread(threadId: string, bodyText: string) {
         bodyText,
         messageId: newMsgId,
         inReplyTo: lastInbound?.messageId ?? null,
+        aiOutcome,
         sentBy: user.id,
       })
       .returning({ id: schema.messages.id });
     await tx.insert(schema.outbox).values({ messageId: msg.id });
     await tx
       .update(schema.threads)
-      .set({ status: "pending", lastMessageAt: new Date() })
+      .set({
+        status: "pending",
+        lastMessageAt: new Date(),
+        // Erste Antwortzeit festhalten (nur beim ersten Mal); Entwurf-Puffer leeren.
+        firstResponseAt: t.firstResponseAt ?? new Date(),
+        lastAiDraft: null,
+      })
       .where(eq(schema.threads.id, threadId));
   });
 

@@ -302,6 +302,8 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
           .set({
             lastMessageAt: new Date(),
             status: sql`case when ${schema.threads.status} in ('closed','pending') then 'open' else ${schema.threads.status} end`,
+            // Wird ein geschlossenes Ticket wieder geöffnet, ist es nicht mehr "gelöst".
+            closedAt: sql`case when ${schema.threads.status} = 'closed' then null else ${schema.threads.closedAt} end`,
             customerName: sql`coalesce(${schema.threads.customerName}, ${fromName})`,
           })
           .where(eq(schema.threads.id, threadId));

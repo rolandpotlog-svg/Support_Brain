@@ -265,6 +265,16 @@ export const threads = pgTable(
     // Farbiger Kategorie-Tag (z. B. "Bestellstatus", "Beschädigte Ware").
     tag: text("tag"),
     assigneeId: uuid("assignee_id").references(() => users.id),
+    // Effizienz-Tracking: wann zuerst geantwortet / wann geschlossen.
+    firstResponseAt: timestamp("first_response_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    // KI-Klassifizierung (einmalig je Ticket, dann deterministisch aggregiert).
+    aiCategory: text("ai_category"),
+    aiSentiment: text("ai_sentiment"),
+    aiProduct: text("ai_product"),
+    aiClassifiedAt: timestamp("ai_classified_at", { withTimezone: true }),
+    // Zuletzt erzeugter KI-Entwurf (zum Vergleich beim Senden: 1:1 / bearbeitet).
+    lastAiDraft: text("last_ai_draft"),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -293,6 +303,8 @@ export const messages = pgTable(
     // Serverseitige IMAP-Position (für Ordner-Spiegelung): aktuelle UID + Ordner.
     imapUid: bigint("imap_uid", { mode: "number" }),
     imapFolder: text("imap_folder"),
+    // KI-Entwurf-Nutzung bei ausgehenden Antworten: verbatim | edited | manual.
+    aiOutcome: text("ai_outcome"),
     sentBy: uuid("sent_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
