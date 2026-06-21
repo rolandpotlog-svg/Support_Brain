@@ -4,7 +4,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accessibleShopIds, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
-import { fmtMoney } from "@/server/returns";
+import { expectsReturn, fmtMoney } from "@/server/returns";
 import { cancelReturnCase, markReturnTaskDone } from "@/server/actions/returns";
 import { ShopSwitcher } from "../inbox/shop-switcher";
 
@@ -70,6 +70,7 @@ export default async function ReturnsPage() {
         <h1 style={{ margin: 0 }}>Retouren</h1>
         <div className="srcrow">
           <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/returns" />
+          <Link href="/returns/intake" className="btnlink">Wareneingang →</Link>
           {user.canShopsEdit && <Link href="/returns/settings" className="btnlink">Einstellungen →</Link>}
         </div>
       </div>
@@ -107,6 +108,13 @@ export default async function ReturnsPage() {
                 <li key={i}>{it.quantity}× {it.title}{it.variantTitle ? ` (${it.variantTitle})` : ""} — <span className="muted">{it.reasonLabel}</span></li>
               ))}
             </ul>
+            {expectsReturn(c.outcome) && (
+              <p className="muted" style={{ margin: "2px 0 6px", fontSize: 13 }}>
+                {c.receivedAt
+                  ? `📦 Eingegangen · ${c.condition === "damaged" ? "beschädigt" : "wiederverkäuflich"}${c.restocked ? " · zurück ins Lager" : ""}`
+                  : "📦 Wareneingang ausstehend"}
+              </p>
+            )}
 
             {cTasks.length > 0 && (
               <div className="tasklist">
@@ -119,12 +127,14 @@ export default async function ReturnsPage() {
                     {t.deepLink && (
                       <a href={t.deepLink} target="_blank" rel="noopener noreferrer" className="btnlink">In Shopify öffnen ↗</a>
                     )}
-                    {t.status === "pending" ? (
+                    {t.status === "done" ? (
+                      <span className="muted">✓ erledigt</span>
+                    ) : expectsReturn(c.outcome) && !c.receivedAt && t.type === "refund" ? (
+                      <span className="muted">⏳ wartet auf Wareneingang</span>
+                    ) : (
                       <form action={markReturnTaskDone.bind(null, t.id)}>
                         <button className="btnlink primary" type="submit">Erledigt</button>
                       </form>
-                    ) : (
-                      <span className="muted">✓ erledigt</span>
                     )}
                   </div>
                 ))}

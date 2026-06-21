@@ -422,6 +422,11 @@ export const returnCases = pgTable(
     recoveredValueCents: integer("recovered_value_cents").notNull().default(0),
     outcome: text("outcome"), // deflected_keep | refunded | exchanged | returned | redirected
     note: text("note"),
+    // Wareneingang (physische Retoure im Lager): Eingang, Zustand, Restock.
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    condition: text("condition"), // resaleable | damaged
+    restocked: boolean("restocked").notNull().default(false),
+    receivedBy: uuid("received_by").references(() => users.id),
     threadId: uuid("thread_id").references(() => threads.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

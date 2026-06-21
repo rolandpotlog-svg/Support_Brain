@@ -221,6 +221,9 @@ export default async function ReportsPage({
             <div className="rstat"><div className="k">Anfragen</div><div className="v">{r.returns.total}</div></div>
             <div className="rstat"><div className="k">Behalten (deflektiert)</div><div className="v">{r.returns.deflected}</div></div>
             <div className="rstat"><div className="k">Zurückgewonnen</div><div className="v">{(r.returns.recoveredCents / 100).toFixed(2)} €</div></div>
+            <div className="rstat"><div className="k">Wareneingang</div><div className="v">{r.returns.received}</div></div>
+            <div className="rstat"><div className="k">Restock</div><div className="v">{r.returns.restocked}</div></div>
+            <div className="rstat"><div className="k">Beschädigt</div><div className="v">{r.returns.damaged}</div></div>
             <div className="rstat"><div className="k">Defekt-Reklamationen</div><div className="v">{r.returns.defectClaims}</div></div>
           </div>
         </section>

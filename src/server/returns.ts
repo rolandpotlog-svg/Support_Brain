@@ -1,6 +1,6 @@
 // Retouren-Portal: Server-Logik (Portal-Verifikation, Angebote, Fälle, Aufgaben,
 // Deep-Links, Guardrails). Nutzt die bestehende Shopify-Verbindung + das Ticket-System mit.
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { getOrderByName, type ShopifyOrder } from "@/lib/shopify/client";
@@ -34,6 +34,38 @@ export function econFromSettings(s: ReturnSettings): EconParams {
 
 export async function getSettings(shopId: string): Promise<ReturnSettings | null> {
   return (await db.query.returnSettings.findFirst({ where: eq(schema.returnSettings.shopId, shopId) })) ?? null;
+}
+
+/** Erwartet dieser Fall eine physische Rücksendung (-> Wareneingang)? */
+export function expectsReturn(outcome: string | null): boolean {
+  return outcome === "returned";
+}
+
+export type ReturnCaseRow = typeof schema.returnCases.$inferSelect;
+
+/** Offene Wareneingänge: physische Rücksendungen, die noch nicht eingegangen sind. */
+export async function listPendingIntake(shopId: string, query: string): Promise<ReturnCaseRow[]> {
+  const rows = await db
+    .select()
+    .from(schema.returnCases)
+    .where(
+      and(
+        eq(schema.returnCases.shopId, shopId),
+        eq(schema.returnCases.outcome, "returned"),
+        isNull(schema.returnCases.receivedAt),
+      ),
+    )
+    .orderBy(desc(schema.returnCases.createdAt))
+    .limit(100);
+  const q = query.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter(
+    (r) =>
+      `${r.number}`.includes(q) ||
+      (r.orderName ?? "").toLowerCase().includes(q) ||
+      (r.customerEmail ?? "").toLowerCase().includes(q) ||
+      (r.customerName ?? "").toLowerCase().includes(q),
+  );
 }
 
 export type PortalReason = { id: string; label: string; routing: Routing };

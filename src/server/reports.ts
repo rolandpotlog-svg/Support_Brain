@@ -47,6 +47,9 @@ export type FullReport = {
     deflected: number;
     recoveredCents: number;
     defectClaims: number;
+    received: number;
+    restocked: number;
+    damaged: number;
     byOutcome: { outcome: string; n: number }[];
   };
   // Frühwarnung
@@ -222,6 +225,9 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
       outcome: schema.returnCases.outcome,
       recovered: schema.returnCases.recoveredValueCents,
       routing: schema.returnCases.reasonRouting,
+      receivedAt: schema.returnCases.receivedAt,
+      condition: schema.returnCases.condition,
+      restocked: schema.returnCases.restocked,
     })
     .from(schema.returnCases)
     .where(and(eq(schema.returnCases.shopId, shopId), gte(schema.returnCases.createdAt, curStart)));
@@ -229,18 +235,27 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
   let recoveredCents = 0;
   let deflected = 0;
   let defectClaims = 0;
+  let received = 0;
+  let restocked = 0;
+  let damaged = 0;
   for (const r of retRows) {
     const o = r.outcome ?? "?";
     outcomeMap.set(o, (outcomeMap.get(o) ?? 0) + 1);
     recoveredCents += r.recovered ?? 0;
     if (o === "deflected_keep") deflected++;
     if (r.routing === "defect_photo") defectClaims++;
+    if (r.receivedAt) received++;
+    if (r.restocked) restocked++;
+    if (r.condition === "damaged") damaged++;
   }
   const returns = {
     total: retRows.length,
     deflected,
     recoveredCents,
     defectClaims,
+    received,
+    restocked,
+    damaged,
     byOutcome: [...outcomeMap.entries()].map(([outcome, n]) => ({ outcome, n })).sort((a, b) => b.n - a.n),
   };
 

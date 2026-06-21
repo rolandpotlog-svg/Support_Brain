@@ -94,6 +94,53 @@ export async function markReturnTaskDone(taskId: string) {
   revalidatePath("/returns");
 }
 
+export async function markReturnReceived(caseId: string, condition: string, restock: boolean) {
+  const user = await requireReturns();
+  const c = await db.query.returnCases.findFirst({ where: eq(schema.returnCases.id, caseId) });
+  if (!c) throw new Error("Fall nicht gefunden");
+  const cond = condition === "damaged" ? "damaged" : "resaleable";
+
+  await db
+    .update(schema.returnCases)
+    .set({
+      receivedAt: new Date(),
+      condition: cond,
+      restocked: cond === "resaleable" ? restock : false,
+      receivedBy: user.id,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.returnCases.id, caseId));
+
+  // Beschädigt -> Lieferanten-Reklamation anlegen, falls noch keine existiert.
+  if (cond === "damaged") {
+    const existing = await db
+      .select({ id: schema.returnTasks.id })
+      .from(schema.returnTasks)
+      .where(and(eq(schema.returnTasks.caseId, caseId), eq(schema.returnTasks.type, "supplier_claim")));
+    if (existing.length === 0) {
+      const items = (c.items as { title: string }[]) ?? [];
+      const title = items[0]?.title ?? "Artikel";
+      await db.insert(schema.returnTasks).values({
+        caseId,
+        shopId: c.shopId,
+        type: "supplier_claim",
+        title: `Lieferanten-Reklamation · ${title}`,
+        instruction: `Beschädigte Rücksendung ${c.orderName} (${title}) beim Lieferanten reklamieren.`,
+      });
+    }
+  }
+  revalidatePath("/returns");
+  revalidatePath("/returns/intake");
+}
+
+export async function receiveReturnForm(formData: FormData) {
+  const caseId = String(formData.get("caseId") ?? "");
+  const condition = String(formData.get("condition") ?? "resaleable");
+  const restock = formData.get("restock") === "on";
+  if (!caseId) throw new Error("Fall fehlt");
+  return markReturnReceived(caseId, condition, restock);
+}
+
 export async function cancelReturnCase(caseId: string) {
   await requireReturns();
   await db
