@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { ThemeToggle } from "./theme-toggle";
 
 export function IconRail({
   canReports,
@@ -70,6 +71,7 @@ export function IconRail({
         </Link>
       )}
       <div className="spacer" />
+      <ThemeToggle />
       <button
         className="rail-btn ghost"
         title="Abmelden"

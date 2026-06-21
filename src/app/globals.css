@@ -1,23 +1,52 @@
 :root {
-  --bg: #f5f6f8;
+  --bg: #f6f7f9;
   --panel: #ffffff;
-  --panel-2: #fafbfc;
-  --border: #e7e9ee;
-  --border-strong: #d7dae1;
-  --text: #1f2430;
-  --text-2: #545b6b;
-  --muted: #8b93a1;
-  --accent: #4f8cff;
-  --accent-weak: #eaf1ff;
-  --green: #1faf6b;
-  --green-weak: #e6f6ee;
-  --rail: #f0f1f4;
+  --panel-2: #f8fafc;
+  --border: #e9ebf0;
+  --border-strong: #dcdfe6;
+  --text: #161b26;
+  --text-2: #586173;
+  --muted: #98a0af;
+  --accent: #4f7cff;
+  --accent-strong: #3d68f0;
+  --accent-weak: #eef3ff;
+  --green: #16a571;
+  --green-weak: #e7f7ef;
+  --rail: #f1f2f5;
+  --rail-hover: #e6e8ed;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px rgba(16, 24, 40, 0.06);
 
   /* Tag-Farben */
   --tag-blue-bg: #eaf1ff; --tag-blue-fg: #2c63d6;
   --tag-amber-bg: #fdf1e3; --tag-amber-fg: #b9701b;
   --tag-rose-bg: #fdebed; --tag-rose-fg: #c83b51;
   --tag-gray-bg: #eef0f3; --tag-gray-fg: #6b7280;
+}
+
+[data-theme="dark"] {
+  --bg: #0e1016;
+  --panel: #171a22;
+  --panel-2: #1d212b;
+  --border: #272c38;
+  --border-strong: #363d4c;
+  --text: #e7e9ef;
+  --text-2: #a4acbb;
+  --muted: #79818f;
+  --accent: #5b9bff;
+  --accent-strong: #6aa6ff;
+  --accent-weak: #1a2438;
+  --green: #2ec07e;
+  --green-weak: #142a20;
+  --rail: #12141a;
+  --rail-hover: #20242e;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.35);
+
+  --tag-blue-bg: #1b2740; --tag-blue-fg: #8fb6ff;
+  --tag-amber-bg: #322610; --tag-amber-fg: #e0a256;
+  --tag-rose-bg: #341820; --tag-rose-fg: #f08098;
+  --tag-gray-bg: #232732; --tag-gray-fg: #9aa3b1;
 }
 
 * { box-sizing: border-box; }
@@ -27,7 +56,9 @@ body {
   color: var(--text);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  transition: background 0.2s ease, color 0.2s ease;
 }
+.card, .rail, input, select, textarea, button { transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
@@ -43,7 +74,7 @@ button {
 button:hover { background: var(--panel-2); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-button.primary:hover { background: #3d7bf0; }
+button.primary:hover { background: var(--accent-strong); }
 button.green { background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
 button.green:hover { background: #189a5d; }
 button.ghost { border-color: transparent; background: transparent; }
@@ -84,8 +115,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   display: grid; place-items: center; color: var(--text-2);
   font-size: 18px;
 }
-.rail a:hover { background: #e4e6ea; text-decoration: none; }
-.rail a.active { background: #fff; color: var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.rail a:hover { background: var(--rail-hover); text-decoration: none; }
+.rail a.active { background: var(--panel); color: var(--accent); box-shadow: var(--shadow-sm); }
 .rail .spacer { flex: 1; }
 
 .workspace { flex: 1; display: flex; min-width: 0; }
@@ -247,7 +278,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 
 /* ── Login + Admin (heller) ───────────────────────────────────────────── */
 .center { display: grid; place-items: center; min-height: 100vh; padding: 20px; }
-.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 20px; box-shadow: var(--shadow); }
 .login { width: 340px; display: grid; gap: 12px; }
 .login label { display: grid; gap: 5px; font-size: 13px; color: var(--text-2); }
 .adminwrap { padding: 24px; max-width: 1000px; margin: 0 auto; overflow-y: auto; height: 100vh; }
