@@ -63,7 +63,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ days?: string }>;
 }) {
   const user = await requireUser();
-  if (user.role !== "admin") redirect("/inbox");
+  if (!user.canReports) redirect("/inbox");
   const { days: daysParam } = await searchParams;
   const days = daysParam === "30" ? 30 : 7;
 

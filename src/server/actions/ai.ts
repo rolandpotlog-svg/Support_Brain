@@ -1,7 +1,7 @@
 "use server";
 import { and, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireAdmin, requireUser } from "@/server/access";
+import { assertShopAccess, requireReports, requireUser } from "@/server/access";
 import { complete } from "@/server/ai";
 import { classifyShopTickets } from "@/server/ai/classify";
 import { sendWeeklyReport } from "@/server/reports-send";
@@ -114,7 +114,7 @@ export async function draftReply(threadId: string): Promise<string> {
 
 /** KI-Analyse der häufigsten Beschwerden im Zeitraum (für die wöchentliche Auswertung). */
 export async function analyzeComplaints(shopId: string, days: number): Promise<string> {
-  await requireAdmin();
+  await requireReports();
   const since = new Date(Date.now() - days * 86_400_000);
   const rows = await db
     .select({ subject: schema.threads.subject, body: schema.messages.bodyText })
@@ -161,12 +161,12 @@ export async function classifyTickets(
   shopId: string,
   days: number,
 ): Promise<{ classified: number; remaining: number }> {
-  await requireAdmin();
+  await requireReports();
   return classifyShopTickets(shopId, days);
 }
 
 /** Wochenbericht für einen Shop sofort versenden (Test/Manuell). */
 export async function sendWeeklyReportNow(shopId: string, days: number): Promise<{ to: string[] }> {
-  await requireAdmin();
+  await requireReports();
   return sendWeeklyReport(shopId, days);
 }

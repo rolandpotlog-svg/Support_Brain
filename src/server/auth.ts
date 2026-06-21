@@ -29,7 +29,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name ?? undefined,
-          role: user.role,
+          role: user.role as "owner" | "member",
         };
       },
     }),
@@ -37,14 +37,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        token.role = user.role as "agent" | "admin";
+        token.role = user.role as "owner" | "member";
         token.uid = user.id as string;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as "agent" | "admin";
+        session.user.role = token.role as "owner" | "member";
         session.user.id = token.uid as string;
       }
       return session;

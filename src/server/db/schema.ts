@@ -18,7 +18,6 @@ import {
 } from "drizzle-orm/pg-core";
 import type { ProfileData, ProfileSources } from "@/lib/profile/types";
 
-export const userRole = pgEnum("user_role", ["agent", "admin"]);
 export const threadStatus = pgEnum("thread_status", [
   "open",
   "pending",
@@ -30,13 +29,20 @@ export const messageDirection = pgEnum("message_direction", ["inbound", "outboun
 export const outboxStatus = pgEnum("outbox_status", ["pending", "sent", "failed"]);
 
 // --- Logins / Rollen ---------------------------------------------------------
+// role: "owner" (volle Kontrolle) | "member" (Rechte einzeln vom Owner freigeschaltet).
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: text("email").notNull().unique(),
   name: text("name"),
   passwordHash: text("password_hash").notNull(),
-  role: userRole("role").notNull().default("agent"),
+  role: text("role").notNull().default("member"),
   active: boolean("active").notNull().default(true),
+  // Vom Owner pro Nutzer freischaltbare Bereiche (Owner hat implizit alle).
+  permReports: boolean("perm_reports").notNull().default(false),
+  permCases: boolean("perm_cases").notNull().default(false),
+  permShopsView: boolean("perm_shops_view").notNull().default(false),
+  permShopsEdit: boolean("perm_shops_edit").notNull().default(false),
+  permManageUsers: boolean("perm_manage_users").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

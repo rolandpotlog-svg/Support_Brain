@@ -2,7 +2,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireAdmin, requireUser } from "@/server/access";
+import { assertShopAccess, requireShopsEdit, requireUser } from "@/server/access";
 import { encrypt } from "@/lib/mailbox/crypto";
 import { loadSocialCreds } from "@/server/social-config";
 import { loadShopifyCreds } from "@/server/shopify-config";
@@ -11,7 +11,7 @@ import { findCustomersByName, type ShopifyCustomer } from "@/lib/shopify/client"
 
 /** Meta-Account (FB-Seite / IG-Konto) je Shop anlegen/aktualisieren. Token leer = behalten. */
 export async function saveSocialAccount(formData: FormData) {
-  await requireAdmin();
+  await requireShopsEdit();
   const shopId = String(formData.get("shopId") ?? "");
   const channel = String(formData.get("channel") ?? "");
   const pageId = String(formData.get("pageId") ?? "").trim();
@@ -42,7 +42,7 @@ export async function saveSocialAccount(formData: FormData) {
 }
 
 export async function deleteSocialAccount(accountId: string) {
-  await requireAdmin();
+  await requireShopsEdit();
   const a = await db.query.socialAccount.findFirst({ where: eq(schema.socialAccount.id, accountId) });
   if (!a) return;
   await db.delete(schema.socialAccount).where(eq(schema.socialAccount.id, accountId));

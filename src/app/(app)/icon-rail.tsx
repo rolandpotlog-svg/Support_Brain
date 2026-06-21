@@ -3,7 +3,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 
-export function IconRail({ isAdmin }: { isAdmin: boolean }) {
+export function IconRail({
+  canReports,
+  canCases,
+  canAdmin,
+}: {
+  canReports: boolean;
+  canCases: boolean;
+  canAdmin: boolean;
+}) {
   const path = usePathname();
   const onInbox = path.startsWith("/inbox") || path.startsWith("/threads");
   const onSocial = path.startsWith("/social");
@@ -25,7 +33,7 @@ export function IconRail({ isAdmin }: { isAdmin: boolean }) {
           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
         </svg>
       </Link>
-      {isAdmin && (
+      {canCases && (
         <Link href="/cases" className={onCases ? "active" : ""} title="Fälle (Disputes)" aria-label="Fälle">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -33,7 +41,7 @@ export function IconRail({ isAdmin }: { isAdmin: boolean }) {
           </svg>
         </Link>
       )}
-      {isAdmin && (
+      {canReports && (
         <Link href="/reports" className={onReports ? "active" : ""} title="Auswertung" aria-label="Auswertung">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="20" x2="18" y2="10" />
@@ -42,7 +50,7 @@ export function IconRail({ isAdmin }: { isAdmin: boolean }) {
           </svg>
         </Link>
       )}
-      {isAdmin && (
+      {canAdmin && (
         <Link href="/admin" className={onAdmin ? "active" : ""} title="Admin" aria-label="Admin">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />

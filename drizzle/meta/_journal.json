@@ -85,6 +85,13 @@
       "when": 1782031235089,
       "tag": "0011_weekly_report",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782050569397,
+      "tag": "0012_roles_permissions",
+      "breakpoints": true
     }
   ]
 }

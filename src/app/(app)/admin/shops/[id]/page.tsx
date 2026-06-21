@@ -16,7 +16,7 @@ export default async function EditShopPage({
   searchParams: Promise<{ tab?: string; shopify?: string; shopify_error?: string }>;
 }) {
   const user = await requireUser();
-  if (user.role !== "admin") redirect("/inbox");
+  if (!user.canShopsEdit) redirect("/inbox");
   const { id } = await params;
   const { tab, shopify, shopify_error } = await searchParams;
   const shop = await loadShopForEdit(id);

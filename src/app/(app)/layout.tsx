@@ -1,14 +1,22 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/server/auth";
+import { requireUser } from "@/server/access";
 import { IconRail } from "./icon-rail";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  let user;
+  try {
+    user = await requireUser();
+  } catch {
+    redirect("/login");
+  }
 
   return (
     <div className="shell">
-      <IconRail isAdmin={session.user.role === "admin"} />
+      <IconRail
+        canReports={user.canReports}
+        canCases={user.canCases}
+        canAdmin={user.canShopsView || user.canManageUsers}
+      />
       <div className="workspace">{children}</div>
     </div>
   );

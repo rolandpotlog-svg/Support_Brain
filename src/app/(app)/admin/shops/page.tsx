@@ -6,7 +6,7 @@ import { setShopActive } from "@/server/actions/shops";
 
 export default async function ShopsPage() {
   const user = await requireUser();
-  if (user.role !== "admin") redirect("/inbox");
+  if (!user.canShopsView) redirect("/inbox");
 
   const shops = await listShopsWithStatus();
 

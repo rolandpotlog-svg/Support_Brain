@@ -18,14 +18,14 @@ async function main() {
   if (existing) {
     await db
       .update(schema.users)
-      .set({ role: "admin", active: true, passwordHash: hashPassword(password) })
+      .set({ role: "owner", active: true, passwordHash: hashPassword(password) })
       .where(eq(schema.users.id, existing.id));
     console.log(`Bestehender Nutzer ${lower} ist jetzt Admin (Passwort gesetzt).`);
   } else {
     await db.insert(schema.users).values({
       email: lower,
       name: name ?? "Admin",
-      role: "admin",
+      role: "owner",
       passwordHash: hashPassword(password),
     });
     console.log(`Admin ${lower} angelegt.`);

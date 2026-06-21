@@ -4,7 +4,7 @@ import { ShopForm } from "../shop-form";
 
 export default async function NewShopPage() {
   const user = await requireUser();
-  if (user.role !== "admin") redirect("/inbox");
+  if (!user.canShopsEdit) redirect("/inbox");
   return (
     <div className="adminwrap">
       <ShopForm initial={null} />

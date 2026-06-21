@@ -18,7 +18,7 @@ const OPEN_STATUS = new Set(["NEEDS_RESPONSE", "UNDER_REVIEW"]);
 
 export default async function CasesPage() {
   const user = await requireUser();
-  if (user.role !== "admin") redirect("/inbox");
+  if (!user.canCases) redirect("/inbox");
 
   const shopIds = await accessibleShopIds(user);
   const rows = await listCases(shopIds);

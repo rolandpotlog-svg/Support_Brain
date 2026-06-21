@@ -2,7 +2,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { requireAdmin } from "@/server/access";
+import { requireShopsEdit } from "@/server/access";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { getShopProfileData } from "@/lib/shopify/client";
 import { scrapeWebsite } from "@/server/scrape";
@@ -56,7 +56,7 @@ export type WebsiteRefreshResult = { scrapedAt: string; pages: { url: string; ti
 
 /** Profil-Felder speichern → Herkunft aktualisieren → System-Prompt neu bauen. Gibt neue Herkunft zurück. */
 export async function saveProfile(shopId: string, data: ProfileData): Promise<ProfileSources> {
-  await requireAdmin();
+  await requireShopsEdit();
   const existing = await db.query.shopProfile.findFirst({
     where: eq(schema.shopProfile.shopId, shopId),
   });
@@ -83,7 +83,7 @@ function stripHtml(s: string): string {
 
 /** Aus Shopify aktualisieren: Daten ziehen + leere auto-befüllbare Felder deterministisch vorbefüllen. */
 export async function refreshShopifyProfile(shopId: string): Promise<ShopifyRefreshResult> {
-  await requireAdmin();
+  await requireShopsEdit();
   const creds = await loadShopifyCreds(shopId);
   if (!creds) throw new Error("Shopify für diesen Shop nicht konfiguriert");
   const shopify = await getShopProfileData(creds);
@@ -141,7 +141,7 @@ export async function refreshWebsiteProfile(
   shopId: string,
   url: string,
 ): Promise<WebsiteRefreshResult> {
-  await requireAdmin();
+  await requireShopsEdit();
   const clean = url.trim();
   if (!clean) throw new Error("Bitte eine Shop-URL angeben");
   const scraped = await scrapeWebsite(clean);

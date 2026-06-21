@@ -334,6 +334,10 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .cat-table { width: 100%; border-collapse: collapse; }
 .cat-table td { padding: 5px 8px 5px 0; vertical-align: middle; }
 .catbar { height: 14px; background: var(--accent); border-radius: 4px; min-width: 2px; }
+.userlist { display: flex; flex-direction: column; gap: 12px; }
+.usercard { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.userhead { margin-bottom: 8px; }
+.userform { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
 
 /* ── Shop-Profil (Antwort-Gehirn) ─────────────────────────────────────── */
 .tabnav { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
