@@ -25,7 +25,7 @@ export async function complete(opts: {
   effort?: "low" | "medium" | "high";
 }): Promise<string> {
   const res = await getClient().messages.create({
-    model: "claude-opus-4-8",
+    model: "claude-sonnet-4-6",
     max_tokens: opts.maxTokens ?? 3000,
     thinking: { type: "adaptive" },
     output_config: { effort: opts.effort ?? "medium" },
