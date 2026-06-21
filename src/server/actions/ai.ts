@@ -4,6 +4,7 @@ import { db, schema } from "@/server/db";
 import { assertShopAccess, requireReports, requireUser } from "@/server/access";
 import { complete } from "@/server/ai";
 import { classifyShopTickets } from "@/server/ai/classify";
+import { getSettings } from "@/server/returns";
 import { sendWeeklyReport } from "@/server/reports-send";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
@@ -51,13 +52,31 @@ export async function draftReply(threadId: string): Promise<string> {
     where: eq(schema.shopProfile.shopId, thread.shopId),
   });
   const systemBase = profile?.systemPrompt || buildSystemPrompt(emptyProfile(), shop?.name ?? "unser Shop");
+
+  // Rückgabe-Brücke: ist das Portal aktiv, bekommt die KI den Link + die Anweisung,
+  // ihn NUR bei Rückgabe-/Umtausch-/Erstattungswunsch einzubauen.
+  let returnsHint = "";
+  const rset = await getSettings(thread.shopId);
+  if (rset?.enabled && shop?.slug) {
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const portalUrl = `${appUrl}/r/${shop.slug}`;
+    returnsHint =
+      "\n\n--- RÜCKGABE/RETOURE ---\n" +
+      "Falls der Kunde eine Rückgabe, Retoure, einen Umtausch oder eine Erstattung möchte: weise freundlich auf unser " +
+      "Self-Service-Rückgabeportal hin und füge GENAU diese URL ein (keine andere erfinden, nicht kürzen): " +
+      portalUrl +
+      "\nFormuliere es als Einladung (dort Bestellnummer + E-Mail eingeben, dann ist alles in wenigen Schritten erledigt). " +
+      "Geht es NICHT um eine Rückgabe/Umtausch/Erstattung, erwähne das Portal nicht.";
+  }
+
   const system =
     systemBase +
     "\n\n--- AUSGABE-REGELN ---\n" +
     "Verfasse NUR die nächste E-Mail-Antwort an den Kunden, auf Deutsch. " +
     "Keine Betreffzeile, keine Vorrede, keine Erklärungen, keine Meta-Kommentare, keine Platzhalter. " +
     "Wenn die Richtlinien eine Eskalation verlangen oder zentrale Infos fehlen, schreibe stattdessen kurz und freundlich, " +
-    "dass du dich kümmerst und ggf. Rücksprache hältst — erfinde nichts (keine Tracking-Nummern, Fristen, Beträge).";
+    "dass du dich kümmerst und ggf. Rücksprache hältst — erfinde nichts (keine Tracking-Nummern, Fristen, Beträge)." +
+    returnsHint;
 
   const msgs = await db
     .select({
