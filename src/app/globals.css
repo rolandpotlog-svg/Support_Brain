@@ -374,6 +374,26 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .field { display: flex; flex-direction: column; gap: 4px; }
 .fieldlabel { font-size: 13px; font-weight: 600; color: var(--text-2); }
 .csummary { margin: 0 16px 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+
+/* Posteingang-Spalten-Wrapper (stört das Flex-Layout nicht). */
+.inbox-root { display: contents; }
+.mobile-back { display: none; }
+
+/* ── Mobil: Posteingang = eine Spalte zur Zeit ────────────────────────── */
+@media (max-width: 760px) {
+  .folders, .panel { display: none; }
+  .tickets { width: 100%; flex-shrink: 1; }
+  .inbox-root[data-selected="0"] .convo { display: none; }
+  .inbox-root[data-selected="1"] .tickets { display: none; }
+  .mobile-back { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); color: var(--text); font-size: 18px; flex-shrink: 0; }
+  .convo .chead { padding: 12px 14px; gap: 8px; }
+  .convo .chead h2 { font-size: 16px; }
+  .convo .body { padding: 14px; }
+  .rail { gap: 6px; }
+  .adminwrap { padding: 14px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .row { flex-direction: column; }
+}
 .tasklist { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .taskrow { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; flex-wrap: wrap; }
 

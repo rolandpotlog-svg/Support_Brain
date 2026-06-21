@@ -180,7 +180,7 @@ export default async function InboxPage({
   const activeFolder = FOLDERS.find((f) => f.key === folder) ?? FOLDERS[0];
 
   return (
-    <>
+    <div className="inbox-root" data-selected={selected ? "1" : "0"}>
       {/* Spalte: Ordner */}
       <aside className="folders">
         {hasShops && activeShopId && (
@@ -286,7 +286,7 @@ export default async function InboxPage({
           <div className="sec muted">Kein Ticket gewählt.</div>
         )}
       </aside>
-    </>
+    </div>
   );
 }
 

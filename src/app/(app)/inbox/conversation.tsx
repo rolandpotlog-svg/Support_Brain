@@ -78,6 +78,7 @@ export function Conversation({
   return (
     <section className="convo">
       <div className="chead">
+        <Link href="/inbox" className="mobile-back" title="Zurück zur Liste" aria-label="Zurück">←</Link>
         <h2>{thread.subject || "(kein Betreff)"}</h2>
         {disputeId && (
           <Link href={`/cases/${disputeId}`} className="disputebadge" title="Verknüpfter Zahlungsstreitfall">
