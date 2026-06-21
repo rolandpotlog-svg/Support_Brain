@@ -1,6 +1,6 @@
 // Auto-Tagging: neue Tickets von Auto-Tag-Shops beim Eingang klassifizieren und
 // taggen (Tag nur setzen, wenn noch keiner gesetzt ist -> manuelle Tags bleiben).
-import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { aiConfigured, classifyBatch } from "@/server/ai";
 import { CATEGORIES, normalizeCategory, SENTIMENTS } from "@/lib/reports/categories";
@@ -19,6 +19,19 @@ export async function autoTagRecent(): Promise<number> {
   let tagged = 0;
 
   for (const s of shops) {
+    // Backfill: bereits klassifizierte Tickets ohne Tag bekommen die KI-Kategorie als Tag
+    // (kein KI-Aufruf nötig). Greift z. B. bei Tickets, die zuvor im Report klassifiziert wurden.
+    await db
+      .update(schema.threads)
+      .set({ tag: sql`${schema.threads.aiCategory}` })
+      .where(
+        and(
+          eq(schema.threads.shopId, s.id),
+          isNull(schema.threads.tag),
+          isNotNull(schema.threads.aiCategory),
+        ),
+      );
+
     const pending = await db
       .select({ id: schema.threads.id, subject: schema.threads.subject, tag: schema.threads.tag })
       .from(schema.threads)
