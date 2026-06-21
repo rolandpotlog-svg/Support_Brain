@@ -10,7 +10,7 @@ import {
   setThreadStatus,
   setThreadTag,
 } from "@/server/actions/inbox";
-import { draftReply } from "@/server/actions/ai";
+import { draftReply, summarizeThread } from "@/server/actions/ai";
 import { initials, timeAgo } from "@/lib/format";
 import { CATEGORIES } from "@/lib/reports/categories";
 
@@ -55,6 +55,8 @@ export function Conversation({
   const [text, setText] = useState("");
   const [noteText, setNoteText] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -138,6 +140,33 @@ export function Conversation({
 
       <div className="body">
         {error && <p className="error">{error}</p>}
+        {messages.length > 1 && (
+          <div style={{ marginBottom: 10 }}>
+            <div className="srcrow" style={{ alignItems: "center" }}>
+              <button
+                className="btnlink"
+                disabled={summarizing}
+                onClick={async () => {
+                  setError(null);
+                  setSummarizing(true);
+                  try {
+                    setSummary(await summarizeThread(thread.id));
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setSummarizing(false);
+                  }
+                }}
+              >
+                {summarizing ? "Fasst zusammen…" : "🧾 Verlauf zusammenfassen"}
+              </button>
+              {summary && (
+                <button className="btnlink" onClick={() => setSummary(null)}>ausblenden</button>
+              )}
+            </div>
+            {summary && <pre className="promptview" style={{ marginTop: 8 }}>{summary}</pre>}
+          </div>
+        )}
         {messages.map((m) =>
           m.internal ? (
             <article key={m.id} className="note-msg">

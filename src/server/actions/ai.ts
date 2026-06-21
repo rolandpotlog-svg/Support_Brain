@@ -137,6 +137,44 @@ export async function draftReply(threadId: string): Promise<string> {
   return draft;
 }
 
+/** Ganzen Ticket-Verlauf knapp zusammenfassen (damit man nicht alles lesen muss). */
+export async function summarizeThread(threadId: string): Promise<string> {
+  const user = await requireUser();
+  const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
+  if (!thread) throw new Error("Thread nicht gefunden");
+  await assertShopAccess(user, thread.shopId);
+
+  const msgs = await db
+    .select({
+      direction: schema.messages.direction,
+      internal: schema.messages.internal,
+      bodyText: schema.messages.bodyText,
+    })
+    .from(schema.messages)
+    .where(eq(schema.messages.threadId, threadId))
+    .orderBy(schema.messages.createdAt);
+
+  const transcript = msgs
+    .filter((m) => m.bodyText)
+    .map((m) => {
+      const who = m.internal ? "Notiz" : m.direction === "inbound" ? thread.customerName || "Kunde" : "Support";
+      return `${who}: ${m.bodyText!.trim()}`;
+    })
+    .join("\n\n");
+  if (!transcript) return "Kein Text zum Zusammenfassen vorhanden.";
+
+  const system =
+    "Du fasst einen Kundensupport-Verlauf für einen Mitarbeiter zusammen, damit er nicht alles lesen muss. " +
+    "Antworte auf Deutsch, kurz und in Stichpunkten.";
+  const userMsg =
+    `Fasse den folgenden Ticket-Verlauf zusammen — in dieser Struktur:\n` +
+    `• Anliegen: worum geht es?\n• Bisher: was wurde gesagt/zugesagt/getan?\n• Offen: was ist noch zu tun / unklar?\n\n` +
+    `Halte es knapp.\n\nKUNDE: ${thread.customerName || ""} <${thread.customerEmail}>\n` +
+    `BETREFF: ${thread.subject ?? "(kein Betreff)"}\n\nVERLAUF:\n${transcript}`;
+
+  return complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 700, effort: "low" });
+}
+
 /** KI-Analyse der häufigsten Beschwerden im Zeitraum (für die wöchentliche Auswertung). */
 export async function analyzeComplaints(shopId: string, days: number): Promise<string> {
   await requireReports();
