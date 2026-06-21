@@ -10,6 +10,7 @@ const PERMS: { key: string; label: string }[] = [
   { key: "permCases", label: "Fälle" },
   { key: "permShopsView", label: "Shops ansehen" },
   { key: "permShopsEdit", label: "Shops verwalten" },
+  { key: "permReturns", label: "Retouren" },
   { key: "permManageUsers", label: "Nutzer verwalten" },
 ];
 

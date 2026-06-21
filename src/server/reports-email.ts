@@ -53,6 +53,9 @@ export function buildWeeklyEmail(
   tl.push(`- Ø erste Antwort: ${fmtMin(r.avgFirstResponseMin)} · Ø Lösungszeit: ${fmtHours(r.avgResolutionHours)}`);
   tl.push(`- 1. Anlauf gelöst: ${r.fcrRate === null ? "—" : Math.round(r.fcrRate * 100) + " %"} · Rückstau >48h: ${r.backlogAging}`);
   tl.push(`- Stimmung: 😊 ${r.sentiment.positiv} / 😐 ${r.sentiment.neutral} / 😠 ${r.sentiment.negativ}`);
+  if (r.returns.total > 0) {
+    tl.push(`- Retouren: ${r.returns.total} Anfragen, ${r.returns.deflected} behalten, ${(r.returns.recoveredCents / 100).toFixed(2)} € zurückgewonnen`);
+  }
   if (draftTotal) {
     const pct = (n: number) => Math.round((n / draftTotal) * 100);
     tl.push(`- KI-Entwürfe: 1:1 ${pct(r.draftOutcomes.verbatim)} % / bearbeitet ${pct(r.draftOutcomes.edited)} % / ohne ${pct(r.draftOutcomes.manual)} %`);
@@ -112,7 +115,10 @@ export function buildWeeklyEmail(
         row("Ø Lösungszeit", fmtHours(r.avgResolutionHours)) +
         row("Im 1. Anlauf gelöst", r.fcrRate === null ? "—" : `${Math.round(r.fcrRate * 100)} %`) +
         row("Rückstau (>48 h)", String(r.backlogAging)) +
-        row("Stimmung", `😊 ${r.sentiment.positiv} / 😐 ${r.sentiment.neutral} / 😠 ${r.sentiment.negativ}`),
+        row("Stimmung", `😊 ${r.sentiment.positiv} / 😐 ${r.sentiment.neutral} / 😠 ${r.sentiment.negativ}`) +
+        (r.returns.total > 0
+          ? row("Retouren zurückgewonnen", `${(r.returns.recoveredCents / 100).toFixed(2)} € (${r.returns.deflected}/${r.returns.total})`)
+          : ""),
     ) +
     `<a href="${appUrl}/reports" style="display:inline-block;background:#2b6ef2;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">Vollständige Auswertung öffnen</a>` +
     `</div>`;

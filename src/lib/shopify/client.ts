@@ -25,6 +25,7 @@ export type LineItem = {
 export type ShopifyOrder = {
   id: string;
   name: string;
+  email: string | null;
   createdAt: string;
   total: Money | null;
   financialStatus: string | null;
@@ -59,6 +60,7 @@ async function gql<T>(
 const ORDER_FIELDS = `
   id
   name
+  email
   createdAt
   displayFinancialStatus
   displayFulfillmentStatus
@@ -88,6 +90,7 @@ function mapOrder(o: any): ShopifyOrder {
   return {
     id: o.id,
     name: o.name,
+    email: o.email ?? null,
     createdAt: o.createdAt,
     total: o.totalPriceSet?.shopMoney ?? null,
     financialStatus: o.displayFinancialStatus ?? null,

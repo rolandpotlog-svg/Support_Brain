@@ -12,6 +12,7 @@ type PermSet = {
   permCases: boolean;
   permShopsView: boolean;
   permShopsEdit: boolean;
+  permReturns: boolean;
   permManageUsers: boolean;
 };
 
@@ -21,6 +22,7 @@ function readPerms(fd: FormData): PermSet {
     permCases: fd.get("permCases") === "on",
     permShopsView: fd.get("permShopsView") === "on",
     permShopsEdit: fd.get("permShopsEdit") === "on",
+    permReturns: fd.get("permReturns") === "on",
     permManageUsers: fd.get("permManageUsers") === "on",
   };
 }

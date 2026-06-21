@@ -41,6 +41,14 @@ export type FullReport = {
   draftOutcomes: { verbatim: number; edited: number; manual: number };
   // Sentiment
   sentiment: { positiv: number; neutral: number; negativ: number };
+  // Retouren-Portal
+  returns: {
+    total: number;
+    deflected: number;
+    recoveredCents: number;
+    defectClaims: number;
+    byOutcome: { outcome: string; n: number }[];
+  };
   // Frühwarnung
   warnings: { title: string; detail: string }[];
 };
@@ -208,7 +216,35 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
     else draftOutcomes.manual++;
   }
 
-  // 6) Frühwarnungen (regelbasiert: Kategorien-Trends + Produkt-Hotspot + Sentiment + Rückstau).
+  // 6) Retouren-Portal (Fälle im Zeitraum).
+  const retRows = await db
+    .select({
+      outcome: schema.returnCases.outcome,
+      recovered: schema.returnCases.recoveredValueCents,
+      routing: schema.returnCases.reasonRouting,
+    })
+    .from(schema.returnCases)
+    .where(and(eq(schema.returnCases.shopId, shopId), gte(schema.returnCases.createdAt, curStart)));
+  const outcomeMap = new Map<string, number>();
+  let recoveredCents = 0;
+  let deflected = 0;
+  let defectClaims = 0;
+  for (const r of retRows) {
+    const o = r.outcome ?? "?";
+    outcomeMap.set(o, (outcomeMap.get(o) ?? 0) + 1);
+    recoveredCents += r.recovered ?? 0;
+    if (o === "deflected_keep") deflected++;
+    if (r.routing === "defect_photo") defectClaims++;
+  }
+  const returns = {
+    total: retRows.length,
+    deflected,
+    recoveredCents,
+    defectClaims,
+    byOutcome: [...outcomeMap.entries()].map(([outcome, n]) => ({ outcome, n })).sort((a, b) => b.n - a.n),
+  };
+
+  // 7) Frühwarnungen (regelbasiert: Kategorien-Trends + Produkt-Hotspot + Sentiment + Rückstau).
   const warnings: { title: string; detail: string }[] = [];
   for (const c of byCategory) {
     const area = CATEGORY_AREA[c.category as keyof typeof CATEGORY_AREA];
@@ -240,6 +276,12 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
       detail: "Rückstau — Bearbeitung/Besetzung prüfen (z. B. Wochenende).",
     });
   }
+  if (returns.defectClaims >= 3) {
+    warnings.push({
+      title: `${returns.defectClaims} Defekt-Reklamationen (Retouren)`,
+      detail: "Beim Lieferanten bündeln — Qualität/Charge prüfen.",
+    });
+  }
 
   const r1 = (n: number) => Math.round(n * 10) / 10;
   return {
@@ -269,6 +311,7 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
     backlogAging,
     draftOutcomes,
     sentiment,
+    returns,
     warnings,
   };
 }

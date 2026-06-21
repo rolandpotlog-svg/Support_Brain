@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(curl -s -o /dev/null -w \"portal \\(inaktiv\\) -> %{http_code}\\\\n\" http://localhost:3000/r/repello)"
     ]
   }
 }

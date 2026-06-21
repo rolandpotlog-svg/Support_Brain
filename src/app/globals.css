@@ -338,6 +338,11 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .usercard { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
 .userhead { margin-bottom: 8px; }
 .userform { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.fieldlabel { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.tasklist { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.taskrow { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; flex-wrap: wrap; }
 
 /* ── Shop-Profil (Antwort-Gehirn) ─────────────────────────────────────── */
 .tabnav { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }

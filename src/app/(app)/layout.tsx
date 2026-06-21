@@ -15,6 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <IconRail
         canReports={user.canReports}
         canCases={user.canCases}
+        canReturns={user.canReturns}
         canAdmin={user.canShopsView || user.canManageUsers}
       />
       <div className="workspace">{children}</div>

@@ -213,6 +213,19 @@ export default async function ReportsPage({
         </section>
       </div>
 
+      {/* Retouren-Portal */}
+      {r.returns.total > 0 && (
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Retouren-Portal</h2>
+          <div className="report">
+            <div className="rstat"><div className="k">Anfragen</div><div className="v">{r.returns.total}</div></div>
+            <div className="rstat"><div className="k">Behalten (deflektiert)</div><div className="v">{r.returns.deflected}</div></div>
+            <div className="rstat"><div className="k">Zurückgewonnen</div><div className="v">{(r.returns.recoveredCents / 100).toFixed(2)} €</div></div>
+            <div className="rstat"><div className="k">Defekt-Reklamationen</div><div className="v">{r.returns.defectClaims}</div></div>
+          </div>
+        </section>
+      )}
+
       {/* Status + Tags */}
       <div className="row" style={{ alignItems: "flex-start" }}>
         <section className="card" style={{ flex: 1, minWidth: 240 }}>

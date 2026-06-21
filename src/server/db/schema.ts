@@ -43,6 +43,7 @@ export const users = pgTable("users", {
   permShopsView: boolean("perm_shops_view").notNull().default(false),
   permShopsEdit: boolean("perm_shops_edit").notNull().default(false),
   permManageUsers: boolean("perm_manage_users").notNull().default(false),
+  permReturns: boolean("perm_returns").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -358,4 +359,96 @@ export const escalations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("escalations_open_idx").on(t.status, t.createdAt)],
+);
+
+// --- Retouren-Portal (multi-tenant pro Shop) ---------------------------------
+// Geldbeträge in Cent (Integer), um Float-Rundungsfehler zu vermeiden.
+export const returnSettings = pgTable("return_settings", {
+  shopId: uuid("shop_id")
+    .primaryKey()
+    .references(() => shops.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  cogsPct: integer("cogs_pct").notNull().default(40), // COGS = % vom Artikelpreis
+  returnShippingCents: integer("return_shipping_cents").notNull().default(600),
+  resaleableDefault: boolean("resaleable_default").notNull().default(true),
+  voucherBonusPct: integer("voucher_bonus_pct").notNull().default(15), // Gutschein = +X% Wert
+  firstOfferPct: integer("first_offer_pct").notNull().default(70), // 1. Angebot = % der Obergrenze
+  fraudWindowDays: integer("fraud_window_days").notNull().default(60),
+  fraudMaxKeepCents: integer("fraud_max_keep_cents").notNull().default(10000),
+  highValueThresholdCents: integer("high_value_threshold_cents").notNull().default(15000),
+  currency: text("currency").notNull().default("EUR"),
+  accentColor: text("accent_color").notNull().default("#2b6ef2"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const returnReasons = pgTable(
+  "return_reasons",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    // keep_refund | exchange | defect_photo | support_redirect
+    routing: text("routing").notNull(),
+    active: boolean("active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [index("return_reasons_shop_idx").on(t.shopId, t.sortOrder)],
+);
+
+export const returnCases = pgTable(
+  "return_cases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    number: serial("number").notNull().unique(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    orderGid: text("order_gid"),
+    orderName: text("order_name").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    customerName: text("customer_name"),
+    // open | offered | accepted | declined | redirected | completed | cancelled
+    status: text("status").notNull().default("open"),
+    reasonRouting: text("reason_routing"),
+    // [{ title, variantTitle, quantity, unitPriceCents, reasonLabel, routing }]
+    items: jsonb("items").notNull().default([]),
+    offerType: text("offer_type"), // partial_refund | voucher | exchange | none
+    offerValueCents: integer("offer_value_cents"),
+    offerStep: integer("offer_step").notNull().default(0),
+    acceptedOfferType: text("accepted_offer_type"),
+    acceptedValueCents: integer("accepted_value_cents"),
+    recoveredValueCents: integer("recovered_value_cents").notNull().default(0),
+    outcome: text("outcome"), // deflected_keep | refunded | exchanged | returned | redirected
+    note: text("note"),
+    threadId: uuid("thread_id").references(() => threads.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("return_cases_shop_idx").on(t.shopId, t.status, t.createdAt)],
+);
+
+export const returnTasks = pgTable(
+  "return_tasks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => returnCases.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    // refund | discount_code | draft_order | supplier_claim
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    amountCents: integer("amount_cents"),
+    deepLink: text("deep_link"),
+    instruction: text("instruction"),
+    status: text("status").notNull().default("pending"), // pending | done | skipped
+    doneBy: uuid("done_by").references(() => users.id),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("return_tasks_open_idx").on(t.shopId, t.status, t.createdAt)],
 );

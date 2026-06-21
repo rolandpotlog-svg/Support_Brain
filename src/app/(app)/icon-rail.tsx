@@ -6,16 +6,19 @@ import { signOut } from "next-auth/react";
 export function IconRail({
   canReports,
   canCases,
+  canReturns,
   canAdmin,
 }: {
   canReports: boolean;
   canCases: boolean;
+  canReturns: boolean;
   canAdmin: boolean;
 }) {
   const path = usePathname();
   const onInbox = path.startsWith("/inbox") || path.startsWith("/threads");
   const onSocial = path.startsWith("/social");
   const onCases = path.startsWith("/cases");
+  const onReturns = path.startsWith("/returns");
   const onReports = path.startsWith("/reports");
   const onAdmin = path.startsWith("/admin");
 
@@ -38,6 +41,14 @@ export function IconRail({
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             <path d="M9 12l2 2 4-4" />
+          </svg>
+        </Link>
+      )}
+      {canReturns && (
+        <Link href="/returns" className={onReturns ? "active" : ""} title="Retouren" aria-label="Retouren">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 14 4 9 9 4" />
+            <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
           </svg>
         </Link>
       )}

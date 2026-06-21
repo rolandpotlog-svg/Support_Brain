@@ -13,6 +13,7 @@ export type SessionUser = {
   canShopsView: boolean;
   canShopsEdit: boolean;
   canManageUsers: boolean;
+  canReturns: boolean;
 };
 
 /** Eingeloggten Nutzer laden (frisch aus der DB -> Rechte-Änderungen wirken sofort). */
@@ -32,6 +33,7 @@ export async function requireUser(): Promise<SessionUser> {
     canShopsView: isOwner || u.permShopsView || u.permShopsEdit,
     canShopsEdit: isOwner || u.permShopsEdit,
     canManageUsers: isOwner || u.permManageUsers,
+    canReturns: isOwner || u.permReturns,
   };
 }
 
@@ -47,10 +49,11 @@ export const requireCases = () => require((u) => u.canCases, "Keine Berechtigung
 export const requireShopsView = () => require((u) => u.canShopsView, "Keine Berechtigung (Shops)");
 export const requireShopsEdit = () => require((u) => u.canShopsEdit, "Keine Berechtigung (Shops verwalten)");
 export const requireManageUsers = () => require((u) => u.canManageUsers, "Keine Berechtigung (Nutzer)");
+export const requireReturns = () => require((u) => u.canReturns, "Keine Berechtigung (Retouren)");
 
 /** Sieht der Nutzer Shop-übergreifend (Owner/Shops/Auswertung/Fälle) oder nur zugewiesene? */
 function hasGlobalShopView(user: SessionUser): boolean {
-  return user.isOwner || user.canShopsView || user.canReports || user.canCases;
+  return user.isOwner || user.canShopsView || user.canReports || user.canCases || user.canReturns;
 }
 
 /** Shop-IDs, die der Nutzer sehen darf. */
