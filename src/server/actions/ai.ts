@@ -1,9 +1,10 @@
 "use server";
-import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { assertShopAccess, requireAdmin, requireUser } from "@/server/access";
-import { classifyBatch, complete } from "@/server/ai";
-import { CATEGORIES, normalizeCategory, SENTIMENTS } from "@/lib/reports/categories";
+import { complete } from "@/server/ai";
+import { classifyShopTickets } from "@/server/ai/classify";
+import { sendWeeklyReport } from "@/server/reports-send";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
@@ -155,76 +156,17 @@ export async function analyzeComplaints(shopId: string, days: number): Promise<s
   return complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 1500 });
 }
 
-const VALID_SENTIMENT = new Set<string>(SENTIMENTS);
-
 /** Klassifiziert noch nicht klassifizierte Tickets des Zeitraums (Kategorie + Sentiment + Produkt). */
 export async function classifyTickets(
   shopId: string,
   days: number,
 ): Promise<{ classified: number; remaining: number }> {
   await requireAdmin();
-  const since = new Date(Date.now() - days * 86_400_000);
+  return classifyShopTickets(shopId, days);
+}
 
-  // Bis zu 120 unklassifizierte Tickets je Lauf (in Stapeln an Claude).
-  const pending = await db
-    .select({ id: schema.threads.id, subject: schema.threads.subject })
-    .from(schema.threads)
-    .where(
-      and(
-        eq(schema.threads.shopId, shopId),
-        gte(schema.threads.createdAt, since),
-        isNull(schema.threads.aiClassifiedAt),
-      ),
-    )
-    .orderBy(desc(schema.threads.createdAt))
-    .limit(120);
-
-  if (!pending.length) return { classified: 0, remaining: 0 };
-
-  // Ersten Kundentext je Ticket holen.
-  const ids = pending.map((p) => p.id);
-  const inbound = await db
-    .select({
-      threadId: schema.messages.threadId,
-      body: schema.messages.bodyText,
-    })
-    .from(schema.messages)
-    .where(and(inArray(schema.messages.threadId, ids), eq(schema.messages.direction, "inbound")))
-    .orderBy(asc(schema.messages.createdAt));
-  const firstBody = new Map<string, string>();
-  for (const m of inbound) if (!firstBody.has(m.threadId) && m.body) firstBody.set(m.threadId, m.body);
-
-  const refMap = new Map<number, string>(); // ref -> threadId
-  const items = pending.map((p, i) => {
-    refMap.set(i, p.id);
-    return {
-      ref: i,
-      subject: p.subject ?? "",
-      body: (firstBody.get(p.id) ?? "").replace(/\s+/g, " ").trim().slice(0, 600),
-    };
-  });
-
-  let classified = 0;
-  const now = new Date();
-  for (let i = 0; i < items.length; i += 20) {
-    const chunk = items.slice(i, i + 20);
-    const results = await classifyBatch(chunk, CATEGORIES, SENTIMENTS);
-    for (const r of results) {
-      const threadId = refMap.get(r.ref);
-      if (!threadId) continue;
-      await db
-        .update(schema.threads)
-        .set({
-          aiCategory: normalizeCategory(r.category),
-          aiSentiment: VALID_SENTIMENT.has(r.sentiment) ? r.sentiment : "neutral",
-          aiProduct: r.product,
-          aiClassifiedAt: now,
-        })
-        .where(eq(schema.threads.id, threadId));
-      classified++;
-    }
-  }
-
-  const remaining = pending.length - classified;
-  return { classified, remaining };
+/** Wochenbericht für einen Shop sofort versenden (Test/Manuell). */
+export async function sendWeeklyReportNow(shopId: string, days: number): Promise<{ to: string[] }> {
+  await requireAdmin();
+  return sendWeeklyReport(shopId, days);
 }

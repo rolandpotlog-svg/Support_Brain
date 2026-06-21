@@ -53,6 +53,8 @@ export type ShopDetail = {
   name: string;
   slug: string;
   active: boolean;
+  weeklyReportEnabled: boolean;
+  weeklyReportTo: string;
   shopify: {
     configured: boolean;
     domain: string | null;
@@ -94,6 +96,8 @@ export async function loadShopForEdit(shopId: string): Promise<ShopDetail | null
     name: shop.name,
     slug: shop.slug,
     active: shop.active,
+    weeklyReportEnabled: shop.weeklyReportEnabled,
+    weeklyReportTo: shop.weeklyReportTo ?? "",
     shopify: {
       configured: Boolean(sh),
       domain: sh?.storeDomain ?? null,

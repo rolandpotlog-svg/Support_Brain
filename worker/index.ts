@@ -5,6 +5,7 @@ import "dotenv/config";
 import cron from "node-cron";
 import { ingestAll } from "./imap";
 import { processOutbox } from "./smtp";
+import { runWeeklyReports } from "./reports";
 
 async function runCycle() {
   try {
@@ -19,6 +20,11 @@ async function runCycle() {
 }
 
 async function main() {
+  if (process.argv.includes("--weekly")) {
+    // Wochenbericht einmal sofort senden (Test): npm run worker -- --weekly
+    await runWeeklyReports();
+    process.exit(0);
+  }
   if (process.argv.includes("--once")) {
     await runCycle();
     process.exit(0);
@@ -30,6 +36,9 @@ async function main() {
   // node-cron braucht ein Sekunden-/Minuten-Pattern; wir bauen es aus dem Intervall.
   const pattern = intervalSec < 60 ? `*/${Math.max(1, intervalSec)} * * * * *` : `*/${Math.round(intervalSec / 60)} * * * *`;
   cron.schedule(pattern, runCycle);
+  // Wochenbericht: jeden Montag 07:00 (Serverzeit).
+  cron.schedule("0 7 * * 1", runWeeklyReports);
+  console.log("[worker] Wochenbericht geplant: Montags 07:00.");
 }
 
 main();

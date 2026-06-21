@@ -24,6 +24,8 @@ export type ShopInput = {
   id?: string; // vorhanden = bearbeiten, sonst neu
   name: string;
   active: boolean;
+  weeklyReportEnabled: boolean;
+  weeklyReportTo: string; // kommagetrennte Empfänger
   shopifyDomain: string; // leer = Shopify trennen
   shopifyClientId: string; // Client-Credentials-Grant (primär)
   shopifyClientSecret: string; // leer = bestehendes behalten
@@ -71,6 +73,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
   await requireAdmin();
   const name = input.name.trim();
   if (!name) throw new Error("Anzeigename nötig");
+  const weeklyReportTo = input.weeklyReportTo.trim() || null;
 
   const shopId = await db.transaction(async (tx) => {
     // --- Shop-Stammdaten ---
@@ -78,13 +81,24 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
     if (id) {
       await tx
         .update(schema.shops)
-        .set({ name, active: input.active })
+        .set({
+          name,
+          active: input.active,
+          weeklyReportEnabled: input.weeklyReportEnabled,
+          weeklyReportTo,
+        })
         .where(eq(schema.shops.id, id));
     } else {
       const slug = await uniqueSlug(slugify(name));
       const [created] = await tx
         .insert(schema.shops)
-        .values({ slug, name, active: input.active })
+        .values({
+          slug,
+          name,
+          active: input.active,
+          weeklyReportEnabled: input.weeklyReportEnabled,
+          weeklyReportTo,
+        })
         .returning({ id: schema.shops.id });
       id = created.id;
     }

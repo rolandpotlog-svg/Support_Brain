@@ -44,6 +44,8 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
   const router = useRouter();
   const [name, setName] = useState(initial?.name ?? "");
   const [active, setActive] = useState(initial?.active ?? true);
+  const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(initial?.weeklyReportEnabled ?? false);
+  const [weeklyReportTo, setWeeklyReportTo] = useState(initial?.weeklyReportTo ?? "");
   const [shopifyDomain, setShopifyDomain] = useState(initial?.shopify.domain ?? "");
   const [shopifyClientId, setShopifyClientId] = useState(initial?.shopify.clientId ?? "");
   const [shopifyClientSecret, setShopifyClientSecret] = useState("");
@@ -75,6 +77,8 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
       id: initial?.id,
       name,
       active,
+      weeklyReportEnabled,
+      weeklyReportTo,
       shopifyDomain,
       shopifyClientId,
       shopifyClientSecret,
@@ -140,6 +144,29 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Aktiv (wird gepollt &amp; im Umschalter gezeigt)
           </label>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Wochenbericht</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Automatischer Bericht (Kennzahlen, Themen, Frühwarnungen) — jeden Montag 07:00 per Mail.
+          Versand über das erste Postfach dieses Shops.
+        </p>
+        <div className="invite">
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={weeklyReportEnabled}
+              onChange={(e) => setWeeklyReportEnabled(e.target.checked)}
+            />
+            Wöchentlichen Bericht senden
+          </label>
+          <input
+            placeholder="Empfänger (kommagetrennt, z. B. chef@firma.de, du@firma.de)"
+            value={weeklyReportTo}
+            onChange={(e) => setWeeklyReportTo(e.target.value)}
+          />
         </div>
       </section>
 

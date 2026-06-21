@@ -8,6 +8,7 @@ import { fullReport, unclassifiedInPeriod, weekdayLabel } from "@/server/reports
 import { ShopSwitcher } from "../inbox/shop-switcher";
 import { ComplaintAnalysis } from "./complaint-analysis";
 import { ClassifyButton } from "./classify-button";
+import { TestReportButton } from "./test-report-button";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Offen",
@@ -103,6 +104,14 @@ export default async function ReportsPage({
           <Link href="/reports?days=30" className={`btnlink ${days === 30 ? "primary" : ""}`}>30 Tage</Link>
         </div>
       </div>
+
+      {/* Wochenbericht (automatisch montags) */}
+      <section className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <span className="muted" style={{ fontSize: 13 }}>
+          Automatischer Wochenbericht: montags 07:00 (Empfänger im Admin pro Shop). Hier zum Testen sofort senden.
+        </span>
+        <TestReportButton shopId={activeShopId} days={days} />
+      </section>
 
       {/* Frühwarnungen */}
       {r.warnings.length > 0 && (

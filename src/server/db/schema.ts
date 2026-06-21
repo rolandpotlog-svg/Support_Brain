@@ -49,6 +49,9 @@ export const shops = pgTable("shops", {
   active: boolean("active").notNull().default(true),
   // Kill-Switch: true => KI aus, reiner manueller Posteingang.
   killSwitch: boolean("kill_switch").notNull().default(false),
+  // Automatischer Wochenbericht: Empfänger (kommagetrennt) + An/Aus.
+  weeklyReportTo: text("weekly_report_to"),
+  weeklyReportEnabled: boolean("weekly_report_enabled").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

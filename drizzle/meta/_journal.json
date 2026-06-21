@@ -78,6 +78,13 @@
       "when": 1781939867920,
       "tag": "0010_reports_classification",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782031235089,
+      "tag": "0011_weekly_report",
+      "breakpoints": true
     }
   ]
 }
