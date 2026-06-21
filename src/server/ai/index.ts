@@ -22,12 +22,13 @@ export async function complete(opts: {
   system: string;
   messages: ChatMessage[];
   maxTokens?: number;
+  effort?: "low" | "medium" | "high";
 }): Promise<string> {
   const res = await getClient().messages.create({
     model: "claude-opus-4-8",
     max_tokens: opts.maxTokens ?? 3000,
     thinking: { type: "adaptive" },
-    output_config: { effort: "medium" },
+    output_config: { effort: opts.effort ?? "medium" },
     system: opts.system,
     messages: opts.messages,
   });

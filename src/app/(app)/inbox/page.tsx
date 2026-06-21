@@ -256,6 +256,7 @@ export default async function InboxPage({
       {/* Spalte: Konversation */}
       {selected ? (
         <Conversation
+          key={selected.id}
           thread={{
             id: selected.id,
             subject: selected.subject,

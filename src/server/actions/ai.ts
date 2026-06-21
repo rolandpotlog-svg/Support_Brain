@@ -125,7 +125,7 @@ export async function draftReply(threadId: string): Promise<string> {
     "Verfasse jetzt die nächste Antwort an den Kunden.",
   ].join("\n");
 
-  const draft = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 2000 });
+  const draft = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 2000, effort: "low" });
   // Entwurf merken, um beim Senden zu erkennen, ob er 1:1 übernommen oder bearbeitet wurde.
   await db.update(schema.threads).set({ lastAiDraft: draft }).where(eq(schema.threads.id, threadId));
   return draft;
