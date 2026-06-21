@@ -55,6 +55,7 @@ export type ShopDetail = {
   active: boolean;
   weeklyReportEnabled: boolean;
   weeklyReportTo: string;
+  autoTag: boolean;
   shopify: {
     configured: boolean;
     domain: string | null;
@@ -98,6 +99,7 @@ export async function loadShopForEdit(shopId: string): Promise<ShopDetail | null
     active: shop.active,
     weeklyReportEnabled: shop.weeklyReportEnabled,
     weeklyReportTo: shop.weeklyReportTo ?? "",
+    autoTag: shop.autoTag,
     shopify: {
       configured: Boolean(sh),
       domain: sh?.storeDomain ?? null,

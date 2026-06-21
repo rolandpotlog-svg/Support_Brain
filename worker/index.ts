@@ -6,13 +6,20 @@ import cron from "node-cron";
 import { ingestAll } from "./imap";
 import { processOutbox } from "./smtp";
 import { runWeeklyReports } from "./reports";
+import { autoTagRecent } from "../src/server/ai/autotag";
 
 async function runCycle() {
   try {
     const fetched = await ingestAll();
     const sent = await processOutbox();
+    let tagged = 0;
+    try {
+      tagged = await autoTagRecent();
+    } catch (e) {
+      console.error("[worker] Auto-Tag-Fehler:", e instanceof Error ? e.message : e);
+    }
     console.log(
-      `[${new Date().toISOString()}] ${fetched} Mail(s) abgeholt, ${sent} gesendet.`,
+      `[${new Date().toISOString()}] ${fetched} Mail(s) abgeholt, ${sent} gesendet, ${tagged} getaggt.`,
     );
   } catch (err) {
     console.error("[worker] Zyklus-Fehler:", err);

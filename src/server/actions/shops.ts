@@ -26,6 +26,7 @@ export type ShopInput = {
   active: boolean;
   weeklyReportEnabled: boolean;
   weeklyReportTo: string; // kommagetrennte Empfänger
+  autoTag: boolean; // neue Tickets automatisch taggen
   shopifyDomain: string; // leer = Shopify trennen
   shopifyClientId: string; // Client-Credentials-Grant (primär)
   shopifyClientSecret: string; // leer = bestehendes behalten
@@ -86,6 +87,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
           active: input.active,
           weeklyReportEnabled: input.weeklyReportEnabled,
           weeklyReportTo,
+          autoTag: input.autoTag,
         })
         .where(eq(schema.shops.id, id));
     } else {
@@ -98,6 +100,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
           active: input.active,
           weeklyReportEnabled: input.weeklyReportEnabled,
           weeklyReportTo,
+          autoTag: input.autoTag,
         })
         .returning({ id: schema.shops.id });
       id = created.id;

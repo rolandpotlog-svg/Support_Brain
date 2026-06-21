@@ -46,6 +46,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
   const [active, setActive] = useState(initial?.active ?? true);
   const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(initial?.weeklyReportEnabled ?? false);
   const [weeklyReportTo, setWeeklyReportTo] = useState(initial?.weeklyReportTo ?? "");
+  const [autoTag, setAutoTag] = useState(initial?.autoTag ?? false);
   const [shopifyDomain, setShopifyDomain] = useState(initial?.shopify.domain ?? "");
   const [shopifyClientId, setShopifyClientId] = useState(initial?.shopify.clientId ?? "");
   const [shopifyClientSecret, setShopifyClientSecret] = useState("");
@@ -79,6 +80,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
       active,
       weeklyReportEnabled,
       weeklyReportTo,
+      autoTag,
       shopifyDomain,
       shopifyClientId,
       shopifyClientSecret,
@@ -143,6 +145,10 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
           <label className="chk">
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Aktiv (wird gepollt &amp; im Umschalter gezeigt)
+          </label>
+          <label className="chk">
+            <input type="checkbox" checked={autoTag} onChange={(e) => setAutoTag(e.target.checked)} />
+            Neue Tickets automatisch taggen (KI klassifiziert beim Eingang)
           </label>
         </div>
       </section>

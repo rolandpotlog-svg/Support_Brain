@@ -59,6 +59,8 @@ export const shops = pgTable("shops", {
   // Automatischer Wochenbericht: Empfänger (kommagetrennt) + An/Aus.
   weeklyReportTo: text("weekly_report_to"),
   weeklyReportEnabled: boolean("weekly_report_enabled").notNull().default(false),
+  // Neue Tickets beim Eingang automatisch von der KI taggen/klassifizieren.
+  autoTag: boolean("auto_tag").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

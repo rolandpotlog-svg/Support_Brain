@@ -12,8 +12,10 @@ import {
 } from "@/server/actions/inbox";
 import { draftReply } from "@/server/actions/ai";
 import { initials, timeAgo } from "@/lib/format";
+import { CATEGORIES } from "@/lib/reports/categories";
 
-const TAG_PRESETS = ["Bestellstatus", "Beschädigte Ware", "Retoure/Umtausch", "Sonstiges"];
+// Tag-Presets = KI-Kategorien (manuelle Tags und Auto-Tags sind damit identisch).
+const TAG_PRESETS: readonly string[] = CATEGORIES;
 
 type Msg = {
   id: string;
