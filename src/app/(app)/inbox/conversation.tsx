@@ -136,37 +136,40 @@ export function Conversation({
             )}
           </select>
         </label>
+        <button
+          className="btnlink"
+          style={{ marginLeft: "auto" }}
+          disabled={summarizing}
+          onClick={async () => {
+            setError(null);
+            setSummarizing(true);
+            try {
+              setSummary(await summarizeThread(thread.id));
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            } finally {
+              setSummarizing(false);
+            }
+          }}
+        >
+          {summarizing ? "Fasst zusammen…" : summary ? "🧾 Neu zusammenfassen" : "🧾 Zusammenfassen"}
+        </button>
       </div>
+
+      {summary && (
+        <div className="csummary">
+          <div className="srcrow" style={{ alignItems: "center", marginBottom: 4 }}>
+            <strong style={{ fontSize: 13 }}>Zusammenfassung</strong>
+            <button className="btnlink" style={{ marginLeft: "auto" }} onClick={() => setSummary(null)}>
+              ausblenden
+            </button>
+          </div>
+          <pre className="promptview" style={{ margin: 0 }}>{summary}</pre>
+        </div>
+      )}
 
       <div className="body">
         {error && <p className="error">{error}</p>}
-        {messages.length > 1 && (
-          <div style={{ marginBottom: 10 }}>
-            <div className="srcrow" style={{ alignItems: "center" }}>
-              <button
-                className="btnlink"
-                disabled={summarizing}
-                onClick={async () => {
-                  setError(null);
-                  setSummarizing(true);
-                  try {
-                    setSummary(await summarizeThread(thread.id));
-                  } catch (e) {
-                    setError(e instanceof Error ? e.message : String(e));
-                  } finally {
-                    setSummarizing(false);
-                  }
-                }}
-              >
-                {summarizing ? "Fasst zusammen…" : "🧾 Verlauf zusammenfassen"}
-              </button>
-              {summary && (
-                <button className="btnlink" onClick={() => setSummary(null)}>ausblenden</button>
-              )}
-            </div>
-            {summary && <pre className="promptview" style={{ marginTop: 8 }}>{summary}</pre>}
-          </div>
-        )}
         {messages.map((m) =>
           m.internal ? (
             <article key={m.id} className="note-msg">
