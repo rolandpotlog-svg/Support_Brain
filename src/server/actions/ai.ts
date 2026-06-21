@@ -15,17 +15,22 @@ function money(m: { amount: string; currencyCode: string } | null): string {
   return m ? euro(m.amount, m.currencyCode) : "—";
 }
 
+function orderLines(o: import("@/lib/shopify/client").ShopifyOrder): string {
+  const tracking = o.tracking.map((t) => `${t.company ?? "Carrier"} ${t.number ?? ""}`.trim()).join(", ");
+  const items = o.lineItems.map((li) => `${li.quantity}× ${li.title}`).join(", ");
+  return [
+    `Bestellung ${o.name} vom ${new Date(o.createdAt).toLocaleDateString("de-DE")}`,
+    `Zahlung: ${o.financialStatus ?? "?"} · Versand: ${o.fulfillmentStatus ?? "?"} · Summe: ${money(o.total)}`,
+    tracking ? `Tracking: ${tracking}` : "Tracking: keins hinterlegt",
+    items ? `Artikel: ${items}` : "",
+  ].filter(Boolean).join("\n");
+}
+
 function formatResolution(r: Resolution): string {
-  if (r.mode === "order") {
-    const o = r.order;
-    const tracking = o.tracking.map((t) => `${t.company ?? "Carrier"} ${t.number ?? ""}`.trim()).join(", ");
-    const items = o.lineItems.map((li) => `${li.quantity}× ${li.title}`).join(", ");
-    return [
-      `Bestellung ${o.name} vom ${new Date(o.createdAt).toLocaleDateString("de-DE")}`,
-      `Zahlung: ${o.financialStatus ?? "?"} · Versand: ${o.fulfillmentStatus ?? "?"} · Summe: ${money(o.total)}`,
-      tracking ? `Tracking: ${tracking}` : "Tracking: keins hinterlegt",
-      items ? `Artikel: ${items}` : "",
-    ].filter(Boolean).join("\n");
+  if (r.mode === "order") return orderLines(r.order);
+  if (r.mode === "orders") {
+    if (!r.orders.length) return "Keine Bestellung gefunden.";
+    return `Gast-Bestellung(en) über die E-Mail:\n${orderLines(r.orders[0])}`;
   }
   if (r.mode === "customer") {
     const c = r.customer;
@@ -105,6 +110,7 @@ export async function draftReply(threadId: string): Promise<string> {
         subject: thread.subject,
         body: firstInbound?.bodyText ?? null,
         name: thread.customerName,
+        manualOrderName: thread.manualOrderName,
       });
       orderContext = formatResolution(r);
     } catch {

@@ -275,6 +275,8 @@ export const threads = pgTable(
     // Farbiger Kategorie-Tag (z. B. "Bestellstatus", "Beschädigte Ware").
     tag: text("tag"),
     assigneeId: uuid("assignee_id").references(() => users.id),
+    // Manuell am Ticket gemerkte Bestellnummer (Abgleich-Override, hat Vorrang).
+    manualOrderName: text("manual_order_name"),
     // Effizienz-Tracking: wann zuerst geantwortet / wann geschlossen.
     firstResponseAt: timestamp("first_response_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),

@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(git commit -q -m ' *)",
-      "Bash(curl -s -o /dev/null -w \"portal \\(inaktiv\\) -> %{http_code}\\\\n\" http://localhost:3000/r/repello)"
+      "Bash(curl -s -o /dev/null -w \"portal \\(inaktiv\\) -> %{http_code}\\\\n\" http://localhost:3000/r/repello)",
+      "Bash(sed 's|src/||')",
+      "Bash(grep -n 'export async function findCustomersByName\\\\|export async function findCustomerByEmail\\\\|export async function getCustomerOrders\\\\|customer\\(id\\\\|query: $q' src/lib/shopify/client.ts)",
+      "Bash(grep -iE '\\(^|/\\)\\\\.env$|backups/|node_modules/')"
     ]
   }
 }

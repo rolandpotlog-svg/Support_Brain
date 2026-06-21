@@ -5,6 +5,7 @@ import {
   manualSearch,
   pickCandidate,
   resolveThreadShopify,
+  setThreadOrder,
 } from "@/server/actions/shopify";
 import type { Resolution } from "@/lib/shopify/order-match";
 import type { ShopifyCustomer, ShopifyOrder } from "@/lib/shopify/client";
@@ -108,6 +109,29 @@ function CustomerHead({ customer }: { customer: ShopifyCustomer | null }) {
   );
 }
 
+function PinOrder({ threadId, orderName, onResult }: { threadId: string; orderName: string; onResult: (r: Resolution) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  return (
+    <div className="sec">
+      <button
+        className="candidate"
+        style={{ width: "100%", justifyContent: "center" }}
+        disabled={busy || pinned}
+        onClick={async () => {
+          setBusy(true);
+          const r = await setThreadOrder(threadId, orderName);
+          setPinned(true);
+          setBusy(false);
+          onResult(r);
+        }}
+      >
+        {pinned ? "📌 Am Ticket gemerkt" : busy ? "Merke…" : "📌 Diese Bestellung am Ticket merken"}
+      </button>
+    </div>
+  );
+}
+
 function ManualSearch({ shopId, onResult }: { shopId: string; onResult: (r: Resolution) => void }) {
   const [type, setType] = useState<"order" | "email" | "name">("order");
   const [q, setQ] = useState("");
@@ -159,6 +183,13 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
     (r: Resolution) => {
       setRes(r);
       if (r.mode === "customer") applyCustomer(r);
+      if (r.mode === "orders") {
+        setCustomer(null);
+        setOrders(r.orders);
+        setCursorNext(null);
+        setTotal(r.orders.length);
+        setIdx(0);
+      }
     },
     [applyCustomer],
   );
@@ -210,6 +241,34 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
       <>
         <CustomerHead customer={res.customer} />
         <OrderBlock order={res.order} />
+        <PinOrder threadId={threadId} orderName={res.order.name} onResult={apply} />
+        <ManualSearch shopId={shopId} onResult={apply} />
+      </>
+    );
+  }
+
+  if (res.mode === "orders") {
+    const current = orders[idx];
+    return (
+      <>
+        <div className="sec"><div className="sec-label">Bestellungen über die E-Mail (Gast)</div></div>
+        {current ? (
+          <>
+            <div className="sec" style={{ paddingBottom: 0, borderBottom: "none" }}>
+              <div className="pager">
+                <span className="sec-label" style={{ margin: 0 }}>Bestellung</span>
+                <span style={{ flex: 1 }} />
+                <button disabled={idx === 0} onClick={() => setIdx(idx - 1)}>‹</button>
+                <span className="pinfo">{idx + 1}/{orders.length}</span>
+                <button disabled={idx + 1 >= orders.length} onClick={() => setIdx(idx + 1)}>›</button>
+              </div>
+            </div>
+            <OrderBlock order={current} />
+            <PinOrder threadId={threadId} orderName={current.name} onResult={apply} />
+          </>
+        ) : (
+          <div className="sec muted">Keine Bestellungen.</div>
+        )}
         <ManualSearch shopId={shopId} onResult={apply} />
       </>
     );
@@ -267,10 +326,12 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
             </div>
           </div>
           <OrderBlock order={current} />
+          <PinOrder threadId={threadId} orderName={current.name} onResult={apply} />
         </>
       ) : (
         <div className="sec muted">Keine Bestellungen für diesen Kunden.</div>
       )}
+      <ManualSearch shopId={shopId} onResult={apply} />
     </>
   );
 }

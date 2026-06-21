@@ -1,0 +1,1 @@
+ALTER TABLE "threads" ADD COLUMN "manual_order_name" text;

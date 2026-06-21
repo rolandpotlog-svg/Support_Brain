@@ -7,6 +7,7 @@ import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
 import {
   findCustomerByEmail,
   findCustomersByName,
+  findOrdersByEmail,
   getCustomerOrders,
   getOrderByName,
   type ShopifyCustomer,
@@ -34,7 +35,21 @@ export async function resolveThreadShopify(threadId: string): Promise<Resolution
     subject: thread.subject,
     body: firstInbound?.bodyText ?? null,
     name: thread.customerName,
+    manualOrderName: thread.manualOrderName,
   });
+}
+
+/** Bestellung manuell am Ticket merken (oder leeren) — hat ab dann Vorrang, KI nutzt sie. */
+export async function setThreadOrder(threadId: string, orderName: string): Promise<Resolution> {
+  const user = await requireUser();
+  const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
+  if (!thread) return { mode: "error", message: "Thread nicht gefunden" };
+  await assertShopAccess(user, thread.shopId);
+  await db
+    .update(schema.threads)
+    .set({ manualOrderName: orderName.trim() || null })
+    .where(eq(schema.threads.id, threadId));
+  return resolveThreadShopify(threadId);
 }
 
 /** Weitere Bestellungen eines Kunden nachladen (Pagination), im Store des Shops. */
@@ -71,9 +86,12 @@ export async function manualSearch(
     }
     if (type === "email") {
       const customer = await findCustomerByEmail(creds, q);
-      if (!customer) return { mode: "none" };
-      const o = await getCustomerOrders(creds, customer.id);
-      return { mode: "customer", customer, orders: o.orders, cursor: o.cursor, hasNext: o.hasNext, total: o.total, page: 1, matchedBy: "email" };
+      if (customer) {
+        const o = await getCustomerOrders(creds, customer.id);
+        return { mode: "customer", customer, orders: o.orders, cursor: o.cursor, hasNext: o.hasNext, total: o.total, page: 1, matchedBy: "email" };
+      }
+      const guestOrders = await findOrdersByEmail(creds, q);
+      return guestOrders.length ? { mode: "orders", orders: guestOrders, matchedBy: "email" } : { mode: "none" };
     }
     const candidates = await findCustomersByName(creds, q);
     return candidates.length ? { mode: "candidates", candidates } : { mode: "none" };

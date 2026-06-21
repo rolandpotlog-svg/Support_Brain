@@ -335,6 +335,18 @@ export async function findCustomerByEmail(
   return node ? mapCustomer(node) : null;
 }
 
+/** Bestellungen direkt über die E-Mail (fängt Gast-Checkouts ohne Kundenkonto). */
+export async function findOrdersByEmail(creds: ShopifyCreds, email: string, first = 5): Promise<ShopifyOrder[]> {
+  const clean = email.trim();
+  if (!clean) return [];
+  const data = await gql<{ orders: { nodes: any[] } }>(
+    creds,
+    `query($q: String!, $first: Int!) { orders(first: $first, query: $q, sortKey: CREATED_AT, reverse: true) { nodes { ${ORDER_FIELDS} customer { ${CUSTOMER_FIELDS} } } } }`,
+    { q: `email:${clean}`, first },
+  );
+  return (data.orders?.nodes ?? []).map(mapOrder);
+}
+
 /** Namensabgleich (Fallback) — kann mehrdeutig sein, daher Liste. */
 export async function findCustomersByName(
   creds: ShopifyCreds,
