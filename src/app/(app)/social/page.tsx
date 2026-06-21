@@ -46,11 +46,12 @@ export default async function SocialPage({ searchParams }: { searchParams: Promi
       <section className="tickets">
         <div className="head">
           <span className="title"><span className="play">▶</span> Social</span>
-          {hasShops && activeShopId && (
-            <span style={{ marginLeft: "auto" }}>
+          <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+            <Link href="/social/comments" className="btnlink">FB-Kommentare →</Link>
+            {hasShops && activeShopId && (
               <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/social" />
-            </span>
-          )}
+            )}
+          </span>
         </div>
         <div className="list">
           {conversations.map((cv) => (

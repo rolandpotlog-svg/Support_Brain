@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accountByPageId, verifyTokenMatches } from "@/server/social-config";
 import { getMetaUserName, verifySignature } from "@/server/social/meta";
+import { ingestComment } from "@/server/social/comments-service";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -73,6 +74,29 @@ export async function POST(req: Request) {
         .insert(schema.socialMessage)
         .values({ conversationId: conv.id, direction: "inbound", text, externalId: mid })
         .onConflictDoNothing();
+    }
+
+    // Öffentliche Kommentare unter Posts/Ads (feed -> comment add).
+    for (const change of entry.changes ?? []) {
+      if (change.field !== "feed") continue;
+      const v = change.value ?? {};
+      if (v.item !== "comment" || v.verb !== "add") continue;
+      const fromId = String(v.from?.id ?? "");
+      const commentId = String(v.comment_id ?? "");
+      if (!commentId || !fromId || fromId === pageId) continue; // eigene Kommentare ignorieren
+      try {
+        await ingestComment(account, {
+          commentId,
+          postId: v.post_id ? String(v.post_id) : null,
+          adId: null,
+          parentId: v.parent_id ? String(v.parent_id) : null,
+          fromId,
+          fromName: v.from?.name ? String(v.from.name) : null,
+          message: v.message ? String(v.message) : null,
+        });
+      } catch (e) {
+        console.error("[meta] Kommentar-Ingest-Fehler:", e instanceof Error ? e.message : e);
+      }
     }
   }
   return new Response("ok", { status: 200 });

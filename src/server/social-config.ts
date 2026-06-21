@@ -45,14 +45,10 @@ export type SocialCreds = {
   pageId: string;
   accessToken: string;
   appSecret: string | null;
+  autoStop: boolean;
 };
 
-/** Entschlüsselte Credentials für den Versand. */
-export async function loadSocialCreds(accountId: string): Promise<SocialCreds | null> {
-  const a = await db.query.socialAccount.findFirst({
-    where: eq(schema.socialAccount.id, accountId),
-  });
-  if (!a) return null;
+function toCreds(a: typeof schema.socialAccount.$inferSelect): SocialCreds {
   return {
     id: a.id,
     shopId: a.shopId,
@@ -60,7 +56,16 @@ export async function loadSocialCreds(accountId: string): Promise<SocialCreds | 
     pageId: a.pageId,
     accessToken: decrypt(a.accessTokenEnc),
     appSecret: a.appSecretEnc ? decrypt(a.appSecretEnc) : null,
+    autoStop: a.autoStop,
   };
+}
+
+/** Entschlüsselte Credentials für den Versand. */
+export async function loadSocialCreds(accountId: string): Promise<SocialCreds | null> {
+  const a = await db.query.socialAccount.findFirst({
+    where: eq(schema.socialAccount.id, accountId),
+  });
+  return a ? toCreds(a) : null;
 }
 
 /** Webhook-Routing: Account anhand der Page-/IG-ID (entschlüsselt). */
@@ -68,15 +73,7 @@ export async function accountByPageId(pageId: string): Promise<SocialCreds | nul
   const a = await db.query.socialAccount.findFirst({
     where: eq(schema.socialAccount.pageId, pageId),
   });
-  if (!a) return null;
-  return {
-    id: a.id,
-    shopId: a.shopId,
-    channel: a.channel,
-    pageId: a.pageId,
-    accessToken: decrypt(a.accessTokenEnc),
-    appSecret: a.appSecretEnc ? decrypt(a.appSecretEnc) : null,
-  };
+  return a ? toCreds(a) : null;
 }
 
 /** Webhook-GET-Handshake: stimmt der Verify-Token mit irgendeinem Account überein? */

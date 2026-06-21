@@ -120,6 +120,13 @@
       "when": 1782071354329,
       "tag": "0016_auto_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782075229970,
+      "tag": "0017_social_comments",
+      "breakpoints": true
     }
   ]
 }

@@ -30,6 +30,56 @@ export async function sendMetaMessage(
   return { messageId: json.message_id ?? "" };
 }
 
+/** Öffentliche Antwort auf einen Kommentar (POST /{comment-id}/comments). */
+export async function replyToComment(
+  creds: { accessToken: string },
+  commentId: string,
+  text: string,
+): Promise<{ id: string }> {
+  const res = await fetch(`${GRAPH}/${commentId}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${creds.accessToken}` },
+    body: JSON.stringify({ message: text }),
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error(json.error?.message ?? `Meta HTTP ${res.status}`);
+  return { id: json.id ?? "" };
+}
+
+/** Private Antwort (DM) aus einem Kommentar heraus (POST /{comment-id}/private_replies). */
+export async function privateReplyToComment(
+  creds: { accessToken: string },
+  commentId: string,
+  text: string,
+): Promise<{ id: string }> {
+  const res = await fetch(`${GRAPH}/${commentId}/private_replies`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${creds.accessToken}` },
+    body: JSON.stringify({ message: text }),
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error(json.error?.message ?? `Meta HTTP ${res.status}`);
+  return { id: json.id ?? "" };
+}
+
+/** Kommentar ausblenden/einblenden (POST /{comment-id} is_hidden). */
+export async function hideComment(
+  creds: { accessToken: string },
+  commentId: string,
+  hidden: boolean,
+): Promise<void> {
+  const res = await fetch(`${GRAPH}/${commentId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${creds.accessToken}` },
+    body: JSON.stringify({ is_hidden: hidden }),
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.error) throw new Error(json.error?.message ?? `Meta HTTP ${res.status}`);
+}
+
 /** Best-effort: Anzeigename eines Social-Nutzers über die Graph API (für den Kundenabgleich). */
 export async function getMetaUserName(accessToken: string, userId: string): Promise<string | null> {
   try {

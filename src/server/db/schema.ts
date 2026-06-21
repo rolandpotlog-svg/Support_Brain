@@ -191,9 +191,67 @@ export const socialAccount = pgTable(
     accessTokenEnc: text("access_token_enc").notNull(),
     appSecretEnc: text("app_secret_enc"), // für Webhook-Signaturprüfung
     verifyToken: text("verify_token"), // Webhook-Verify-Handshake
+    // Not-Aus: true => alle Kommentar-Antworten zurück auf Entwurf (kein Auto-Posten).
+    autoStop: boolean("auto_stop").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("social_account_shop_channel_uidx").on(t.shopId, t.channel)],
+);
+
+// Öffentliche Kommentare unter Posts/Ads (FB). Höchste Vorsicht: Auto nur für
+// sichere Kategorien (FAQ/Lob), Beschwerden/sensibel nie öffentlich automatisch.
+export const socialComment = pgTable(
+  "social_comment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => socialAccount.id, { onDelete: "cascade" }),
+    postId: text("post_id"),
+    adId: text("ad_id"),
+    commentId: text("comment_id").notNull(), // Meta-Kommentar-ID (Dedup)
+    parentCommentId: text("parent_comment_id"),
+    fromId: text("from_id"),
+    fromName: text("from_name"),
+    message: text("message"),
+    // KI: frage_faq | lob | beschwerde | bestellbezogen | spam | troll | offtopic
+    intent: text("intent"),
+    sentiment: text("sentiment"),
+    confidence: integer("confidence"), // 0..100
+    routeAction: text("route_action"), // public_reply | private_or_human | hide | skip
+    visibility: text("visibility"), // public | private
+    // new | drafted | posted | private_sent | hidden | escalated | skipped
+    status: text("status").notNull().default("new"),
+    draftText: text("draft_text"),
+    postedText: text("posted_text"),
+    auto: boolean("auto").notNull().default(false), // automatisch (ohne Mensch) verarbeitet?
+    handledBy: uuid("handled_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("social_comment_commentid_uidx").on(t.commentId),
+    index("social_comment_shop_status_idx").on(t.shopId, t.status, t.createdAt),
+  ],
+);
+
+// Phasen-Autonomie pro Shop × Kategorie: Zähler erfolgreicher Freigaben + Auto-Schalter.
+export const socialCategoryAutonomy = pgTable(
+  "social_category_autonomy",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    category: text("category").notNull(), // intent
+    approvedCount: integer("approved_count").notNull().default(0),
+    autoEnabled: boolean("auto_enabled").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("social_autonomy_shop_cat_uidx").on(t.shopId, t.category)],
 );
 
 export const socialConversation = pgTable(
