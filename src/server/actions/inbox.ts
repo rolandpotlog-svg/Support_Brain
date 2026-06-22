@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireUser } from "@/server/access";
+import { assertShopAccess, requireUser, requireWrite } from "@/server/access";
 import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
 
 /** Aktiven Shop wechseln (vom Shop-Umschalter aufgerufen). */
@@ -26,9 +26,8 @@ async function loadThread(threadId: string) {
 }
 
 export async function assignThread(threadId: string, assigneeId: string | null) {
-  const user = await requireUser();
   const t = await loadThread(threadId);
-  await assertShopAccess(user, t.shopId);
+  await requireWrite(t.shopId, "support");
   await db
     .update(schema.threads)
     .set({ assigneeId })
@@ -37,9 +36,8 @@ export async function assignThread(threadId: string, assigneeId: string | null) 
 }
 
 export async function setThreadTag(threadId: string, tag: string | null) {
-  const user = await requireUser();
   const t = await loadThread(threadId);
-  await assertShopAccess(user, t.shopId);
+  await requireWrite(t.shopId, "support");
   await db
     .update(schema.threads)
     .set({ tag: tag && tag.trim() ? tag.trim() : null })
@@ -51,7 +49,7 @@ export async function setThreadTag(threadId: string, tag: string | null) {
 export async function addNote(threadId: string, bodyText: string) {
   const user = await requireUser();
   const t = await loadThread(threadId);
-  await assertShopAccess(user, t.shopId);
+  await requireWrite(t.shopId, "support");
   if (!bodyText.trim()) throw new Error("Leere Notiz");
   await db.insert(schema.messages).values({
     threadId,
@@ -65,9 +63,8 @@ export async function addNote(threadId: string, bodyText: string) {
 }
 
 export async function setThreadStatus(threadId: string, status: string) {
-  const user = await requireUser();
   const t = await loadThread(threadId);
-  await assertShopAccess(user, t.shopId);
+  await requireWrite(t.shopId, "support");
   await db
     .update(schema.threads)
     .set({
@@ -83,7 +80,7 @@ export async function setThreadStatus(threadId: string, status: string) {
 export async function escalateThread(threadId: string, reason: string) {
   const user = await requireUser();
   const t = await loadThread(threadId);
-  await assertShopAccess(user, t.shopId);
+  await requireWrite(t.shopId, "support");
   await db.transaction(async (tx) => {
     await tx
       .update(schema.threads)
@@ -104,7 +101,7 @@ export async function escalateThread(threadId: string, reason: string) {
 export async function replyToThread(threadId: string, bodyText: string) {
   const user = await requireUser();
   const t = await loadThread(threadId);
-  await assertShopAccess(user, t.shopId);
+  await requireWrite(t.shopId, "support");
   if (!bodyText.trim()) throw new Error("Leere Antwort");
 
   // Antwort geht über das Postfach des Tickets raus (Fallback: erstes Postfach des Shops).

@@ -303,6 +303,8 @@ export const socialMessage = pgTable(
 );
 
 // Welcher Agent sieht welche Shops (Admins sehen alles, in Code geprüft).
+// Memberships: Zugehörigkeit Nutzer↔Brand MIT Rolle und Finance-Freigabe pro Brand.
+// role: founder | admin | mitarbeiter | gast. finance_access nur TRUE bei founder/admin (DB-CHECK).
 export const userShops = pgTable(
   "user_shops",
   {
@@ -312,6 +314,8 @@ export const userShops = pgTable(
     shopId: uuid("shop_id")
       .notNull()
       .references(() => shops.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("mitarbeiter"),
+    financeAccess: boolean("finance_access").notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.userId, t.shopId] })],
 );

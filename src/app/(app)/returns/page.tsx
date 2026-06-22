@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { accessibleShopIds, requireUser } from "@/server/access";
+import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { expectsReturn, fmtMoney } from "@/server/returns";
 import { cancelReturnCase, markReturnTaskDone } from "@/server/actions/returns";
@@ -20,8 +20,6 @@ type CaseItem = { title: string; variantTitle: string | null; quantity: number; 
 
 export default async function ReturnsPage() {
   const user = await requireUser();
-  if (!user.canReturns) redirect("/inbox");
-
   const accessible = await accessibleShopIds(user);
   const shopList = accessible.length
     ? await db
@@ -37,12 +35,13 @@ export default async function ReturnsPage() {
       <div className="adminwrap">
         <div className="formhead" style={{ justifyContent: "space-between" }}>
           <h1 style={{ margin: 0 }}>Retouren</h1>
-          {user.canShopsEdit && <Link href="/returns/settings" className="btnlink">Einstellungen →</Link>}
         </div>
         <p className="muted">Kein aktiver Shop.</p>
       </div>
     );
   }
+  const caps = await brandAccess(user, activeShopId);
+  if (!caps.returns) redirect("/inbox");
 
   const cases = await db
     .select()
@@ -71,7 +70,7 @@ export default async function ReturnsPage() {
         <div className="srcrow">
           <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/returns" />
           <Link href="/returns/intake" className="btnlink">Wareneingang →</Link>
-          {user.canShopsEdit && <Link href="/returns/settings" className="btnlink">Einstellungen →</Link>}
+          {caps.settings && <Link href="/returns/settings" className="btnlink">Einstellungen →</Link>}
         </div>
       </div>
 

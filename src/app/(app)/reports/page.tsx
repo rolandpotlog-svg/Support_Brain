@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { accessibleShopIds, requireUser } from "@/server/access";
+import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { fullReport, unclassifiedInPeriod, weekdayLabel } from "@/server/reports";
 import { ShopSwitcher } from "../inbox/shop-switcher";
@@ -63,7 +63,6 @@ export default async function ReportsPage({
   searchParams: Promise<{ days?: string }>;
 }) {
   const user = await requireUser();
-  if (!user.canReports) redirect("/inbox");
   const { days: daysParam } = await searchParams;
   const days = daysParam === "30" ? 30 : 7;
 
@@ -85,6 +84,7 @@ export default async function ReportsPage({
       </div>
     );
   }
+  if (!(await brandAccess(user, activeShopId)).reports) redirect("/inbox");
 
   const [r, pending] = await Promise.all([
     fullReport(activeShopId, days),

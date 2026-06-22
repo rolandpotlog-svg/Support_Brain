@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/server/access";
+import { brandAccess, requireUser } from "@/server/access";
 import { loadCase } from "@/server/disputes";
 import { euro, timeAgo } from "@/lib/format";
 import {
@@ -23,10 +23,10 @@ const AUDIT_LABEL: Record<string, string> = {
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
-  if (!user.canCases) redirect("/inbox");
   const { id } = await params;
   const data = await loadCase(id);
   if (!data) notFound();
+  if (!(await brandAccess(user, data.case.shopId)).cases) redirect("/inbox");
 
   const c = data.case;
   const info = reasonInfo(c.reason);

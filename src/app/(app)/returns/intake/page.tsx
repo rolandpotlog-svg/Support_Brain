@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { accessibleShopIds, requireUser } from "@/server/access";
+import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { listPendingIntake } from "@/server/returns";
 import { receiveReturnForm } from "@/server/actions/returns";
@@ -16,7 +16,6 @@ export default async function ReturnIntakePage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const user = await requireUser();
-  if (!user.canReturns) redirect("/inbox");
   const { q } = await searchParams;
   const query = q ?? "";
 
@@ -38,6 +37,8 @@ export default async function ReturnIntakePage({
       </div>
     );
   }
+
+  if (!(await brandAccess(user, activeShopId)).returns) redirect("/inbox");
 
   const pending = await listPendingIntake(activeShopId, query);
 

@@ -2,7 +2,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { requireReturns, requireShopsEdit } from "@/server/access";
+import { requireBrandCap, requireWrite } from "@/server/access";
 import { defaultReasons, isRouting } from "@/lib/returns/routing";
 
 export type ReturnSettingsInput = {
@@ -23,7 +23,7 @@ const euros = (n: number) => Math.max(0, Math.round((Number(n) || 0) * 100));
 const pct = (n: number) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 
 export async function saveReturnSettings(input: ReturnSettingsInput) {
-  await requireShopsEdit();
+  await requireBrandCap(input.shopId, "settings");
   const vals = {
     enabled: input.enabled,
     cogsPct: pct(input.cogsPct),
@@ -60,7 +60,7 @@ export async function saveReturnSettings(input: ReturnSettingsInput) {
 export type ReasonInput = { label: string; routing: string; active: boolean };
 
 export async function saveReasons(shopId: string, reasons: ReasonInput[]) {
-  await requireShopsEdit();
+  await requireBrandCap(shopId, "settings");
   const clean = reasons
     .filter((r) => r.label.trim() && isRouting(r.routing))
     .map((r, i) => ({ shopId, label: r.label.trim(), routing: r.routing, active: r.active, sortOrder: i }));
@@ -72,9 +72,9 @@ export async function saveReasons(shopId: string, reasons: ReasonInput[]) {
 }
 
 export async function markReturnTaskDone(taskId: string) {
-  const user = await requireReturns();
   const task = await db.query.returnTasks.findFirst({ where: eq(schema.returnTasks.id, taskId) });
   if (!task) throw new Error("Aufgabe nicht gefunden");
+  const { user } = await requireWrite(task.shopId, "returns");
   await db
     .update(schema.returnTasks)
     .set({ status: "done", doneBy: user.id, doneAt: new Date() })
@@ -95,9 +95,9 @@ export async function markReturnTaskDone(taskId: string) {
 }
 
 export async function markReturnReceived(caseId: string, condition: string, restock: boolean) {
-  const user = await requireReturns();
   const c = await db.query.returnCases.findFirst({ where: eq(schema.returnCases.id, caseId) });
   if (!c) throw new Error("Fall nicht gefunden");
+  const { user } = await requireWrite(c.shopId, "returns");
   const cond = condition === "damaged" ? "damaged" : "resaleable";
 
   await db
@@ -142,7 +142,9 @@ export async function receiveReturnForm(formData: FormData) {
 }
 
 export async function cancelReturnCase(caseId: string) {
-  await requireReturns();
+  const c = await db.query.returnCases.findFirst({ where: eq(schema.returnCases.id, caseId) });
+  if (!c) throw new Error("Fall nicht gefunden");
+  await requireWrite(c.shopId, "returns");
   await db
     .update(schema.returnCases)
     .set({ status: "cancelled", updatedAt: new Date() })

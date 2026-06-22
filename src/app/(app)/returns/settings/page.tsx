@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { accessibleShopIds, requireUser } from "@/server/access";
+import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { getSettings } from "@/server/returns";
 import { ShopSwitcher } from "../../inbox/shop-switcher";
@@ -10,8 +10,6 @@ import { ReturnsSettingsForm } from "./settings-form";
 
 export default async function ReturnsSettingsPage() {
   const user = await requireUser();
-  if (!user.canShopsEdit) redirect("/returns");
-
   const accessible = await accessibleShopIds(user);
   const shopList = accessible.length
     ? await db
@@ -31,6 +29,7 @@ export default async function ReturnsSettingsPage() {
       </div>
     );
   }
+  if (!(await brandAccess(user, activeShopId)).settings) redirect("/returns");
 
   const settings = await getSettings(activeShopId);
   const reasons = await db

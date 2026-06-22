@@ -2,7 +2,7 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { requireShopsEdit } from "@/server/access";
+import { requireBrandCap, requireOwner } from "@/server/access";
 import { encrypt } from "@/lib/mailbox/crypto";
 
 export type MailboxInput = {
@@ -71,7 +71,9 @@ function isBlankMailbox(m: MailboxInput): boolean {
 
 /** Shop anlegen oder bearbeiten — inkl. Shopify-Zugang und mehrerer Postfächer. */
 export async function saveShop(input: ShopInput): Promise<{ id: string }> {
-  await requireShopsEdit();
+  // Neuer Brand anlegen: nur Owner. Bestehenden bearbeiten: Settings-Recht auf diesem Brand.
+  if (input.id) await requireBrandCap(input.id, "settings");
+  else await requireOwner();
   const name = input.name.trim();
   if (!name) throw new Error("Anzeigename nötig");
   const weeklyReportTo = input.weeklyReportTo.trim() || null;
@@ -225,7 +227,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
 
 /** Schnell aktiv/inaktiv schalten (Übersicht). */
 export async function setShopActive(shopId: string, active: boolean) {
-  await requireShopsEdit();
+  await requireBrandCap(shopId, "settings");
   await db.update(schema.shops).set({ active }).where(eq(schema.shops.id, shopId));
   revalidatePath("/admin/shops");
   revalidatePath("/inbox");

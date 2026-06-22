@@ -2,63 +2,106 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { db, schema } from "@/server/db";
 
-// Effektive Berechtigungen des eingeloggten Nutzers. Owner => alles true.
-export type SessionUser = {
-  id: string;
-  email: string;
-  role: "owner" | "member";
-  isOwner: boolean;
-  canReports: boolean;
-  canCases: boolean;
-  canShopsView: boolean;
-  canShopsEdit: boolean;
-  canManageUsers: boolean;
-  canReturns: boolean;
+// Globale Identität. role: "owner" (Vollzugriff auf ALLE Brands inkl. Finance) | "member".
+export type SessionUser = { id: string; email: string; isOwner: boolean };
+
+export type BrandRole = "founder" | "admin" | "mitarbeiter" | "gast";
+export type Cap = "support" | "returns" | "reports" | "cases" | "settings" | "manageUsers" | "finance";
+
+// Effektive Rechte eines Nutzers AUF EINEM Brand.
+export type BrandCaps = {
+  role: BrandRole | "owner" | "none";
+  access: boolean; // gehört der Nutzer zu diesem Brand (oder Owner)?
+  readOnly: boolean; // gast = nur lesen
+  support: boolean;
+  returns: boolean;
+  reports: boolean;
+  cases: boolean;
+  settings: boolean;
+  manageUsers: boolean;
+  financeEligible: boolean; // darf Finance überhaupt freigeschaltet werden?
+  finance: boolean; // tatsächlicher Finance-Zugriff
 };
 
-/** Eingeloggten Nutzer laden (frisch aus der DB -> Rechte-Änderungen wirken sofort). */
+const OWNER_CAPS: BrandCaps = {
+  role: "owner", access: true, readOnly: false,
+  support: true, returns: true, reports: true, cases: true,
+  settings: true, manageUsers: true, financeEligible: true, finance: true,
+};
+const NO_CAPS: BrandCaps = {
+  role: "none", access: false, readOnly: true,
+  support: false, returns: false, reports: false, cases: false,
+  settings: false, manageUsers: false, financeEligible: false, finance: false,
+};
+
+function capsForRole(role: BrandRole, financeAccess: boolean): BrandCaps {
+  const high = role === "founder" || role === "admin";
+  return {
+    role,
+    access: true,
+    readOnly: role === "gast",
+    support: true, // alle Rollen dürfen Support zumindest sehen
+    returns: role !== "gast",
+    reports: high,
+    cases: high,
+    settings: high,
+    manageUsers: high,
+    financeEligible: high,
+    finance: high && financeAccess,
+  };
+}
+
 export async function requireUser(): Promise<SessionUser> {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Nicht eingeloggt");
   const u = await db.query.users.findFirst({ where: eq(schema.users.id, session.user.id) });
   if (!u || !u.active) throw new Error("Kein Zugriff");
-  const isOwner = u.role === "owner";
-  return {
-    id: u.id,
-    email: u.email,
-    role: isOwner ? "owner" : "member",
-    isOwner,
-    canReports: isOwner || u.permReports,
-    canCases: isOwner || u.permCases,
-    canShopsView: isOwner || u.permShopsView || u.permShopsEdit,
-    canShopsEdit: isOwner || u.permShopsEdit,
-    canManageUsers: isOwner || u.permManageUsers,
-    canReturns: isOwner || u.permReturns,
-  };
+  return { id: u.id, email: u.email, isOwner: u.role === "owner" };
 }
 
-async function require(check: (u: SessionUser) => boolean, msg: string): Promise<SessionUser> {
-  const u = await requireUser();
-  if (!check(u)) throw new Error(msg);
-  return u;
+export async function requireOwner(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!user.isOwner) throw new Error("Nur der Owner darf das");
+  return user;
 }
 
-export const requireOwner = () => require((u) => u.isOwner, "Nur der Owner darf das");
-export const requireReports = () => require((u) => u.canReports, "Keine Berechtigung (Auswertung)");
-export const requireCases = () => require((u) => u.canCases, "Keine Berechtigung (Fälle)");
-export const requireShopsView = () => require((u) => u.canShopsView, "Keine Berechtigung (Shops)");
-export const requireShopsEdit = () => require((u) => u.canShopsEdit, "Keine Berechtigung (Shops verwalten)");
-export const requireManageUsers = () => require((u) => u.canManageUsers, "Keine Berechtigung (Nutzer)");
-export const requireReturns = () => require((u) => u.canReturns, "Keine Berechtigung (Retouren)");
-
-/** Sieht der Nutzer Shop-übergreifend (Owner/Shops/Auswertung/Fälle) oder nur zugewiesene? */
-function hasGlobalShopView(user: SessionUser): boolean {
-  return user.isOwner || user.canShopsView || user.canReports || user.canCases || user.canReturns;
+/** Effektive Rechte eines Nutzers auf einem Brand. Owner => alles. */
+export async function brandAccess(user: SessionUser, shopId: string): Promise<BrandCaps> {
+  if (user.isOwner) return OWNER_CAPS;
+  const m = await db.query.userShops.findFirst({
+    where: and(eq(schema.userShops.userId, user.id), eq(schema.userShops.shopId, shopId)),
+  });
+  if (!m) return NO_CAPS;
+  return capsForRole((m.role as BrandRole) ?? "mitarbeiter", m.financeAccess);
 }
 
-/** Shop-IDs, die der Nutzer sehen darf. */
+/** Wirft, wenn der Nutzer die Fähigkeit auf diesem Brand nicht hat. */
+export async function requireBrandCap(shopId: string, cap: Cap): Promise<{ user: SessionUser; caps: BrandCaps }> {
+  const user = await requireUser();
+  const caps = await brandAccess(user, shopId);
+  if (!caps[cap]) throw new Error("Keine Berechtigung für diesen Bereich/Brand");
+  return { user, caps };
+}
+
+/** Wie requireBrandCap, blockt zusätzlich Gast-Lesezugriff (Mutationen). */
+export async function requireWrite(shopId: string, cap: Cap): Promise<{ user: SessionUser; caps: BrandCaps }> {
+  const r = await requireBrandCap(shopId, cap);
+  if (r.caps.readOnly) throw new Error("Nur Lesezugriff (Gast)");
+  return r;
+}
+
+export async function requireFinance(shopId: string): Promise<{ user: SessionUser; caps: BrandCaps }> {
+  return requireBrandCap(shopId, "finance");
+}
+
+export async function assertShopAccess(user: SessionUser, shopId: string): Promise<void> {
+  const caps = await brandAccess(user, shopId);
+  if (!caps.access) throw new Error("Kein Zugriff auf diesen Brand");
+}
+
+/** Brand-IDs, die der Nutzer sehen darf. Owner => alle. */
 export async function accessibleShopIds(user: SessionUser): Promise<string[]> {
-  if (hasGlobalShopView(user)) {
+  if (user.isOwner) {
     const rows = await db.select({ id: schema.shops.id }).from(schema.shops);
     return rows.map((r) => r.id);
   }
@@ -69,17 +112,9 @@ export async function accessibleShopIds(user: SessionUser): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-export async function assertShopAccess(user: SessionUser, shopId: string): Promise<void> {
-  if (hasGlobalShopView(user)) return;
-  const row = await db.query.userShops.findFirst({
-    where: and(eq(schema.userShops.userId, user.id), eq(schema.userShops.shopId, shopId)),
-  });
-  if (!row) throw new Error("Kein Zugriff auf diesen Shop");
-}
-
 export type AssignableUser = { id: string; name: string | null; email: string };
 
-/** Nutzer, denen ein Ticket dieses Shops zugewiesen werden kann: Owner + zugeordnete Mitglieder. */
+/** Nutzer, denen ein Ticket dieses Brands zugewiesen werden kann: Owner + Mitglieder des Brands. */
 export async function assignableUsers(shopId: string): Promise<AssignableUser[]> {
   const owners = await db
     .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })

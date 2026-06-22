@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { accessibleShopIds, requireUser } from "@/server/access";
+import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { listCases, reportFrom, type CaseRow } from "@/server/disputes";
 import { euro } from "@/lib/format";
 import { countdownLabel, reasonInfo, statusLabel, urgency } from "@/lib/disputes/reasons";
@@ -18,9 +18,11 @@ const OPEN_STATUS = new Set(["NEEDS_RESPONSE", "UNDER_REVIEW"]);
 
 export default async function CasesPage() {
   const user = await requireUser();
-  if (!user.canCases) redirect("/inbox");
+  const accessible = await accessibleShopIds(user);
+  const shopIds: string[] = [];
+  for (const sid of accessible) if ((await brandAccess(user, sid)).cases) shopIds.push(sid);
+  if (shopIds.length === 0) redirect("/inbox");
 
-  const shopIds = await accessibleShopIds(user);
   const rows = await listCases(shopIds);
   const report = reportFrom(rows);
   const now = Date.now();

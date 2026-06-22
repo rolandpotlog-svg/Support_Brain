@@ -2,16 +2,15 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireUser } from "@/server/access";
+import { requireBrandCap, requireWrite } from "@/server/access";
 import { loadSocialCreds } from "@/server/social-config";
 import { hideComment, privateReplyToComment, replyToComment } from "@/server/social/meta";
 import { AUTONOMY_THRESHOLD, isAutoSafe, normalizeIntent } from "@/lib/social/comments";
 
 async function loadComment(commentRowId: string) {
-  const user = await requireUser();
   const c = await db.query.socialComment.findFirst({ where: eq(schema.socialComment.id, commentRowId) });
   if (!c) throw new Error("Kommentar nicht gefunden");
-  await assertShopAccess(user, c.shopId);
+  const { user } = await requireWrite(c.shopId, "support");
   return { user, c };
 }
 
@@ -119,10 +118,9 @@ export async function discardComment(commentRowId: string): Promise<void> {
 
 /** Not-Aus pro Shop-Account: true => alles zurück auf Entwurf (kein Auto-Posten). */
 export async function setSocialAutoStop(accountId: string, on: boolean): Promise<void> {
-  const user = await requireUser();
   const a = await db.query.socialAccount.findFirst({ where: eq(schema.socialAccount.id, accountId) });
   if (!a) throw new Error("Account nicht gefunden");
-  await assertShopAccess(user, a.shopId);
+  await requireBrandCap(a.shopId, "settings");
   await db
     .update(schema.socialAccount)
     .set({ autoStop: on, updatedAt: new Date() })

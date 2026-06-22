@@ -2,34 +2,34 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { requireUser } from "@/server/access";
-import { createUser, resetUserPassword, updateUser } from "@/server/actions/admin";
-
-const PERMS: { key: string; label: string }[] = [
-  { key: "permReports", label: "Auswertung" },
-  { key: "permCases", label: "Fälle" },
-  { key: "permShopsView", label: "Shops ansehen" },
-  { key: "permShopsEdit", label: "Shops verwalten" },
-  { key: "permReturns", label: "Retouren" },
-  { key: "permManageUsers", label: "Nutzer verwalten" },
-];
+import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
+import { getActiveShopId } from "@/server/active-shop";
+import { createUser, resetUserPassword, setUserActive, setUserOwner } from "@/server/actions/admin";
+import { MembershipForm } from "./membership-form";
 
 export default async function AdminPage() {
   const user = await requireUser();
-  if (!user.canManageUsers && !user.canShopsView) redirect("/inbox");
+  const accessible = await accessibleShopIds(user);
+  const activeShopId = await getActiveShopId(accessible);
+  const caps = activeShopId ? await brandAccess(user, activeShopId) : null;
+  if (!user.isOwner && !(caps?.settings || caps?.manageUsers)) redirect("/inbox");
 
   const shops = await db.select().from(schema.shops).orderBy(schema.shops.name);
-  const users = await db.select().from(schema.users).orderBy(schema.users.createdAt);
-  const assignments = await db.select().from(schema.userShops);
-  const shopsByUser = new Map<string, number>();
-  for (const a of assignments) shopsByUser.set(a.userId, (shopsByUser.get(a.userId) ?? 0) + 1);
+  const shopName = new Map(shops.map((s) => [s.id, s.name]));
+  const users = user.isOwner ? await db.select().from(schema.users).orderBy(schema.users.createdAt) : [];
+  const memberships = user.isOwner ? await db.select().from(schema.userShops) : [];
+  const byUser = new Map<string, typeof memberships>();
+  for (const m of memberships) {
+    const arr = byUser.get(m.userId) ?? [];
+    arr.push(m);
+    byUser.set(m.userId, arr);
+  }
 
   const escalations = await db
     .select({
       id: schema.escalations.id,
       threadId: schema.escalations.threadId,
       reason: schema.escalations.reason,
-      createdAt: schema.escalations.createdAt,
       subject: schema.threads.subject,
       customerEmail: schema.threads.customerEmail,
       shopName: schema.shops.name,
@@ -44,16 +44,14 @@ export default async function AdminPage() {
     <div className="adminwrap">
       <h1 style={{ marginTop: 0 }}>Admin</h1>
 
-      {user.canShopsView && (
+      {(user.isOwner || caps?.settings) && (
         <section className="card">
           <div className="cardhead">
-            <h2>Shops</h2>
-            <Link href="/admin/shops" className="btnlink">Shops verwalten →</Link>
+            <h2>Brands</h2>
+            <Link href="/admin/shops" className="btnlink">Brands verwalten →</Link>
           </div>
           <p className="muted" style={{ marginTop: 0 }}>
-            {shops.length === 0
-              ? "Noch keine Shops angelegt."
-              : `${shops.length} Shop(s). Zugänge (Shopify, Postfächer) unter „Shops verwalten".`}
+            {shops.length === 0 ? "Noch keine Brands angelegt." : `${shops.length} Brand(s).`}
           </p>
         </section>
       )}
@@ -72,7 +70,7 @@ export default async function AdminPage() {
         </ul>
       </section>
 
-      {user.canManageUsers && (
+      {user.isOwner && (
         <>
           <section className="card">
             <h2>Neuen Login anlegen</h2>
@@ -80,80 +78,67 @@ export default async function AdminPage() {
               <input name="email" type="email" placeholder="E-Mail" required />
               <input name="name" placeholder="Name (optional)" />
               <input name="password" type="text" placeholder="Start-Passwort" required />
-              <select name="role" defaultValue="member">
-                <option value="member">Mitglied (Mitarbeiter/Founder)</option>
-                {user.isOwner && <option value="owner">Owner (volle Kontrolle)</option>}
-              </select>
-              <fieldset>
-                <legend>Rechte freischalten</legend>
-                {PERMS.map((p) => (
-                  <label key={p.key} className="chk">
-                    <input type="checkbox" name={p.key} disabled={p.key === "permManageUsers" && !user.isOwner} />
-                    {p.label}
-                  </label>
-                ))}
-              </fieldset>
-              <fieldset>
-                <legend>Shops (für Posteingang-Zuweisung)</legend>
-                {shops.length === 0 && <span className="muted">Noch keine Shops.</span>}
-                {shops.map((s) => (
-                  <label key={s.id} className="chk">
-                    <input type="checkbox" name="shopIds" value={s.id} />
-                    {s.name}
-                  </label>
-                ))}
-              </fieldset>
+              <label className="chk">
+                <input type="checkbox" name="isOwner" />
+                Owner (Vollzugriff auf alle Brands)
+              </label>
               <button className="primary" type="submit">Login anlegen</button>
             </form>
+            <p className="muted" style={{ marginTop: 8 }}>
+              Danach unten pro Brand eine Rolle zuweisen (Founder/Admin/Mitarbeiter/Gast) und ggf. Finance freigeben.
+            </p>
           </section>
 
           <section className="card">
-            <h2>Nutzer &amp; Rechte</h2>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Owner hat automatisch alle Rechte. Bei Mitgliedern schaltest du einzelne Bereiche frei.
-            </p>
+            <h2>Nutzer &amp; Brand-Rollen</h2>
             <div className="userlist">
               {users.map((u) => {
-                const editableByMe = user.isOwner || u.role !== "owner";
+                const mine = byUser.get(u.id) ?? [];
+                const assignedIds = new Set(mine.map((m) => m.shopId));
+                const free = shops.filter((s) => !assignedIds.has(s.id)).map((s) => ({ id: s.id, name: s.name }));
                 return (
                   <div key={u.id} className="usercard">
                     <div className="userhead">
                       <strong>{u.name || u.email}</strong>
-                      <span className="muted"> · {u.email} · {u.role === "owner" ? "Owner" : "Mitglied"} · Shops: {u.role === "owner" ? "alle" : (shopsByUser.get(u.id) ?? 0)}</span>
+                      <span className="muted"> · {u.email} {u.role === "owner" ? "· 👑 Owner" : ""} {u.active ? "" : "· inaktiv"}</span>
                     </div>
-                    {editableByMe ? (
-                      <>
-                        <form action={updateUser} className="userform">
-                          <input type="hidden" name="userId" value={u.id} />
-                          <select name="role" defaultValue={u.role}>
-                            <option value="member">Mitglied</option>
-                            {user.isOwner && <option value="owner">Owner</option>}
-                          </select>
-                          {PERMS.map((p) => (
-                            <label key={p.key} className="chk">
-                              <input
-                                type="checkbox"
-                                name={p.key}
-                                defaultChecked={Boolean((u as unknown as Record<string, boolean>)[p.key])}
-                                disabled={u.role === "owner" || (p.key === "permManageUsers" && !user.isOwner)}
-                              />
-                              {p.label}
-                            </label>
-                          ))}
-                          <label className="chk">
-                            <input type="checkbox" name="active" defaultChecked={u.active} />
-                            Aktiv
-                          </label>
-                          <button className="btnlink primary" type="submit">Speichern</button>
-                        </form>
-                        <form action={resetUserPassword} className="userform" style={{ marginTop: 6 }}>
-                          <input type="hidden" name="userId" value={u.id} />
-                          <input name="password" type="text" placeholder="Neues Passwort setzen" />
-                          <button className="btnlink" type="submit">Passwort zurücksetzen</button>
-                        </form>
-                      </>
+                    <div className="userform" style={{ marginBottom: 8 }}>
+                      <form action={setUserOwner}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <input type="hidden" name="isOwner" value={u.role === "owner" ? "" : "on"} />
+                        <button className="btnlink" type="submit">{u.role === "owner" ? "Owner entziehen" : "Zum Owner machen"}</button>
+                      </form>
+                      <form action={setUserActive}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <input type="hidden" name="active" value={u.active ? "" : "on"} />
+                        <button className="btnlink" type="submit">{u.active ? "Deaktivieren" : "Aktivieren"}</button>
+                      </form>
+                      <form action={resetUserPassword} className="userform">
+                        <input type="hidden" name="userId" value={u.id} />
+                        <input name="password" type="text" placeholder="Neues Passwort" />
+                        <button className="btnlink" type="submit">Passwort setzen</button>
+                      </form>
+                    </div>
+
+                    {u.role === "owner" ? (
+                      <p className="muted" style={{ margin: 0 }}>Owner hat automatisch Vollzugriff auf alle Brands (inkl. Finance).</p>
                     ) : (
-                      <div className="muted">Owner — nur ein Owner darf einen Owner bearbeiten.</div>
+                      <>
+                        {mine.map((m) => (
+                          <MembershipForm
+                            key={m.shopId}
+                            userId={u.id}
+                            shopId={m.shopId}
+                            shopName={shopName.get(m.shopId) ?? "?"}
+                            role={m.role}
+                            finance={m.financeAccess}
+                          />
+                        ))}
+                        {free.length > 0 && <MembershipForm userId={u.id} brands={free} />}
+                        {mine.length === 0 && free.length === 0 && (
+                          <p className="muted" style={{ margin: 0 }}>Keine Brands vorhanden.</p>
+                        )}
+                      </>
                     )}
                   </div>
                 );

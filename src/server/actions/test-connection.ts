@@ -3,7 +3,7 @@ import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { requireShopsEdit } from "@/server/access";
+import { requireBrandCap } from "@/server/access";
 import { decrypt } from "@/lib/mailbox/crypto";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { getShopInfo } from "@/lib/shopify/client";
@@ -65,7 +65,7 @@ async function testSmtp(mb: MailboxRow): Promise<Check> {
 
 /** Verbindung eines Shops prüfen: Shopify-Shop-Info + je Postfach IMAP- und SMTP-Login. */
 export async function testConnection(shopId: string): Promise<TestResult> {
-  await requireShopsEdit();
+  await requireBrandCap(shopId, "settings");
 
   let shopify: Check | null = null;
   const creds = await loadShopifyCreds(shopId);

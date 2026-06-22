@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/server/db";
-import { requireShopsEdit } from "@/server/access";
+import { requireBrandCap } from "@/server/access";
 
 const SHOPIFY_OAUTH_SCOPES = "read_orders,read_customers,read_fulfillments,read_products";
 
@@ -14,7 +14,7 @@ function appUrl(): string {
 
 /** OAuth starten: Browser zur Shopify-Autorisierung leiten (installiert die App + liefert Code). */
 export async function startShopifyOAuth(shopId: string) {
-  await requireShopsEdit();
+  await requireBrandCap(shopId, "settings");
   const row = await db.query.shopShopify.findFirst({
     where: eq(schema.shopShopify.shopId, shopId),
   });

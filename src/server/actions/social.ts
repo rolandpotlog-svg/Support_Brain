@@ -2,7 +2,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireShopsEdit, requireUser } from "@/server/access";
+import { assertShopAccess, requireBrandCap, requireUser, requireWrite } from "@/server/access";
 import { encrypt } from "@/lib/mailbox/crypto";
 import { loadSocialCreds } from "@/server/social-config";
 import { loadShopifyCreds } from "@/server/shopify-config";
@@ -11,8 +11,8 @@ import { findCustomersByName, type ShopifyCustomer } from "@/lib/shopify/client"
 
 /** Meta-Account (FB-Seite / IG-Konto) je Shop anlegen/aktualisieren. Token leer = behalten. */
 export async function saveSocialAccount(formData: FormData) {
-  await requireShopsEdit();
   const shopId = String(formData.get("shopId") ?? "");
+  await requireBrandCap(shopId, "settings");
   const channel = String(formData.get("channel") ?? "");
   const pageId = String(formData.get("pageId") ?? "").trim();
   const pageName = String(formData.get("pageName") ?? "").trim() || null;
@@ -42,22 +42,21 @@ export async function saveSocialAccount(formData: FormData) {
 }
 
 export async function deleteSocialAccount(accountId: string) {
-  await requireShopsEdit();
   const a = await db.query.socialAccount.findFirst({ where: eq(schema.socialAccount.id, accountId) });
   if (!a) return;
+  await requireBrandCap(a.shopId, "settings");
   await db.delete(schema.socialAccount).where(eq(schema.socialAccount.id, accountId));
   revalidatePath(`/admin/shops/${a.shopId}`);
 }
 
 /** Draft-First-Antwort senden (Mensch gibt frei). Geht über die Meta API raus. */
 export async function sendSocialReply(conversationId: string, text: string) {
-  const user = await requireUser();
   if (!text.trim()) throw new Error("Leere Nachricht");
   const conv = await db.query.socialConversation.findFirst({
     where: eq(schema.socialConversation.id, conversationId),
   });
   if (!conv) throw new Error("Konversation nicht gefunden");
-  await assertShopAccess(user, conv.shopId);
+  const { user } = await requireWrite(conv.shopId, "support");
 
   const creds = await loadSocialCreds(conv.accountId);
   if (!creds) throw new Error("Meta-Account nicht konfiguriert");
@@ -95,12 +94,11 @@ export async function findSocialCandidates(conversationId: string): Promise<Shop
 }
 
 export async function linkSocialCustomer(conversationId: string, customer: ShopifyCustomer) {
-  const user = await requireUser();
   const conv = await db.query.socialConversation.findFirst({
     where: eq(schema.socialConversation.id, conversationId),
   });
   if (!conv) throw new Error("Konversation nicht gefunden");
-  await assertShopAccess(user, conv.shopId);
+  await requireWrite(conv.shopId, "support");
   await db
     .update(schema.socialConversation)
     .set({ customerName: customer.displayName, customerEmail: customer.email ?? null })
@@ -109,12 +107,11 @@ export async function linkSocialCustomer(conversationId: string, customer: Shopi
 }
 
 export async function unlinkSocialCustomer(conversationId: string) {
-  const user = await requireUser();
   const conv = await db.query.socialConversation.findFirst({
     where: eq(schema.socialConversation.id, conversationId),
   });
   if (!conv) throw new Error("Konversation nicht gefunden");
-  await assertShopAccess(user, conv.shopId);
+  await requireWrite(conv.shopId, "support");
   await db
     .update(schema.socialConversation)
     .set({ customerName: null, customerEmail: null, orderId: null, orderName: null })

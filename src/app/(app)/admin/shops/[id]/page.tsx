@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireUser } from "@/server/access";
+import { brandAccess, requireUser } from "@/server/access";
 import { loadShopForEdit } from "@/server/shop-config";
 import { loadProfile } from "@/server/profile";
 import { loadSocialAccounts } from "@/server/social-config";
@@ -16,8 +16,8 @@ export default async function EditShopPage({
   searchParams: Promise<{ tab?: string; shopify?: string; shopify_error?: string }>;
 }) {
   const user = await requireUser();
-  if (!user.canShopsEdit) redirect("/inbox");
   const { id } = await params;
+  if (!(await brandAccess(user, id)).settings) redirect("/inbox");
   const { tab, shopify, shopify_error } = await searchParams;
   const shop = await loadShopForEdit(id);
   if (!shop) notFound();

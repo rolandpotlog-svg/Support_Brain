@@ -1,7 +1,7 @@
 "use server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireUser } from "@/server/access";
+import { assertShopAccess, requireUser, requireWrite } from "@/server/access";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
 import {
@@ -41,10 +41,9 @@ export async function resolveThreadShopify(threadId: string): Promise<Resolution
 
 /** Bestellung manuell am Ticket merken (oder leeren) — hat ab dann Vorrang, KI nutzt sie. */
 export async function setThreadOrder(threadId: string, orderName: string): Promise<Resolution> {
-  const user = await requireUser();
   const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
   if (!thread) return { mode: "error", message: "Thread nicht gefunden" };
-  await assertShopAccess(user, thread.shopId);
+  await requireWrite(thread.shopId, "support");
   await db
     .update(schema.threads)
     .set({ manualOrderName: orderName.trim() || null })

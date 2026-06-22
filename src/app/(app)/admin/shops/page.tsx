@@ -1,14 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/server/access";
+import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { listShopsWithStatus } from "@/server/shop-config";
 import { setShopActive } from "@/server/actions/shops";
 
 export default async function ShopsPage() {
   const user = await requireUser();
-  if (!user.canShopsView) redirect("/inbox");
-
-  const shops = await listShopsWithStatus();
+  const accessible = await accessibleShopIds(user);
+  const editable = new Set<string>();
+  if (!user.isOwner) {
+    for (const sid of accessible) if ((await brandAccess(user, sid)).settings) editable.add(sid);
+    if (editable.size === 0) redirect("/inbox");
+  }
+  const allShops = await listShopsWithStatus();
+  const shops = user.isOwner ? allShops : allShops.filter((s) => editable.has(s.id));
 
   return (
     <div className="adminwrap">
@@ -19,8 +24,8 @@ export default async function ShopsPage() {
 
       <section className="card">
         <div className="cardhead">
-          <h2>Alle Shops</h2>
-          <Link href="/admin/shops/new" className="btnlink">+ Shop hinzufügen</Link>
+          <h2>Brands</h2>
+          {user.isOwner && <Link href="/admin/shops/new" className="btnlink">+ Brand hinzufügen</Link>}
         </div>
         <table>
           <thead>

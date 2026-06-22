@@ -2,7 +2,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { requireCases } from "@/server/access";
+import { requireBrandCap, requireOwner } from "@/server/access";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import {
   getDisputes,
@@ -18,7 +18,7 @@ async function audit(caseId: string, userId: string, action: string, detail?: st
 
 /** Shopify-Payments-Disputes holen, upserten und an Bestellung/Ticket hängen. */
 export async function syncDisputes(shopId: string): Promise<{ count: number }> {
-  await requireCases();
+  await requireBrandCap(shopId, "cases");
   const creds = await loadShopifyCreds(shopId);
   if (!creds) throw new Error("Shopify für diesen Shop nicht konfiguriert");
   const disputes = await getDisputes(creds);
@@ -72,7 +72,7 @@ export async function syncDisputes(shopId: string): Promise<{ count: number }> {
 
 /** Alle Shopify-konfigurierten Shops auf einmal synchronisieren (Dashboard-Button). */
 export async function syncAllDisputes(): Promise<{ count: number; shops: number; errors: string[] }> {
-  await requireCases();
+  await requireOwner();
   const shops = await db.select({ id: schema.shops.id, name: schema.shops.name }).from(schema.shops);
   let count = 0;
   let synced = 0;
@@ -94,9 +94,9 @@ export async function syncAllDisputes(): Promise<{ count: number; shops: number;
 
 /** Beweispaket deterministisch zusammenbauen (Bestellung, Tracking, Ticket-Kommunikation). */
 export async function assembleEvidence(caseId: string): Promise<Record<string, string>> {
-  const user = await requireCases();
   const c = await db.query.disputeCase.findFirst({ where: eq(schema.disputeCase.id, caseId) });
   if (!c) throw new Error("Fall nicht gefunden");
+  const { user } = await requireBrandCap(c.shopId, "cases");
   const creds = await loadShopifyCreds(c.shopId);
 
   let tracking: string | null = null;
@@ -155,7 +155,9 @@ export async function assembleEvidence(caseId: string): Promise<Record<string, s
 }
 
 export async function saveEvidence(caseId: string, evidence: Record<string, string>): Promise<void> {
-  const user = await requireCases();
+  const c = await db.query.disputeCase.findFirst({ where: eq(schema.disputeCase.id, caseId) });
+  if (!c) throw new Error("Fall nicht gefunden");
+  const { user } = await requireBrandCap(c.shopId, "cases");
   await db
     .update(schema.disputeCase)
     .set({ evidence, updatedAt: new Date() })
@@ -165,7 +167,9 @@ export async function saveEvidence(caseId: string, evidence: Record<string, stri
 }
 
 export async function setDecision(caseId: string, decision: "fight" | "accept"): Promise<void> {
-  const user = await requireCases();
+  const c = await db.query.disputeCase.findFirst({ where: eq(schema.disputeCase.id, caseId) });
+  if (!c) throw new Error("Fall nicht gefunden");
+  const { user } = await requireBrandCap(c.shopId, "cases");
   await db
     .update(schema.disputeCase)
     .set({ decision, updatedAt: new Date() })
@@ -181,9 +185,9 @@ export async function setDecision(caseId: string, decision: "fight" | "accept"):
 
 /** GELDBEWEGEND: Beweis bei Shopify einreichen. Nur per expliziter Mensch-Aktion (Testphase). */
 export async function submitEvidence(caseId: string): Promise<{ ok: boolean; status: string | null }> {
-  const user = await requireCases();
   const c = await db.query.disputeCase.findFirst({ where: eq(schema.disputeCase.id, caseId) });
   if (!c) throw new Error("Fall nicht gefunden");
+  const { user } = await requireBrandCap(c.shopId, "cases");
   if (c.source !== "shopify_payments") throw new Error("Einreichen ist nur für Shopify-Payments-Fälle möglich");
   if (!c.providerEvidenceId) throw new Error("Keine Evidence-ID — bitte zuerst aus Shopify aktualisieren.");
   if (c.submittedAt) throw new Error("Beweis wurde bereits eingereicht.");
