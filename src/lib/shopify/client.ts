@@ -390,6 +390,78 @@ export async function getCustomerOrders(
   };
 }
 
+export type FinanceLineItem = { title: string; quantity: number; sku: string | null };
+export type ShopifyFinanceOrder = {
+  gid: string;
+  name: string;
+  createdAt: string;
+  financialStatus: string | null;
+  subtotal: string; // vor Steuer/Versand, nach Zeilen-Rabatt
+  discounts: string;
+  tax: string;
+  shipping: string;
+  total: string;
+  refunded: string;
+  lineItems: FinanceLineItem[];
+};
+
+/** Alle Bestellungen in einem Datumsbereich (für Finance/PnL), durchpaginiert. */
+export async function getOrdersInRange(
+  creds: ShopifyCreds,
+  sinceDate: string, // YYYY-MM-DD (inklusive)
+  untilDate: string, // YYYY-MM-DD (inklusive)
+  max = 3000,
+): Promise<ShopifyFinanceOrder[]> {
+  const q = `created_at:>='${sinceDate}' created_at:<='${untilDate} 23:59:59'`;
+  const out: ShopifyFinanceOrder[] = [];
+  let after: string | null = null;
+  for (let guard = 0; guard < 200 && out.length < max; guard++) {
+    const data: { orders: { edges: any[]; pageInfo: { hasNextPage: boolean } } } = await gql(
+      creds,
+      `query($q: String!, $after: String) {
+         orders(first: 50, after: $after, query: $q, sortKey: CREATED_AT) {
+           edges { cursor node {
+             id name createdAt displayFinancialStatus
+             subtotalPriceSet { shopMoney { amount } }
+             totalDiscountsSet { shopMoney { amount } }
+             totalTaxSet { shopMoney { amount } }
+             totalShippingPriceSet { shopMoney { amount } }
+             totalPriceSet { shopMoney { amount } }
+             totalRefundedSet { shopMoney { amount } }
+             lineItems(first: 50) { nodes { title quantity sku } }
+           } }
+           pageInfo { hasNextPage }
+         }
+       }`,
+      { q, after },
+    );
+    const edges = data.orders?.edges ?? [];
+    for (const e of edges) {
+      const o = e.node;
+      out.push({
+        gid: o.id,
+        name: o.name,
+        createdAt: o.createdAt,
+        financialStatus: o.displayFinancialStatus ?? null,
+        subtotal: o.subtotalPriceSet?.shopMoney?.amount ?? "0",
+        discounts: o.totalDiscountsSet?.shopMoney?.amount ?? "0",
+        tax: o.totalTaxSet?.shopMoney?.amount ?? "0",
+        shipping: o.totalShippingPriceSet?.shopMoney?.amount ?? "0",
+        total: o.totalPriceSet?.shopMoney?.amount ?? "0",
+        refunded: o.totalRefundedSet?.shopMoney?.amount ?? "0",
+        lineItems: (o.lineItems?.nodes ?? []).map((li: any) => ({
+          title: li.title,
+          quantity: Number(li.quantity ?? 0),
+          sku: li.sku ?? null,
+        })),
+      });
+    }
+    if (!data.orders?.pageInfo?.hasNextPage || edges.length === 0) break;
+    after = edges[edges.length - 1].cursor;
+  }
+  return out;
+}
+
 /** Tracking-Link: gelieferte URL bevorzugen, sonst aus Carrier + Nummer bauen. */
 export function trackingUrl(t: Tracking): string | null {
   if (t.url) return t.url;

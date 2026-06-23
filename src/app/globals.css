@@ -396,6 +396,11 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 }
 .tasklist { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .taskrow { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; flex-wrap: wrap; }
+.fin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.fin-table th { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border-strong); color: var(--text-2); font-weight: 600; white-space: nowrap; }
+.fin-table td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.fin-table th:first-child, .fin-table td:first-child { text-align: left; }
+.fin-table tbody tr:hover { background: var(--panel-2); }
 
 /* ── Shop-Profil (Antwort-Gehirn) ─────────────────────────────────────── */
 .tabnav { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }

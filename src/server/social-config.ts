@@ -76,9 +76,12 @@ export async function accountByPageId(pageId: string): Promise<SocialCreds | nul
   return a ? toCreds(a) : null;
 }
 
-/** Webhook-GET-Handshake: stimmt der Verify-Token mit irgendeinem Account überein? */
+/** Webhook-GET-Handshake: Token gegen Env-Fallback ODER einen gespeicherten Account prüfen. */
 export async function verifyTokenMatches(token: string): Promise<boolean> {
   if (!token) return false;
+  // Abkürzung fürs Setup: stimmt der Token mit META_VERIFY_TOKEN überein -> ok
+  // (erlaubt die Webhook-Verifizierung, bevor ein Social-Account gespeichert ist).
+  if (process.env.META_VERIFY_TOKEN && token === process.env.META_VERIFY_TOKEN) return true;
   const rows = await db
     .select({ verifyToken: schema.socialAccount.verifyToken })
     .from(schema.socialAccount);

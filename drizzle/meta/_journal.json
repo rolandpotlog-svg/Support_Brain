@@ -134,6 +134,13 @@
       "when": 1782124550952,
       "tag": "0018_memberships",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782251329943,
+      "tag": "0019_finance_pnl",
+      "breakpoints": true
     }
   ]
 }

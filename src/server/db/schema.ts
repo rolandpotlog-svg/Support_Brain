@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -522,4 +523,91 @@ export const returnTasks = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("return_tasks_open_idx").on(t.shopId, t.status, t.createdAt)],
+);
+
+// --- Finance / Controlling (PnL) — multi-tenant pro Brand (shop_id) ----------
+// Geldbeträge in Cent. Wochen-Key = Montag (YYYY-MM-DD). finance_access-geschützt.
+export const financeOrder = pgTable(
+  "finance_order",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    orderName: text("order_name").notNull(),
+    orderGid: text("order_gid"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    umsatzBruttoCents: integer("umsatz_brutto_cents").notNull().default(0),
+    rabatteCents: integer("rabatte_cents").notNull().default(0),
+    refundsCents: integer("refunds_cents").notNull().default(0),
+    versandEinnahmeCents: integer("versand_einnahme_cents").notNull().default(0),
+    ustCents: integer("ust_cents").notNull().default(0),
+    totalCents: integer("total_cents").notNull().default(0),
+    cogsCents: integer("cogs_cents").notNull().default(0),
+    cogsUnknown: boolean("cogs_unknown").notNull().default(false),
+    financialStatus: text("financial_status"),
+    ingestedAt: timestamp("ingested_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("finance_order_uidx").on(t.shopId, t.orderName),
+    index("finance_order_week_idx").on(t.shopId, t.weekStart),
+  ],
+);
+
+export const financeOrderItem = pgTable(
+  "finance_order_item",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderId: uuid("order_id").notNull().references(() => financeOrder.id, { onDelete: "cascade" }),
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    sku: text("sku"),
+    unitCogsCents: integer("unit_cogs_cents").notNull().default(0),
+    lineCogsCents: integer("line_cogs_cents").notNull().default(0),
+    mapped: boolean("mapped").notNull().default(true),
+  },
+  (t) => [index("finance_item_order_idx").on(t.orderId)],
+);
+
+// Versand je Order (Pickoship). source: ledger | manual | pending.
+export const financeShipping = pgTable(
+  "finance_shipping",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    orderName: text("order_name").notNull(),
+    shippingCents: integer("shipping_cents").notNull().default(0),
+    source: text("source").notNull().default("manual"),
+    contaminated: boolean("contaminated").notNull().default(false),
+    note: text("note"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("finance_shipping_uidx").on(t.shopId, t.orderName)],
+);
+
+// Marketing-Spend je Woche × Kanal.
+export const financeMarketing = pgTable(
+  "finance_marketing",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    channel: text("channel").notNull(), // meta | meta_garten | google | taboola | tiktok
+    amountCents: integer("amount_cents").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("finance_marketing_uidx").on(t.shopId, t.weekStart, t.channel)],
+);
+
+// Manuelle Fix-/Variable-Kosten je Woche.
+export const financeCostOverride = pgTable(
+  "finance_cost_override",
+  {
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    fixkostenCents: integer("fixkosten_cents").notNull().default(0),
+    variableCents: integer("variable_cents").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.shopId, t.weekStart] })],
 );
