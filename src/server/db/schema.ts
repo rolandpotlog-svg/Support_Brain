@@ -611,3 +611,23 @@ export const financeCostOverride = pgTable(
   },
   (t) => [primaryKey({ columns: [t.shopId, t.weekStart] })],
 );
+
+// Historische/importierte Wochen-Aggregate (aus PnL-Blueprint-Excel) für Wochen,
+// die der Shopify-Store nicht (mehr) liefert. Report: Shopify hat Vorrang, sonst dies.
+export const financeWeekManual = pgTable(
+  "finance_week_manual",
+  {
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    umsatzBruttoCents: integer("umsatz_brutto_cents").notNull().default(0),
+    rabatteCents: integer("rabatte_cents").notNull().default(0),
+    refundsCents: integer("refunds_cents").notNull().default(0),
+    versandEinnahmeCents: integer("versand_einnahme_cents").notNull().default(0),
+    ustCents: integer("ust_cents").notNull().default(0),
+    cogsCents: integer("cogs_cents").notNull().default(0),
+    versandkostenCents: integer("versandkosten_cents").notNull().default(0),
+    source: text("source").notNull().default("blueprint"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.shopId, t.weekStart] })],
+);

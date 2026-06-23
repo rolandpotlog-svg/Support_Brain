@@ -84,6 +84,27 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
     weeks.set(o.weekStart, a);
   }
 
+  // Historische/importierte Wochen (Blueprint) einmischen — Vorrang, da nur für
+  // Wochen gespeichert, in denen Shopify unvollständig ist (KW09–17).
+  const manualRows = await db
+    .select()
+    .from(schema.financeWeekManual)
+    .where(eq(schema.financeWeekManual.shopId, shopId));
+  for (const m of manualRows) {
+    weeks.set(m.weekStart, {
+      umsatzBrutto: m.umsatzBruttoCents,
+      rabatte: m.rabatteCents,
+      refunds: m.refundsCents,
+      versandEinnahme: m.versandEinnahmeCents,
+      ust: m.ustCents,
+      cogs: m.cogsCents,
+      versandkosten: m.versandkostenCents,
+      orderCount: 0,
+      shippingPending: 0,
+      unmappedOrders: 0,
+    });
+  }
+
   const rows: WeekRow[] = [...weeks.entries()]
     .map(([weekStart, a]) => {
       const mk = marketingByWeek.get(weekStart) ?? {};

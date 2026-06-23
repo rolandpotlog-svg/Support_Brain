@@ -10,6 +10,7 @@ import { ShopSwitcher } from "../inbox/shop-switcher";
 import { IngestButton } from "./ingest-button";
 import { WeekInputs } from "./week-inputs";
 import { PickoshipUpload } from "./pickoship-upload";
+import { BlueprintUpload } from "./blueprint-upload";
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const roasFmt = (r: number | null) => (r == null ? "—" : r.toFixed(2));
@@ -98,6 +99,13 @@ export default async function FinancePage() {
         <h2 style={{ marginTop: 0 }}>Shopify-Daten aktualisieren</h2>
         <p className="muted" style={{ marginTop: 0 }}>Bestellungen (Umsatz, Steuer, Versand-Einnahme, Refunds) + Produktkosten (COGS nach Name).</p>
         <IngestButton shopId={activeShopId} defaultUntil={today} />
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+          <p className="muted" style={{ marginTop: 0 }}>
+            <b>Einmalig / Backfill:</b> bestehende PnL-Blueprint-Excel importieren — Marketing-Spend (alle Wochen)
+            + historische Wochen, die der Shopify-Store nicht hat (KW09–17).
+          </p>
+          <BlueprintUpload shopId={activeShopId} />
+        </div>
       </section>
 
       {/* Pickoship-Versand */}

@@ -1,11 +1,12 @@
 "use server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { requireFinance } from "@/server/access";
 import { ingestShopifyOrders } from "@/server/finance/ingest";
 import { extractPdfText } from "@/server/finance/pickoship-pdf";
 import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@/lib/finance/pickoship";
+import { parseBlueprint } from "@/server/finance/blueprint";
 
 const euros = (n: unknown) => Math.round((Number(n) || 0) * 100);
 
@@ -73,6 +74,66 @@ export async function saveWeekInputs(
       set: { fixkostenCents: euros(fixEuros), variableCents: euros(varEuros), updatedAt: new Date() },
     });
   revalidatePath("/finance");
+}
+
+/** PnL-Blueprint-Excel importieren: Marketing (alle Wochen) + historische Wochen-Aggregate. */
+export async function importBlueprint(
+  formData: FormData,
+): Promise<{ marketingWeeks: number; manualWeeks: number; sheet: string }> {
+  const shopId = String(formData.get("shopId") ?? "");
+  await requireFinance(shopId);
+  const file = formData.get("file");
+  if (!(file instanceof File)) throw new Error("Keine Datei");
+  const shop = await db.query.shops.findFirst({ where: eq(schema.shops.id, shopId) });
+  if (!shop) throw new Error("Brand nicht gefunden");
+
+  const weeks = parseBlueprint(Buffer.from(await file.arrayBuffer()), shop.name);
+  if (weeks.length === 0) throw new Error(`Keine KW-Zeilen im Blatt „${shop.name}" gefunden.`);
+
+  let marketingWeeks = 0;
+  let manualWeeks = 0;
+  for (const w of weeks) {
+    const mkTotal = Object.values(w.marketing).reduce((a, b) => a + b, 0);
+    if (mkTotal > 0) {
+      for (const [channel, amountCents] of Object.entries(w.marketing)) {
+        await db
+          .insert(schema.financeMarketing)
+          .values({ shopId, weekStart: w.weekStart, channel, amountCents })
+          .onConflictDoUpdate({
+            target: [schema.financeMarketing.shopId, schema.financeMarketing.weekStart, schema.financeMarketing.channel],
+            set: { amountCents, updatedAt: new Date() },
+          });
+      }
+      marketingWeeks++;
+    }
+    // Historische Wochen nur übernehmen, wenn Shopify diese Woche NICHT (vollständig) hat.
+    const excelNetto = w.umsatzBruttoCents - w.ustCents - w.rabatteCents - w.refundsCents;
+    const sh = await db
+      .select({ netto: sql<number>`coalesce(sum(umsatz_brutto_cents - ust_cents - rabatte_cents - refunds_cents),0)::int` })
+      .from(schema.financeOrder)
+      .where(and(eq(schema.financeOrder.shopId, shopId), eq(schema.financeOrder.weekStart, w.weekStart)));
+    const shopifyIncomplete = (sh[0]?.netto ?? 0) < excelNetto * 0.8;
+
+    if (w.hasRevenue && shopifyIncomplete) {
+      const vals = {
+        umsatzBruttoCents: w.umsatzBruttoCents,
+        rabatteCents: w.rabatteCents,
+        refundsCents: w.refundsCents,
+        versandEinnahmeCents: w.versandEinnahmeCents,
+        ustCents: w.ustCents,
+        cogsCents: w.cogsCents,
+        versandkostenCents: w.versandkostenCents,
+        updatedAt: new Date(),
+      };
+      await db
+        .insert(schema.financeWeekManual)
+        .values({ shopId, weekStart: w.weekStart, ...vals })
+        .onConflictDoUpdate({ target: [schema.financeWeekManual.shopId, schema.financeWeekManual.weekStart], set: vals });
+      manualWeeks++;
+    }
+  }
+  revalidatePath("/finance");
+  return { marketingWeeks, manualWeeks, sheet: shop.name };
 }
 
 export type PickoshipReview = PickoshipResult & { knownCount: number; unknownNames: string[] };

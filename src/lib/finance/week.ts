@@ -37,6 +37,11 @@ export function kwOfWeekStart(weekStart: string): number {
   return Math.round((mondayUtc - ANCHOR_MONDAY_UTC) / (7 * DAY)) + 1;
 }
 
+/** Montags-Key (YYYY-MM-DD) einer KW-Nummer. */
+export function weekStartOfKw(kw: number): string {
+  return new Date(ANCHOR_MONDAY_UTC + (kw - 1) * 7 * DAY).toISOString().slice(0, 10);
+}
+
 /** Anzeige: "KW09". */
 export function kwLabel(kw: number): string {
   return `KW${String(kw).padStart(2, "0")}`;
