@@ -17,7 +17,7 @@ export type WeekInputs = {
   variableCents: number; // manuell
 };
 
-export type Ampel = "rot" | "gelb" | "gruen";
+export type Ampel = "rot" | "gelb" | "gruen" | "neutral";
 
 export type WeekPnl = {
   nettoumsatzCents: number;
@@ -58,7 +58,9 @@ export function computeWeekPnl(i: WeekInputs): WeekPnl {
 
   let ampel: Ampel;
   if (m <= 0) {
-    ampel = pnl >= 0 ? "gruen" : "rot";
+    // Ohne erfassten Marketing-Spend lässt sich die Woche nicht bewerten -> neutral
+    // (sonst täuscht "grün" Profitabilität vor, obwohl Werbekosten fehlen).
+    ampel = "neutral";
   } else if (beRoasGesamt === null || roasGesamt === null) {
     // Kein positiver Spielraum vor Ads -> jede Ad-Ausgabe = Verlust.
     ampel = "rot";

@@ -14,7 +14,7 @@ import { PickoshipUpload } from "./pickoship-upload";
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const roasFmt = (r: number | null) => (r == null ? "—" : r.toFixed(2));
 const pctFmt = (p: number | null) => (p == null ? "—" : `${(p * 100).toFixed(1)} %`);
-const AMPEL_COLOR: Record<string, string> = { rot: "#e5634d", gelb: "#d9a300", gruen: "#3fb950" };
+const AMPEL_COLOR: Record<string, string> = { rot: "#e5634d", gelb: "#d9a300", gruen: "#3fb950", neutral: "#9aa0ab" };
 
 function Ampel({ a }: { a: string }) {
   return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: AMPEL_COLOR[a] ?? "#999" }} title={a} />;
@@ -37,6 +37,10 @@ export default async function FinancePage() {
   const last: WeekRow | undefined = report.weeks[0];
   const ytd = report.ytd;
   const today = new Date().toISOString().slice(0, 10);
+
+  const hasMarketing = report.weeks.some((w) => w.inputs.marketingCents > 0);
+  const shippingPendingTotal = report.weeks.reduce((s, w) => s + w.shippingPending, 0);
+  const incomplete = report.weeks.length > 0 && (!hasMarketing || shippingPendingTotal > 0);
 
   const inputWeeks = report.weeks.map((w) => ({
     weekStart: w.weekStart,
@@ -63,6 +67,17 @@ export default async function FinancePage() {
           <b> Brutto-Break-Even-ROAS</b> — ein Dashboard-ROAS, der „okay" aussieht, kann netto ein Verlust sein.
         </span>
       </section>
+
+      {/* Unvollständige Daten -> klar kennzeichnen (sonst sieht alles fälschlich profitabel aus) */}
+      {incomplete && (
+        <section className="card" style={{ borderColor: "#e5634d55", background: "#e5634d11" }}>
+          <strong>⚠ Unvollständige Daten — Zahlen noch nicht aussagekräftig.</strong>
+          <ul className="esc-list" style={{ marginBottom: 0 }}>
+            {!hasMarketing && <li>Kein <b>Marketing-Spend</b> erfasst → Margen erscheinen viel zu hoch, Ampel grau (neutral). Unten bei „Marketing &amp; Kosten erfassen" eintragen.</li>}
+            {shippingPendingTotal > 0 && <li><b>{shippingPendingTotal}</b> Bestellungen ohne <b>Versanddaten</b> → Pickoship-Beleg(e) hochladen.</li>}
+          </ul>
+        </section>
+      )}
 
       {/* KPI-Kacheln */}
       <section className="card">
