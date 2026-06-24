@@ -631,3 +631,18 @@ export const financeWeekManual = pgTable(
   },
   (t) => [primaryKey({ columns: [t.shopId, t.weekStart] })],
 );
+
+// Editierbare Basis-Stückkosten (COGS) je Brand. Supplier ändert Preise -> hier
+// eintragen, neue/laufende Wochen rechnen automatisch nach. Bundle-/Mengen-Logik
+// bleibt im Code (cogs.ts). Historische Wochen (Excel) bleiben unberührt.
+export const financeCogsRate = pgTable(
+  "finance_cogs_rate",
+  {
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    unitCents: integer("unit_cents").notNull().default(0),
+    note: text("note"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.shopId, t.key] })],
+);

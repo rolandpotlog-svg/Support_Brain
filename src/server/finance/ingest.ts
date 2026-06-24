@@ -5,6 +5,7 @@ import { db, schema } from "@/server/db";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { getOrdersInRange } from "@/lib/shopify/client";
 import { cogsForLineItem } from "@/lib/finance/cogs";
+import { getCogsRates } from "@/server/finance/cogs-rates";
 import { weekOf } from "@/lib/finance/week";
 
 function toCents(amount: string | null | undefined): number {
@@ -19,6 +20,7 @@ export async function ingestShopifyOrders(
   const creds = await loadShopifyCreds(shopId);
   if (!creds) throw new Error("Shopify für diesen Brand nicht verbunden");
   const orders = await getOrdersInRange(creds, sinceDate, untilDate);
+  const rates = await getCogsRates(shopId);
 
   let unmapped = 0;
   for (const o of orders) {
@@ -29,7 +31,7 @@ export async function ingestShopifyOrders(
     let cogs = 0;
     let unknownOrder = false;
     const items = o.lineItems.map((li) => {
-      const c = cogsForLineItem(li.title, li.quantity);
+      const c = cogsForLineItem(li.title, li.quantity, rates);
       cogs += c.lineCents;
       if (!c.mapped) unknownOrder = true;
       return { li, c };

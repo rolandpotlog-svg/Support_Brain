@@ -7,6 +7,7 @@ import { ingestShopifyOrders } from "@/server/finance/ingest";
 import { extractPdfText } from "@/server/finance/pickoship-pdf";
 import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@/lib/finance/pickoship";
 import { parseBlueprint } from "@/server/finance/blueprint";
+import { COGS_RATE_DEFS } from "@/lib/finance/cogs";
 
 const euros = (n: unknown) => Math.round((Number(n) || 0) * 100);
 
@@ -128,6 +129,23 @@ export async function importBlueprint(
   }
   revalidatePath("/finance");
   return { marketingWeeks, manualWeeks, sheet: shop.name };
+}
+
+/** Basis-Stückkosten (COGS) speichern. Wirkt auf neue/laufende Wochen (Excel-Wochen bleiben). */
+export async function saveCogsRates(shopId: string, valuesEuros: Record<string, number>) {
+  await requireFinance(shopId);
+  for (const def of COGS_RATE_DEFS) {
+    if (!(def.key in valuesEuros)) continue;
+    const unitCents = euros(valuesEuros[def.key]);
+    await db
+      .insert(schema.financeCogsRate)
+      .values({ shopId, key: def.key, unitCents })
+      .onConflictDoUpdate({
+        target: [schema.financeCogsRate.shopId, schema.financeCogsRate.key],
+        set: { unitCents, updatedAt: new Date() },
+      });
+  }
+  revalidatePath("/finance");
 }
 
 export type PickoshipReview = PickoshipResult & { knownCount: number; unknownNames: string[] };

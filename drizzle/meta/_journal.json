@@ -148,6 +148,13 @@
       "when": 1782256402772,
       "tag": "0020_finance_week_manual",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782285767984,
+      "tag": "0021_finance_cogs_rate",
+      "breakpoints": true
     }
   ]
 }

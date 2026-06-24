@@ -5,6 +5,7 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { buildFinanceReport, type WeekRow } from "@/server/finance/report";
+import { getCogsRateRows, getUnmappedTitles } from "@/server/finance/cogs-rates";
 import { CHANNELS } from "@/lib/finance/channels";
 import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
 import { IngestButton } from "./ingest-button";
@@ -12,6 +13,7 @@ import { WeekInputs } from "./week-inputs";
 import { PickoshipUpload } from "./pickoship-upload";
 import { BlueprintUpload } from "./blueprint-upload";
 import { LiveTicker } from "./live-ticker";
+import { CogsEditor } from "./cogs-editor";
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const roasFmt = (r: number | null) => (r == null ? "—" : r.toFixed(2));
@@ -38,6 +40,12 @@ export default async function FinancePage() {
   const report = await buildFinanceReport(activeShopId);
   const ytd = report.ytd;
   const today = new Date().toISOString().slice(0, 10);
+
+  const cogsRows = (await getCogsRateRows(activeShopId)).map((r) => ({
+    ...r,
+    updatedAtISO: r.updatedAt ? r.updatedAt.toISOString() : null,
+  }));
+  const unmappedTitles = await getUnmappedTitles(activeShopId);
 
   // Laufende Woche (aus heute) vs. letzte VOLLSTÄNDIGE Woche.
   const cw = currentWeekStart();
@@ -139,6 +147,31 @@ export default async function FinancePage() {
           Rechnungssumme geprüft. Nach deiner Kontrolle verbuchen.
         </p>
         <PickoshipUpload shopId={activeShopId} />
+      </section>
+
+      {/* Stückkosten (COGS) — editierbar + Plausi + Excel-Download */}
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Produktkosten / Stückkosten (COGS)</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Basis-Stückkosten vom Supplier. Ändern sich die Preise → hier eintragen; <b>neue &amp; laufende</b> Wochen
+          rechnen automatisch nach. <b>Historische Wochen (KW09–25 aus der Excel) bleiben unverändert.</b>{" "}
+          Die Bundle-/Mengen-Logik (4× = 2 Bundles usw.) bleibt automatisch.
+        </p>
+        <CogsEditor shopId={activeShopId} rows={cogsRows} />
+        {unmappedTitles.length > 0 && (
+          <div className="card" style={{ marginTop: 14, borderColor: "#e5634d55", background: "#e5634d11" }}>
+            <strong>⚠ Plausi-Check: {unmappedTitles.length} Produkt(e) ohne Kosten-Zuordnung</strong>
+            <p className="muted" style={{ margin: "4px 0 8px" }}>
+              Diese Artikel kamen in echten Bestellungen vor, haben aber keine Stückkost (COGS = 0 angenommen).
+              Supplier-Kosten ergänzen bzw. Mapping melden:
+            </p>
+            <ul className="esc-list" style={{ marginBottom: 0 }}>
+              {unmappedTitles.map((t) => (
+                <li key={t.title}><b>{t.title}</b> <span className="muted">· {t.count}×</span></li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       {/* Wochen-Tabelle */}
