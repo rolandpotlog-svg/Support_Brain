@@ -34,6 +34,20 @@ export type LineCogs = {
   mapped: boolean; // false => unbekanntes Produkt, NICHT als 0 werten
 };
 
+/** Produkt-Kategorie eines Line-Items (für „was wurde bestellt"-Übersicht / Supplier-Abgleich). */
+export function categorizeLineItem(name: string): string {
+  const n = (name ?? "").toLowerCase();
+  const has = (s: string) => n.includes(s);
+  if (has("sonic pulse pro")) return "Sonic Pulse Pro";
+  if (has("m-shield")) return "M-Shield";
+  if (has("protect+") || has("juckreiz")) return "Protect+ / Juckreiz";
+  if (has("gartenhandschuhe")) return "Gartenhandschuhe";
+  if (has("paketschutz") || has("bestellung vorziehen") || has("ebook") || has("e-book") || has("garten-guide") || has("garten guide")) {
+    return "Upsell (0 €)";
+  }
+  return `❓ ${name || "Unbekannt"}`;
+}
+
 /** COGS für ein Line-Item. Reihenfolge der Regeln ist bewusst (erste passende greift). */
 export function cogsForLineItem(name: string, quantity: number, rates: CogsRates = COGS_RATE_DEFAULTS): LineCogs {
   const n = (name ?? "").toLowerCase();

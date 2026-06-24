@@ -5,7 +5,7 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { buildFinanceReport, type WeekRow } from "@/server/finance/report";
-import { getCogsRateRows, getUnmappedTitles } from "@/server/finance/cogs-rates";
+import { getCogsRateRows, getUnmappedTitles, getProductBreakdown } from "@/server/finance/cogs-rates";
 import { CHANNELS } from "@/lib/finance/channels";
 import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
 import { IngestButton } from "./ingest-button";
@@ -51,6 +51,10 @@ export default async function FinancePage() {
   const cw = currentWeekStart();
   const liveWeek: WeekRow | undefined = report.weeks.find((w) => w.weekStart === cw);
   const lastComplete: WeekRow | undefined = report.weeks.find((w) => w.weekStart < cw);
+
+  // Soll laut Shopify für die laufende Woche (Grundlage für Supplier-Abgleich).
+  const sollBreakdown = await getProductBreakdown(activeShopId, cw);
+  const sollWeekLabel = liveWeek?.label ?? kwLabel(kwOfWeekStart(cw));
 
   const hasMarketing = report.weeks.some((w) => w.inputs.marketingCents > 0);
   const shippingPendingTotal = report.weeks.reduce((s, w) => s + w.shippingPending, 0);
@@ -158,6 +162,36 @@ export default async function FinancePage() {
           Die Bundle-/Mengen-Logik (4× = 2 Bundles usw.) bleibt automatisch.
         </p>
         <CogsEditor shopId={activeShopId} rows={cogsRows} />
+
+        {/* Soll laut Shopify (laufende Woche) — Basis für den Supplier-Abgleich */}
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+          <h3 style={{ margin: "0 0 4px" }}>Bestellt laut Shopify · {sollWeekLabel} (Soll)</h3>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Was diese Woche wirklich bestellt wurde — diese Liste hältst du gegen die <b>wöchentliche Supplier-Rechnung</b>.
+            <i> Den automatischen Abgleich (Rechnung hochladen → Differenz → Kontrolle) baue ich, sobald du mir ein Rechnungs-Beispiel schickst.</i>
+          </p>
+          {sollBreakdown.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>Noch keine Bestellungen dieser Woche aus Shopify — oben im Live-Ticker „Jetzt aktualisieren".</p>
+          ) : (
+            <table className="fin-table">
+              <thead><tr><th>Produkt</th><th style={{ textAlign: "right" }}>Menge</th><th style={{ textAlign: "right" }}>Berechnete COGS</th></tr></thead>
+              <tbody>
+                {sollBreakdown.map((b) => (
+                  <tr key={b.label}>
+                    <td>{b.label}</td>
+                    <td style={{ textAlign: "right" }}>{b.units}</td>
+                    <td style={{ textAlign: "right" }}>{eur(b.cogsCents)}</td>
+                  </tr>
+                ))}
+                <tr style={{ fontWeight: 700 }}>
+                  <td>Summe</td>
+                  <td style={{ textAlign: "right" }}>{sollBreakdown.reduce((s, b) => s + b.units, 0)}</td>
+                  <td style={{ textAlign: "right" }}>{eur(sollBreakdown.reduce((s, b) => s + b.cogsCents, 0))}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+        </div>
         {unmappedTitles.length > 0 && (
           <div className="card" style={{ marginTop: 14, borderColor: "#e5634d55", background: "#e5634d11" }}>
             <strong>⚠ Plausi-Check: {unmappedTitles.length} Produkt(e) ohne Kosten-Zuordnung</strong>
