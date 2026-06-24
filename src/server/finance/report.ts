@@ -1,7 +1,7 @@
 // Aggregiert die gespeicherten Finance-Rohdaten zu Wochen-PnL (neueste oben) + YTD.
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { kwLabel, kwOfWeekStart } from "@/lib/finance/week";
+import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
 import { computeWeekPnl, type WeekInputs, type WeekPnl } from "@/lib/finance/pnl";
 
 export type WeekRow = {
@@ -140,8 +140,12 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
     .sort((x, y) => (x.weekStart < y.weekStart ? 1 : -1)); // neueste oben
 
   // YTD: Cent-Felder summieren, Verhältnisse neu berechnen.
+  // Die laufende (unvollständige) Woche zählt NICHT ins YTD — sonst verzerren
+  // fehlendes Marketing/Versand die Summen (sie bleibt im Live-Ticker + Tabelle).
+  const cw = currentWeekStart();
   let nett = 0, mkt = 0, cogs = 0, vers = 0, fee = 0, pnl = 0, gesamt = 0, leistbar = 0;
   for (const r of rows) {
+    if (r.weekStart >= cw) continue;
     nett += r.pnl.nettoumsatzCents;
     mkt += r.inputs.marketingCents;
     cogs += r.inputs.produktkostenCents;
