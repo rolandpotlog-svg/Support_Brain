@@ -7,6 +7,7 @@ import { ingestShopifyOrders } from "@/server/finance/ingest";
 import { extractPdfText } from "@/server/finance/pickoship-pdf";
 import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@/lib/finance/pickoship";
 import { parseBlueprint } from "@/server/finance/blueprint";
+import { getCogsRates } from "@/server/finance/cogs-rates";
 import { COGS_RATE_DEFS } from "@/lib/finance/cogs";
 
 const euros = (n: unknown) => Math.round((Number(n) || 0) * 100);
@@ -148,9 +149,16 @@ export async function saveCogsRates(shopId: string, valuesEuros: Record<string, 
   revalidatePath("/finance");
 }
 
-export type PickoshipReview = PickoshipResult & { knownCount: number; unknownNames: string[] };
+export type CogsRateCheck = { priceCents: number; qty: number; known: boolean };
+export type PickoshipReview = PickoshipResult & {
+  knownCount: number;
+  unknownNames: string[];
+  ourCogsCents: number; // Engine-COGS der bekannten Orders
+  cogsMatches: boolean; // Rechnung-Produktkosten ≈ Engine-COGS (±1 %)
+  rateChecks: CogsRateCheck[]; // Stückpreise im PDF vs. hinterlegte Stückkosten
+};
 
-/** Pickoship-PDF parsen (NICHT verbuchen) -> Kontroll-Ansicht: Summe vs. Rechnung + Shopify-Abgleich. */
+/** Pickoship-PDF parsen (NICHT verbuchen) -> Kontroll-Ansicht: Versand + COGS gegen Rechnung & Shopify. */
 export async function parsePickoshipUpload(formData: FormData): Promise<PickoshipReview> {
   const shopId = String(formData.get("shopId") ?? "");
   await requireFinance(shopId);
@@ -160,17 +168,33 @@ export async function parsePickoshipUpload(formData: FormData): Promise<Pickoshi
   const result = parsePickoshipText(text);
   if (result.orders.length === 0) throw new Error("Keine Bestellungen im PDF erkannt — ist es ein Pickoship-Beleg?");
 
-  // Abgleich mit Shopify-Bestellungen dieses Brands (Kontrolle).
+  // Abgleich mit Shopify-Bestellungen dieses Brands (Kontrolle) + Engine-COGS.
   const names = result.orders.map((o) => o.orderName);
   const known = await db
-    .select({ orderName: schema.financeOrder.orderName })
+    .select({ orderName: schema.financeOrder.orderName, cogsCents: schema.financeOrder.cogsCents })
     .from(schema.financeOrder)
     .where(and(eq(schema.financeOrder.shopId, shopId), inArray(schema.financeOrder.orderName, names)));
   const knownSet = new Set(known.map((k) => k.orderName));
+  const ourCogsCents = known.reduce((s, k) => s + k.cogsCents, 0);
+  const ref = result.invoiceProductTotalCents ?? result.productTotalCents;
+  const cogsMatches = ref > 0 && Math.abs(result.productTotalCents - ourCogsCents) <= Math.max(100, ref * 0.01);
+
+  // Stückpreis-Kontrolle: jeder Preis im PDF muss einer hinterlegten Stückkost entsprechen.
+  const rates = await getCogsRates(shopId);
+  const rateValues = new Set<number>(Object.values(rates));
+  const rateChecks: CogsRateCheck[] = result.unitPrices.map((u) => ({
+    priceCents: u.price,
+    qty: u.qty,
+    known: rateValues.has(u.price),
+  }));
+
   return {
     ...result,
     knownCount: knownSet.size,
     unknownNames: names.filter((n) => !knownSet.has(n)).slice(0, 20),
+    ourCogsCents,
+    cogsMatches,
+    rateChecks,
   };
 }
 

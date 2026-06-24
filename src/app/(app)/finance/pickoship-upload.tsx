@@ -68,8 +68,39 @@ export function PickoshipUpload({ shopId }: { shopId: string }) {
             <li>In Shopify gefunden: <strong>{review.knownCount}</strong> / {review.orders.length}
               {review.unknownNames.length > 0 && <span className="bad-text"> · nicht gefunden: {review.unknownNames.join(", ")}{review.unknownNames.length >= 20 ? " …" : ""}</span>}</li>
           </ul>
-          <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
-            Bitte gegen den PDF-Beleg prüfen (hat der Supplier korrekt abgerechnet?). Erst dann verbuchen.
+
+          {/* COGS-Abgleich: Produktkosten lt. Rechnung vs. unsere Engine + Stückpreis-Check */}
+          <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+            <div className="cardhead">
+              <h3 style={{ margin: 0, fontSize: 15 }}>Produktkosten (COGS)</h3>
+              <span className={review.cogsMatches ? "ok-text" : "bad-text"}>
+                {review.cogsMatches ? "✓ COGS deckt sich mit Engine" : "✗ COGS weicht ab — prüfen!"}
+              </span>
+            </div>
+            <ul className="esc-list">
+              <li>Produktkosten lt. Rechnung (Menge × Stückpreis): <strong>{eur(review.productTotalCents)}</strong>{" "}
+                {review.invoiceProductTotalCents !== null && <span className="muted">vs. „Total Product Price" {eur(review.invoiceProductTotalCents)}</span>}</li>
+              <li>Unsere Engine-COGS (gleiche Orders): <strong>{eur(review.ourCogsCents)}</strong></li>
+              <li>Stückpreise im Beleg:{" "}
+                {review.rateChecks.map((rc) => (
+                  <span key={rc.priceCents} className={rc.known ? "ok-text" : "bad-text"} style={{ marginRight: 10 }}>
+                    {rc.known ? "✓" : "⚠"} {eur(rc.priceCents)} × {rc.qty}
+                  </span>
+                ))}
+              </li>
+            </ul>
+            {review.rateChecks.some((rc) => !rc.known) && (
+              <p className="bad-text" style={{ margin: "0 0 6px", fontSize: 13 }}>
+                ⚠ Mind. ein Stückpreis weicht von deinen hinterlegten Stückkosten ab — Supplier-Preis geändert? Oben bei „Stückkosten" anpassen.
+              </p>
+            )}
+            <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+              Hinweis: Die <b>AMOUNT</b>-Spalte mischt Versand + ggf. Produkt — als COGS gilt nur <b>Menge × Stückpreis</b>.
+            </p>
+          </div>
+
+          <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+            Bitte gegen den PDF-Beleg prüfen (hat der Supplier korrekt abgerechnet?). Erst dann verbuchen (bucht Versand).
           </p>
           <div className="srcrow" style={{ alignItems: "center" }}>
             <button className="primary" disabled={busy} onClick={commit}>Prüfung ok → verbuchen</button>
