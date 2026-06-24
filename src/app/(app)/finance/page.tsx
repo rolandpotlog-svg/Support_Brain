@@ -6,11 +6,13 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { buildFinanceReport, type WeekRow } from "@/server/finance/report";
 import { CHANNELS } from "@/lib/finance/channels";
+import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
 import { ShopSwitcher } from "../inbox/shop-switcher";
 import { IngestButton } from "./ingest-button";
 import { WeekInputs } from "./week-inputs";
 import { PickoshipUpload } from "./pickoship-upload";
 import { BlueprintUpload } from "./blueprint-upload";
+import { LiveTicker } from "./live-ticker";
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const roasFmt = (r: number | null) => (r == null ? "—" : r.toFixed(2));
@@ -35,9 +37,13 @@ export default async function FinancePage() {
   if (!activeShopId || !(await brandAccess(user, activeShopId)).finance) redirect("/inbox");
 
   const report = await buildFinanceReport(activeShopId);
-  const last: WeekRow | undefined = report.weeks[0];
   const ytd = report.ytd;
   const today = new Date().toISOString().slice(0, 10);
+
+  // Laufende Woche (aus heute) vs. letzte VOLLSTÄNDIGE Woche.
+  const cw = currentWeekStart();
+  const liveWeek: WeekRow | undefined = report.weeks.find((w) => w.weekStart === cw);
+  const lastComplete: WeekRow | undefined = report.weeks.find((w) => w.weekStart < cw);
 
   const hasMarketing = report.weeks.some((w) => w.inputs.marketingCents > 0);
   const shippingPendingTotal = report.weeks.reduce((s, w) => s + w.shippingPending, 0);
@@ -80,9 +86,28 @@ export default async function FinancePage() {
         </section>
       )}
 
-      {/* KPI-Kacheln */}
+      {/* Live-Ticker: laufende Woche (unvollständig, aktualisiert sich automatisch) */}
+      <section className="card" style={{ borderColor: "#e5634d55" }}>
+        <div className="formhead" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+          <h2 style={{ margin: 0 }}>🔴 Aktuelle Woche · live {liveWeek ? `(${liveWeek.label})` : `(${kwLabel(kwOfWeekStart(cw))})`}</h2>
+          <LiveTicker shopId={activeShopId} weekStart={cw} />
+        </div>
+        <div className="report">
+          <div className="rstat"><div className="k">Bestellungen</div><div className="v">{liveWeek?.orderCount ?? 0}</div></div>
+          <div className="rstat"><div className="k">Nettoumsatz</div><div className="v">{eur(liveWeek?.pnl.nettoumsatzCents ?? 0)}</div></div>
+          <div className="rstat"><div className="k">COGS</div><div className="v">{eur(liveWeek?.inputs.produktkostenCents ?? 0)}</div></div>
+          <div className="rstat"><div className="k">Marketing</div><div className="v">{eur(liveWeek?.inputs.marketingCents ?? 0)}</div></div>
+          <div className="rstat"><div className="k">PnL (vorläufig)</div><div className="v" style={{ color: (liveWeek?.pnl.pnlCents ?? 0) < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen }}>{eur(liveWeek?.pnl.pnlCents ?? 0)}</div></div>
+        </div>
+        <p className="muted" style={{ margin: "8px 0 0" }}>
+          Läuft noch — <b>Marketing &amp; Versand der laufenden Woche meist noch nicht erfasst</b>, PnL daher vorläufig.
+          Umsatz/Bestellungen kommen live aus Shopify.
+        </p>
+      </section>
+
+      {/* KPI-Kacheln — letzte VOLLSTÄNDIGE Woche */}
       <section className="card">
-        <h2 style={{ marginTop: 0 }}>YTD &amp; letzte Woche {last ? `(${last.label})` : ""}</h2>
+        <h2 style={{ marginTop: 0 }}>YTD &amp; letzte vollständige Woche {lastComplete ? `(${lastComplete.label})` : ""}</h2>
         <div className="report">
           <div className="rstat"><div className="k">Nettoumsatz YTD</div><div className="v">{eur(ytd.nettoumsatzCents)}</div></div>
           <div className="rstat"><div className="k">Marketing YTD</div><div className="v">{eur(ytd.marketingCents)}</div></div>
@@ -90,7 +115,7 @@ export default async function FinancePage() {
           <div className="rstat"><div className="k">Marge YTD</div><div className="v">{pctFmt(ytd.margePct)}</div></div>
           <div className="rstat"><div className="k">Ist-ROAS YTD</div><div className="v">{roasFmt(ytd.roasGesamt)}</div></div>
           <div className="rstat"><div className="k">BE-ROAS YTD</div><div className="v">{roasFmt(ytd.beRoasGesamt)}</div></div>
-          {last && <div className="rstat"><div className="k">Status letzte Woche</div><div className="v"><Ampel a={last.pnl.ampel} /></div></div>}
+          {lastComplete && <div className="rstat"><div className="k">Status {lastComplete.label}</div><div className="v"><Ampel a={lastComplete.pnl.ampel} /></div></div>}
         </div>
       </section>
 

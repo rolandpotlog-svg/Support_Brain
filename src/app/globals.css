@@ -428,3 +428,13 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
   padding: 14px; max-height: 360px; overflow-y: auto; margin: 0;
 }
+
+/* Live-Ticker Punkt (laufende Woche) */
+.livedot { width: 9px; height: 9px; border-radius: 50%; background: #e5634d;
+  box-shadow: 0 0 0 0 rgba(229,99,77,0.6); animation: livepulse 1.8s ease-out infinite; }
+.livedot-busy { animation-duration: 0.7s; }
+@keyframes livepulse {
+  0% { box-shadow: 0 0 0 0 rgba(229,99,77,0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(229,99,77,0); }
+  100% { box-shadow: 0 0 0 0 rgba(229,99,77,0); }
+}
