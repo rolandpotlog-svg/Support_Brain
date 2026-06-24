@@ -6,6 +6,7 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { listPendingIntake } from "@/server/returns";
 import { receiveReturnForm } from "@/server/actions/returns";
+import { categorizeLineItem } from "@/lib/finance/cogs";
 
 type CaseItem = { title: string; variantTitle: string | null; quantity: number };
 
@@ -75,9 +76,15 @@ export default async function ReturnIntakePage({
               <span className="muted">{c.customerName || c.customerEmail}</span>
             </div>
             <ul className="esc-list" style={{ marginTop: 4 }}>
-              {items.map((it, i) => (
-                <li key={i}>{it.quantity}× {it.title}{it.variantTitle ? ` (${it.variantTitle})` : ""}</li>
-              ))}
+              {items.map((it, i) => {
+                const claimHref = `/reklamationen?product=${encodeURIComponent(categorizeLineItem(it.title))}&order=${encodeURIComponent(c.orderName)}&qty=${it.quantity}&source=wareneingang`;
+                return (
+                  <li key={i}>
+                    {it.quantity}× {it.title}{it.variantTitle ? ` (${it.variantTitle})` : ""}
+                    <Link href={claimHref} className="btnlink" style={{ marginLeft: 8, fontSize: 12, color: "#d9a300" }}>⚠ defekt reklamieren</Link>
+                  </li>
+                );
+              })}
             </ul>
             <form action={receiveReturnForm} className="userform" style={{ marginTop: 8 }}>
               <input type="hidden" name="caseId" value={c.id} />

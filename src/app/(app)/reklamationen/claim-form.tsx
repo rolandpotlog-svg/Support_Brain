@@ -5,12 +5,14 @@ import { createClaim } from "@/server/actions/claims";
 
 const PRODUCT_SUGGESTIONS = ["Sonic Pulse Pro", "M-Shield", "Protect+ / Juckreiz", "Gartenhandschuhe"];
 
-export function ClaimForm({ shopId }: { shopId: string }) {
+type Initial = { product?: string; orderName?: string; quantity?: string; source?: "manuell" | "wareneingang" };
+
+export function ClaimForm({ shopId, initial }: { shopId: string; initial?: Initial }) {
   const router = useRouter();
-  const [product, setProduct] = useState("");
-  const [orderName, setOrderName] = useState("");
+  const [product, setProduct] = useState(initial?.product ?? "");
+  const [orderName, setOrderName] = useState(initial?.orderName ?? "");
   const [sku, setSku] = useState("");
-  const [quantity, setQuantity] = useState("1");
+  const [quantity, setQuantity] = useState(initial?.quantity ?? "1");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export function ClaimForm({ shopId }: { shopId: string }) {
         sku: sku || undefined,
         quantity: Number(quantity) || 1,
         reason,
-        source: "manuell",
+        source: initial?.source ?? "manuell",
       });
       setProduct(""); setOrderName(""); setSku(""); setQuantity("1"); setReason("");
       router.refresh();

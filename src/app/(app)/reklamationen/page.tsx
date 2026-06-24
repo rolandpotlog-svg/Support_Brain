@@ -12,7 +12,20 @@ import { ClaimActions } from "./claim-actions";
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const dt = (d: Date) => new Date(d).toLocaleDateString("de-DE");
 
-export default async function ReklamationenPage() {
+export default async function ReklamationenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ product?: string; order?: string; qty?: string; source?: string }>;
+}) {
+  const sp = await searchParams;
+  const prefill = sp.product
+    ? {
+        product: sp.product,
+        orderName: sp.order,
+        quantity: sp.qty,
+        source: (sp.source === "wareneingang" ? "wareneingang" : "manuell") as "manuell" | "wareneingang",
+      }
+    : undefined;
   const user = await requireUser();
   const accessible = await accessibleShopIds(user);
   const shopList = accessible.length
@@ -67,9 +80,14 @@ export default async function ReklamationenPage() {
       </section>
 
       {/* Anlegen */}
-      <section className="card">
+      <section className="card" style={prefill ? { borderColor: "#d9a30088" } : undefined}>
         <h2 style={{ marginTop: 0 }}>Neue Reklamation</h2>
-        <ClaimForm shopId={activeShopId} />
+        {prefill && (
+          <p className="muted" style={{ marginTop: 0 }}>
+            ↩ Vorausgefüllt aus dem <b>Wareneingang</b>{prefill.orderName ? ` (${prefill.orderName})` : ""} — Defekt-Grund ergänzen &amp; anlegen.
+          </p>
+        )}
+        <ClaimForm shopId={activeShopId} initial={prefill} />
       </section>
 
       {/* Liste */}
