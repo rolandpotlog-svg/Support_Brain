@@ -1,5 +1,5 @@
 "use server";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { requireFinance } from "@/server/access";
@@ -106,15 +106,9 @@ export async function importBlueprint(
       }
       marketingWeeks++;
     }
-    // Historische Wochen nur übernehmen, wenn Shopify diese Woche NICHT (vollständig) hat.
-    const excelNetto = w.umsatzBruttoCents - w.ustCents - w.rabatteCents - w.refundsCents;
-    const sh = await db
-      .select({ netto: sql<number>`coalesce(sum(umsatz_brutto_cents - ust_cents - rabatte_cents - refunds_cents),0)::int` })
-      .from(schema.financeOrder)
-      .where(and(eq(schema.financeOrder.shopId, shopId), eq(schema.financeOrder.weekStart, w.weekStart)));
-    const shopifyIncomplete = (sh[0]?.netto ?? 0) < excelNetto * 0.8;
-
-    if (w.hasRevenue && shopifyIncomplete) {
+    // Alle Wochen aus der Excel übernehmen (Umsatz, COGS, Versand) — die Excel ist
+    // der validierte Wochen-Datensatz. Shopify-Live greift für Wochen ohne Excel.
+    if (w.hasRevenue) {
       const vals = {
         umsatzBruttoCents: w.umsatzBruttoCents,
         rabatteCents: w.rabatteCents,
