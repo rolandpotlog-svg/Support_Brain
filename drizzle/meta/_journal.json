@@ -162,6 +162,13 @@
       "when": 1782301895059,
       "tag": "0022_supplier_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782337259415,
+      "tag": "0023_finance_ads_account",
+      "breakpoints": true
     }
   ]
 }

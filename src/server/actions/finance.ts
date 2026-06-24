@@ -8,6 +8,7 @@ import { extractPdfText } from "@/server/finance/pickoship-pdf";
 import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@/lib/finance/pickoship";
 import { parseBlueprint } from "@/server/finance/blueprint";
 import { getCogsRates } from "@/server/finance/cogs-rates";
+import { saveAdsAccount, ingestMetaSpend } from "@/server/finance/meta-ads";
 import { COGS_RATE_DEFS } from "@/lib/finance/cogs";
 
 const euros = (n: unknown) => Math.round((Number(n) || 0) * 100);
@@ -150,6 +151,22 @@ export async function saveCogsRates(shopId: string, valuesEuros: Record<string, 
 }
 
 export type CogsRateCheck = { priceCents: number; qty: number; known: boolean };
+/** Meta-Ads-Verbindung speichern (Token validieren + verschlüsseln). */
+export async function saveMetaAds(shopId: string, channel: string, accountId: string, token: string): Promise<{ name?: string }> {
+  await requireFinance(shopId);
+  const r = await saveAdsAccount(shopId, channel, accountId, token);
+  revalidatePath("/finance");
+  return r;
+}
+
+/** Werbeausgaben aus Meta ziehen (Zeitraum) -> Marketing je Woche. */
+export async function pullMetaSpend(shopId: string, channel: string, since: string, until: string): Promise<{ weeks: number; totalCents: number }> {
+  await requireFinance(shopId);
+  const r = await ingestMetaSpend(shopId, channel, since, until);
+  revalidatePath("/finance");
+  return r;
+}
+
 export type PickoshipReview = PickoshipResult & {
   knownCount: number;
   unknownNames: string[];

@@ -6,6 +6,7 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { buildFinanceReport, type WeekRow } from "@/server/finance/report";
 import { getCogsRateRows, getUnmappedTitles, getProductBreakdown } from "@/server/finance/cogs-rates";
+import { loadAdsAccounts } from "@/server/finance/meta-ads";
 import { CHANNELS } from "@/lib/finance/channels";
 import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
 import { IngestButton } from "./ingest-button";
@@ -14,6 +15,7 @@ import { PickoshipUpload } from "./pickoship-upload";
 import { BlueprintUpload } from "./blueprint-upload";
 import { LiveTicker } from "./live-ticker";
 import { CogsEditor } from "./cogs-editor";
+import { MetaAdsConnector } from "./meta-ads";
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const roasFmt = (r: number | null) => (r == null ? "—" : r.toFixed(2));
@@ -46,6 +48,8 @@ export default async function FinancePage() {
     updatedAtISO: r.updatedAt ? r.updatedAt.toISOString() : null,
   }));
   const unmappedTitles = await getUnmappedTitles(activeShopId);
+  const adsAccounts = await loadAdsAccounts(activeShopId);
+  const adsSince = new Date(Date.now() - 28 * 86_400_000).toISOString().slice(0, 10);
 
   // Laufende Woche (aus heute) vs. letzte VOLLSTÄNDIGE Woche.
   const cw = currentWeekStart();
@@ -141,6 +145,16 @@ export default async function FinancePage() {
           </p>
           <BlueprintUpload shopId={activeShopId} />
         </div>
+      </section>
+
+      {/* Marketing automatisch aus Meta Ads */}
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Marketing automatisch (Meta Ads)</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Werbeausgaben direkt aus Meta in die PnL ziehen — dann kein manuelles Eintragen mehr für die Meta-Kanäle.
+          Du brauchst je Konto: <b>Werbekonto-ID</b> (act_…) + einen <b>Access-Token</b> mit <code>ads_read</code>.
+        </p>
+        <MetaAdsConnector shopId={activeShopId} accounts={adsAccounts} since={adsSince} until={today} />
       </section>
 
       {/* Pickoship-Versand */}

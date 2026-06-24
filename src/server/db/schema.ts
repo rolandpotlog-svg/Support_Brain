@@ -673,3 +673,17 @@ export const supplierClaim = pgTable(
   },
   (t) => [index("supplier_claim_shop_idx").on(t.shopId, t.createdAt)],
 );
+
+// Meta-Ads-Verbindung je Brand/Kanal (für automatischen Marketing-Import in die PnL).
+// Token AES-verschlüsselt; nur die Meta-Kanäle (meta, meta_garten) nutzen das.
+export const financeAdsAccount = pgTable(
+  "finance_ads_account",
+  {
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(), // meta | meta_garten
+    accountId: text("account_id").notNull(), // Werbekonto-ID (act_… ohne Präfix)
+    tokenEnc: text("token_enc").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.shopId, t.channel] })],
+);
