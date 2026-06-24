@@ -13,7 +13,6 @@ import {
   normalizeIntent,
   type RouteAction,
 } from "@/lib/social/comments";
-import { ShopSwitcher } from "../../inbox/shop-switcher";
 import { CommentActions } from "./comment-actions";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -63,7 +62,6 @@ export default async function CommentsPage() {
       <div className="formhead" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>FB-Kommentare</h1>
         <div className="srcrow">
-          <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/social/comments" />
           <Link href="/social" className="btnlink">← Social</Link>
         </div>
       </div>

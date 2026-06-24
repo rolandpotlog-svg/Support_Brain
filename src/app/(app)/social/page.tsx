@@ -5,7 +5,6 @@ import { accessibleShopIds, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { listConversations, loadConversation } from "@/server/social";
 import { initials, timeAgo } from "@/lib/format";
-import { ShopSwitcher } from "../inbox/shop-switcher";
 import { SocialReply } from "./social-reply";
 import { SocialMatch } from "./social-match";
 
@@ -48,9 +47,6 @@ export default async function SocialPage({ searchParams }: { searchParams: Promi
           <span className="title"><span className="play">▶</span> Social</span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
             <Link href="/social/comments" className="btnlink">FB-Kommentare →</Link>
-            {hasShops && activeShopId && (
-              <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/social" />
-            )}
           </span>
         </div>
         <div className="list">

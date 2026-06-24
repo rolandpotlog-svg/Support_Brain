@@ -5,7 +5,6 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { fullReport, unclassifiedInPeriod, weekdayLabel } from "@/server/reports";
-import { ShopSwitcher } from "../inbox/shop-switcher";
 import { ComplaintAnalysis } from "./complaint-analysis";
 import { ClassifyButton } from "./classify-button";
 import { TestReportButton } from "./test-report-button";
@@ -99,7 +98,6 @@ export default async function ReportsPage({
       <div className="formhead" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Auswertung</h1>
         <div className="srcrow">
-          <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/reports" />
           <Link href="/reports?days=7" className={`btnlink ${days === 7 ? "primary" : ""}`}>7 Tage</Link>
           <Link href="/reports?days=30" className={`btnlink ${days === 30 ? "primary" : ""}`}>30 Tage</Link>
         </div>

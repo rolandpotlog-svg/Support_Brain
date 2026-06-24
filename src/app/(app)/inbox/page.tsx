@@ -6,7 +6,6 @@ import { getActiveShopId } from "@/server/active-shop";
 import { initials, tagColor, timeAgo } from "@/lib/format";
 import { Conversation } from "./conversation";
 import { ShopifyPanel } from "./shopify-panel";
-import { ShopSwitcher } from "./shop-switcher";
 import { SyncButton } from "./sync-button";
 
 const OPEN: ("open" | "pending" | "escalated")[] = ["open", "pending", "escalated"];
@@ -186,7 +185,7 @@ export default async function InboxPage({
         {hasShops && activeShopId && (
           <div className="shopbar">
             <span className="shoplabel">Shop</span>
-            <ShopSwitcher shops={shopList} activeId={activeShopId} />
+            <span className="shopcur">{shopList.find((s) => s.id === activeShopId)?.name ?? "—"}</span>
           </div>
         )}
         <div className="head">

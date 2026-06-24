@@ -3,14 +3,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { ThemeToggle } from "./theme-toggle";
+import { SidebarShop } from "./sidebar-shop";
 
 export function IconRail({
+  shops,
+  activeShopId,
   canReports,
   canCases,
   canReturns,
   canFinance,
   canAdmin,
 }: {
+  shops: { id: string; name: string }[];
+  activeShopId: string | null;
   canReports: boolean;
   canCases: boolean;
   canReturns: boolean;
@@ -29,6 +34,7 @@ export function IconRail({
   return (
     <div className="rail">
       <div className="logo">S</div>
+      <SidebarShop shops={shops} activeId={activeShopId} />
       <Link href="/inbox" className={onInbox ? "active" : ""} title="Posteingang" aria-label="Posteingang">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 12h-6l-2 3h-4l-2-3H2" />

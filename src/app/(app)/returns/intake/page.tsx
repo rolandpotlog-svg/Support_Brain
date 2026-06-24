@@ -6,7 +6,6 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { listPendingIntake } from "@/server/returns";
 import { receiveReturnForm } from "@/server/actions/returns";
-import { ShopSwitcher } from "../../inbox/shop-switcher";
 
 type CaseItem = { title: string; variantTitle: string | null; quantity: number };
 
@@ -47,7 +46,6 @@ export default async function ReturnIntakePage({
       <div className="formhead" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Wareneingang</h1>
         <div className="srcrow">
-          <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/returns/intake" />
           <Link href="/returns" className="btnlink">← Zu den Fällen</Link>
         </div>
       </div>

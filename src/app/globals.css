@@ -438,3 +438,30 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
   70% { box-shadow: 0 0 0 7px rgba(229,99,77,0); }
   100% { box-shadow: 0 0 0 0 rgba(229,99,77,0); }
 }
+
+/* Globaler Shop-Umschalter in der Rail */
+.railshop { position: relative; margin-bottom: 8px; }
+.railshop-btn {
+  width: 38px; height: 38px; border-radius: 9px;
+  background: var(--panel-2); border: 1px solid var(--border);
+  color: var(--text); font-weight: 800; font-size: 13px; text-transform: uppercase;
+  display: grid; place-items: center; cursor: pointer;
+}
+.railshop-btn:hover { background: var(--rail-hover); }
+.railshop-btn:disabled { opacity: .6; cursor: default; }
+.railshop-menu {
+  position: absolute; left: 46px; top: 0; z-index: 60;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.22); padding: 6px; min-width: 184px;
+}
+.railshop-menu-head {
+  font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; padding: 4px 8px 6px;
+}
+.railshop-menu button {
+  display: block; width: 100%; text-align: left; padding: 8px 10px;
+  border: 0; background: transparent; border-radius: 7px;
+  font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer;
+}
+.railshop-menu button:hover { background: var(--rail-hover); }
+.railshop-menu button.active { color: var(--accent); background: var(--panel-2); }

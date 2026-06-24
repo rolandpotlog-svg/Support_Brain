@@ -5,7 +5,6 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { getSettings } from "@/server/returns";
-import { ShopSwitcher } from "../../inbox/shop-switcher";
 import { ReturnsSettingsForm } from "./settings-form";
 
 export default async function ReturnsSettingsPage() {
@@ -44,7 +43,6 @@ export default async function ReturnsSettingsPage() {
       <div className="formhead" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Retouren-Einstellungen</h1>
         <div className="srcrow">
-          <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/returns/settings" />
           <Link href="/returns" className="btnlink">← Zu den Fällen</Link>
         </div>
       </div>

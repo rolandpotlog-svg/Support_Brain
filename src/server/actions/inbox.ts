@@ -17,6 +17,14 @@ export async function setActiveShop(shopId: string, redirectTo: string = "/inbox
   redirect(redirectTo);
 }
 
+/** Aktiven Shop global setzen (Sidebar-Umschalter) — ohne Redirect; Client macht router.refresh(). */
+export async function selectActiveShop(shopId: string) {
+  const user = await requireUser();
+  await assertShopAccess(user, shopId);
+  const store = await cookies();
+  store.set(ACTIVE_SHOP_COOKIE, shopId, { httpOnly: true, sameSite: "lax", path: "/" });
+}
+
 async function loadThread(threadId: string) {
   const t = await db.query.threads.findFirst({
     where: eq(schema.threads.id, threadId),

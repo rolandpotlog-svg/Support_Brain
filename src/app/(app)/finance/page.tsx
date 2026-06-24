@@ -7,7 +7,6 @@ import { getActiveShopId } from "@/server/active-shop";
 import { buildFinanceReport, type WeekRow } from "@/server/finance/report";
 import { CHANNELS } from "@/lib/finance/channels";
 import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
-import { ShopSwitcher } from "../inbox/shop-switcher";
 import { IngestButton } from "./ingest-button";
 import { WeekInputs } from "./week-inputs";
 import { PickoshipUpload } from "./pickoship-upload";
@@ -63,7 +62,6 @@ export default async function FinancePage() {
     <div className="adminwrap">
       <div className="formhead" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Finance · PnL</h1>
-        <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/finance" />
       </div>
 
       {/* VAT-Falle erklären */}

@@ -6,7 +6,6 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { expectsReturn, fmtMoney } from "@/server/returns";
 import { cancelReturnCase, markReturnTaskDone } from "@/server/actions/returns";
-import { ShopSwitcher } from "../inbox/shop-switcher";
 
 const OUTCOME_LABEL: Record<string, string> = {
   deflected_keep: "Behalten",
@@ -68,7 +67,6 @@ export default async function ReturnsPage() {
       <div className="formhead" style={{ justifyContent: "space-between" }}>
         <h1 style={{ margin: 0 }}>Retouren</h1>
         <div className="srcrow">
-          <ShopSwitcher shops={shopList} activeId={activeShopId} redirectTo="/returns" />
           <Link href="/returns/intake" className="btnlink">Wareneingang →</Link>
           {caps.settings && <Link href="/returns/settings" className="btnlink">Einstellungen →</Link>}
         </div>
