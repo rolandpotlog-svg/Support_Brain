@@ -6,6 +6,7 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { getClaimsOverview, CLAIM_STATUS_LABEL, CLAIM_STATUSES } from "@/server/claims/report";
+import { getMonthlyDefectReport } from "@/server/claims/monthly";
 import { ClaimForm } from "./claim-form";
 import { ClaimActions } from "./claim-actions";
 
@@ -15,7 +16,7 @@ const dt = (d: Date) => new Date(d).toLocaleDateString("de-DE");
 export default async function ReklamationenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product?: string; order?: string; qty?: string; source?: string }>;
+  searchParams: Promise<{ product?: string; order?: string; qty?: string; source?: string; month?: string }>;
 }) {
   const sp = await searchParams;
   const prefill = sp.product
@@ -36,6 +37,7 @@ export default async function ReklamationenPage({
   if (!activeShopId || !(await brandAccess(user, activeShopId)).returns) redirect("/inbox");
 
   const ov = await getClaimsOverview(activeShopId);
+  const monthly = await getMonthlyDefectReport(activeShopId, sp.month);
 
   return (
     <div className="adminwrap">
@@ -76,6 +78,53 @@ export default async function ReklamationenPage({
         <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
           📋 <b>Monats-Report</b> (welche Artikel defekt, wie viele → Gutschrift-Anfrage an den Supplier) folgt als automatischer Report.
           Jede neue Reklamation wird zudem als <b>Trello-Karte</b> für den Supplier angelegt (sobald Trello verbunden ist).
+        </p>
+      </section>
+
+      {/* Monats-Defekt-Report (Gutschrift-Anfrage an Supplier) */}
+      <section className="card">
+        <div className="formhead" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>Monats-Defekt-Report</h2>
+          <form method="get" className="srcrow" style={{ margin: 0, alignItems: "center", gap: 8 }}>
+            <select name="month" defaultValue={monthly.month} className="shopswitch" style={{ padding: "5px 8px" }}>
+              {monthly.availableMonths.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
+            <button className="btnlink" type="submit">Anzeigen</button>
+            <a className="btnlink" href={`/reklamationen/report-export?shop=${activeShopId}&month=${monthly.month}`}>⬇ Excel</a>
+          </form>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Defekte Artikel im <b>{monthly.label}</b> → <b>Gutschrift-Anfrage</b> an den Supplier (defekte Stück × Stückkost).
+        </p>
+        {monthly.rows.length === 0 ? (
+          <p className="muted" style={{ margin: 0 }}>Keine Reklamationen in diesem Monat.</p>
+        ) : (
+          <table className="fin-table">
+            <thead><tr><th>Produkt</th><th style={{ textAlign: "right" }}>Fälle</th><th style={{ textAlign: "right" }}>Defekte Stück</th><th style={{ textAlign: "right" }}>Stückkost</th><th style={{ textAlign: "right" }}>Gutschrift angefragt</th><th style={{ textAlign: "right" }}>erhalten</th></tr></thead>
+            <tbody>
+              {monthly.rows.map((r) => (
+                <tr key={r.product}>
+                  <td>{r.product}</td>
+                  <td style={{ textAlign: "right" }}>{r.claims}</td>
+                  <td style={{ textAlign: "right" }}>{r.units}</td>
+                  <td style={{ textAlign: "right" }}>{r.unitCostCents > 0 ? eur(r.unitCostCents) : "—"}</td>
+                  <td style={{ textAlign: "right" }}>{eur(r.requestedCents)}</td>
+                  <td style={{ textAlign: "right" }}>{eur(r.receivedCents)}</td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 700 }}>
+                <td>Summe</td>
+                <td style={{ textAlign: "right" }}>{monthly.totals.claims}</td>
+                <td style={{ textAlign: "right" }}>{monthly.totals.units}</td>
+                <td></td>
+                <td style={{ textAlign: "right" }}>{eur(monthly.totals.requestedCents)}</td>
+                <td style={{ textAlign: "right" }}>{eur(monthly.totals.receivedCents)}</td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+        <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
+          Sobald Trello verbunden ist, wird dieser Report monatlich automatisch als Karte/Checkliste im Supplier-Board erstellt.
         </p>
       </section>
 
