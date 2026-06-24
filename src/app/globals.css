@@ -465,3 +465,14 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 }
 .railshop-menu button:hover { background: var(--rail-hover); }
 .railshop-menu button.active { color: var(--accent); background: var(--panel-2); }
+
+/* Reklamations-Formular */
+.claimform label { font-size: 13px; font-weight: 600; color: var(--text-2); display: block; }
+.claimform input, .claimform textarea {
+  display: block; width: 100%; margin-top: 4px; padding: 7px 9px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2); color: var(--text); font-size: 14px;
+}
+.claimform textarea { resize: vertical; font-family: inherit; }
+.claimgrid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; }
+@media (max-width: 720px) { .claimgrid { grid-template-columns: 1fr 1fr; } }

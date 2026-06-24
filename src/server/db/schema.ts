@@ -646,3 +646,30 @@ export const financeCogsRate = pgTable(
   },
   (t) => [primaryKey({ columns: [t.shopId, t.key] })],
 );
+
+// Supplier-Reklamationen: defekte Artikel, die wir beim Supplier reklamieren
+// (aus Wareneingang/Retoure oder manuell). Jede Reklamation -> Trello-Karte für
+// den Supplier; monatlicher Defekt-Report für Gutschrift-Anfrage.
+export const supplierClaim = pgTable(
+  "supplier_claim",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    orderName: text("order_name"), // zugehörige Bestellung "#1234" (optional)
+    productLabel: text("product_label").notNull(), // Artikel/Kategorie
+    sku: text("sku"),
+    quantity: integer("quantity").notNull().default(1),
+    reason: text("reason").notNull(), // Defekt-Beschreibung
+    status: text("status").notNull().default("offen"), // offen|gesendet|gutschrift|ersetzt|abgelehnt
+    creditCents: integer("credit_cents").notNull().default(0), // erhaltene Gutschrift
+    source: text("source").notNull().default("manuell"), // manuell|wareneingang
+    trelloCardId: text("trello_card_id"),
+    trelloCardUrl: text("trello_card_url"),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [index("supplier_claim_shop_idx").on(t.shopId, t.createdAt)],
+);
