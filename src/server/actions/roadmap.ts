@@ -3,8 +3,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { requireOwner } from "@/server/access";
-
-export const TODO_CATEGORIES = ["Finance", "Reklamationen", "Integrationen", "Support/Inbox", "Infra/Deploy", "Allgemein"] as const;
+import { TODO_CATEGORIES } from "@/lib/roadmap";
 
 export async function addDevTodo(title: string, category: string, status: "offen" | "erledigt" = "offen") {
   await requireOwner();

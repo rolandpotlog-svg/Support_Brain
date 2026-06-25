@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { addDevTodo, toggleDevTodo, deleteDevTodo, TODO_CATEGORIES } from "@/server/actions/roadmap";
+import { addDevTodo, toggleDevTodo, deleteDevTodo } from "@/server/actions/roadmap";
+import { TODO_CATEGORIES } from "@/lib/roadmap";
 
 type Todo = { id: string; title: string; category: string; status: string };
 
