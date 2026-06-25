@@ -700,3 +700,15 @@ export const financeGoogleAds = pgTable("finance_google_ads", {
   refreshTokenEnc: text("refresh_token_enc").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Interne Roadmap/ToDo-Liste (Owner-only): Build-Fortschritt abhaken + Offenes pflegen.
+export const devTodo = pgTable("dev_todo", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  title: text("title").notNull(),
+  category: text("category").notNull().default("Allgemein"),
+  status: text("status").notNull().default("offen"), // offen | erledigt
+  note: text("note"),
+  sort: integer("sort").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+});

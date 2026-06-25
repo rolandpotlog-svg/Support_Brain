@@ -30,6 +30,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <IconRail
         shops={shops}
         activeShopId={activeShopId}
+        isOwner={user.isOwner}
         canReports={!!caps?.reports}
         canCases={!!caps?.cases}
         canReturns={!!caps?.returns}
