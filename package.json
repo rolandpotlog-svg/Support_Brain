@@ -21,6 +21,7 @@
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.38.3",
+    "exceljs": "^4.4.0",
     "imapflow": "^1.0.171",
     "mailparser": "^3.7.2",
     "next": "^15.1.3",
