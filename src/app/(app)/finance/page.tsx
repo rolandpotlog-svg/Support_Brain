@@ -204,6 +204,10 @@ export default async function FinancePage({
             + historische Wochen, die der Shopify-Store nicht hat (KW09–17).
           </p>
           <BlueprintUpload shopId={activeShopId} />
+          <div style={{ marginTop: 10 }}>
+            <a href={`/finance/blueprint-export?shop=${activeShopId}`} className="btnlink primary">⬇ Aktuelle PnL als Excel (Blueprint-Format)</a>
+            <span className="muted" style={{ marginLeft: 10, fontSize: 12 }}>erzeugt eine .xlsx mit deinen aktuellen Zahlen (Spalten A–AH + GESAMT + Logik-Tab).</span>
+          </div>
         </div>
       </section>
 
