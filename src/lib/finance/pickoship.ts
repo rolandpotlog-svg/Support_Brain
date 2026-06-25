@@ -13,6 +13,8 @@ export type PickoshipResult = {
   invoiceProductTotalCents: number | null; // Produktkosten lt. Rechnung ("Total Product Price")
   unitPrices: { price: number; qty: number }[]; // Stückpreise im PDF (Cent) + Stückzahl
   invoiceNumber: string | null;
+  dateSince: string | null; // frühestes Order-Datum im Beleg (YYYY-MM-DD)
+  dateUntil: string | null; // spätestes Order-Datum im Beleg
   matches: boolean; // Versand: parsed ≈ Rechnung (±1 €)
   productMatches: boolean; // Produkt: parsed ≈ Rechnung (±1 €)
 };
@@ -60,6 +62,9 @@ export function parsePickoshipText(text: string): PickoshipResult {
   const invP = text.match(/Total Product Price\s*€?\s*([\d.]+)/i);
   const invoiceProductTotalCents = invP ? Math.round(parseFloat(invP[1]) * 100) : null;
   const invoiceNumber = text.match(/Invoice Number:\s*(\S+)/i)?.[1] ?? null;
+  const dates = [...text.matchAll(/#\d{3,5}\s+(\d{4}-\d{2}-\d{2})/g)].map((mm) => mm[1]).sort();
+  const dateSince = dates[0] ?? null;
+  const dateUntil = dates[dates.length - 1] ?? null;
 
   const matches = invoiceTotalCents !== null && Math.abs(parsedTotalCents - invoiceTotalCents) <= 100;
   const productMatches = invoiceProductTotalCents !== null && Math.abs(productTotalCents - invoiceProductTotalCents) <= 100;
@@ -73,6 +78,8 @@ export function parsePickoshipText(text: string): PickoshipResult {
     invoiceProductTotalCents,
     unitPrices,
     invoiceNumber,
+    dateSince,
+    dateUntil,
     matches,
     productMatches,
   };

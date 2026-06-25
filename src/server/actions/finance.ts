@@ -1,5 +1,5 @@
 "use server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { requireFinance } from "@/server/access";
@@ -189,7 +189,11 @@ export type PickoshipReview = PickoshipResult & {
   ourCogsCents: number; // Engine-COGS der bekannten Orders
   cogsMatches: boolean; // Rechnung-Produktkosten ≈ Engine-COGS (±1 %)
   rateChecks: CogsRateCheck[]; // Stückpreise im PDF vs. hinterlegte Stückkosten
+  shopifyInRangeCount: number; // Shopify-Bestellungen im Beleg-Zeitraum
+  missingFromInvoice: string[]; // in Shopify, aber NICHT im Beleg (nicht versendet/abgerechnet?)
+  cogsOrderMismatches: CogsOrderMismatch[]; // Order für Order: Rechnung vs. Engine weicht ab
 };
+export type CogsOrderMismatch = { orderName: string; invoiceCents: number; shopifyCents: number };
 
 /** Pickoship-PDF parsen (NICHT verbuchen) -> Kontroll-Ansicht: Versand + COGS gegen Rechnung & Shopify. */
 export async function parsePickoshipUpload(formData: FormData): Promise<PickoshipReview> {
@@ -221,6 +225,32 @@ export async function parsePickoshipUpload(formData: FormData): Promise<Pickoshi
     known: rateValues.has(u.price),
   }));
 
+  // Abgleich pro Order: Rechnung-Produktkosten vs. Engine-COGS je Bestellung.
+  const shopCogsByName = new Map(known.map((k) => [k.orderName, k.cogsCents]));
+  const cogsOrderMismatches: CogsOrderMismatch[] = result.orders
+    .filter((o) => shopCogsByName.has(o.orderName))
+    .map((o) => ({ orderName: o.orderName, invoiceCents: o.productCents, shopifyCents: shopCogsByName.get(o.orderName)! }))
+    .filter((d) => Math.abs(d.invoiceCents - d.shopifyCents) > 1)
+    .sort((a, b) => Math.abs(b.invoiceCents - b.shopifyCents) - Math.abs(a.invoiceCents - a.shopifyCents))
+    .slice(0, 20);
+
+  // Abdeckung: Shopify-Bestellungen im Beleg-Zeitraum, die NICHT auf der Rechnung stehen.
+  let shopifyInRangeCount = 0;
+  let missingFromInvoice: string[] = [];
+  if (result.dateSince && result.dateUntil) {
+    const inRange = await db
+      .select({ orderName: schema.financeOrder.orderName })
+      .from(schema.financeOrder)
+      .where(and(
+        eq(schema.financeOrder.shopId, shopId),
+        sql`${schema.financeOrder.createdAt}::date >= ${result.dateSince}`,
+        sql`${schema.financeOrder.createdAt}::date <= ${result.dateUntil}`,
+      ));
+    shopifyInRangeCount = inRange.length;
+    const invSet = new Set(names);
+    missingFromInvoice = inRange.map((o) => o.orderName).filter((n) => !invSet.has(n)).slice(0, 20);
+  }
+
   return {
     ...result,
     knownCount: knownSet.size,
@@ -228,6 +258,9 @@ export async function parsePickoshipUpload(formData: FormData): Promise<Pickoshi
     ourCogsCents,
     cogsMatches,
     rateChecks,
+    shopifyInRangeCount,
+    missingFromInvoice,
+    cogsOrderMismatches,
   };
 }
 

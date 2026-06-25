@@ -99,6 +99,45 @@ export function PickoshipUpload({ shopId }: { shopId: string }) {
             </p>
           </div>
 
+          {/* Shopify-Abgleich: Abdeckung beidseitig + Order-für-Order */}
+          <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+            <div className="cardhead">
+              <h3 style={{ margin: 0, fontSize: 15 }}>Shopify-Abgleich</h3>
+              <span className={review.missingFromInvoice.length === 0 && review.cogsOrderMismatches.length === 0 && review.unknownNames.length === 0 ? "ok-text" : "bad-text"}>
+                {review.missingFromInvoice.length === 0 && review.cogsOrderMismatches.length === 0 && review.unknownNames.length === 0 ? "✓ deckt sich mit Shopify" : "✗ Abweichungen — prüfen!"}
+              </span>
+            </div>
+            <ul className="esc-list">
+              <li>Im Beleg-Zeitraum{review.dateSince ? ` (${review.dateSince} – ${review.dateUntil})` : ""}: <strong>{review.shopifyInRangeCount}</strong> Shopify-Bestellungen · <strong>{review.orders.length}</strong> im Beleg</li>
+              {review.missingFromInvoice.length > 0 && (
+                <li className="bad-text"><b>{review.missingFromInvoice.length}</b> Shopify-Bestellung(en) <b>fehlen im Beleg</b> (nicht versendet/abgerechnet?): {review.missingFromInvoice.join(", ")}{review.missingFromInvoice.length >= 20 ? " …" : ""}</li>
+              )}
+              {review.unknownNames.length > 0 && (
+                <li className="bad-text"><b>{review.unknownNames.length}</b> im Beleg, aber <b>nicht in Shopify</b>: {review.unknownNames.join(", ")}</li>
+              )}
+              {review.cogsOrderMismatches.length === 0 ? (
+                <li className="ok-text">Order-für-Order COGS: keine Abweichung ✓</li>
+              ) : (
+                <li className="bad-text"><b>{review.cogsOrderMismatches.length}</b> Order(s) mit COGS-Abweichung Rechnung↔Shopify:</li>
+              )}
+            </ul>
+            {review.cogsOrderMismatches.length > 0 && (
+              <table className="fin-table" style={{ marginTop: 4 }}>
+                <thead><tr><th>Order</th><th style={{ textAlign: "right" }}>Rechnung</th><th style={{ textAlign: "right" }}>Shopify (Engine)</th><th style={{ textAlign: "right" }}>Δ</th></tr></thead>
+                <tbody>
+                  {review.cogsOrderMismatches.map((d) => (
+                    <tr key={d.orderName}>
+                      <td>{d.orderName}</td>
+                      <td style={{ textAlign: "right" }}>{eur(d.invoiceCents)}</td>
+                      <td style={{ textAlign: "right" }}>{eur(d.shopifyCents)}</td>
+                      <td style={{ textAlign: "right", color: "var(--danger, #e5634d)" }}>{eur(d.invoiceCents - d.shopifyCents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
           <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
             Bitte gegen den PDF-Beleg prüfen (hat der Supplier korrekt abgerechnet?). Erst dann verbuchen (bucht Versand).
           </p>
