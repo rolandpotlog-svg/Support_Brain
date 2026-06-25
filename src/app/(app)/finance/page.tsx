@@ -8,7 +8,7 @@ import { buildFinanceReport, type WeekRow } from "@/server/finance/report";
 import { getCogsRateRows, getUnmappedTitles, getProductBreakdown } from "@/server/finance/cogs-rates";
 import { loadAdsAccounts } from "@/server/finance/meta-ads";
 import { CHANNELS } from "@/lib/finance/channels";
-import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
+import { currentWeekStart, kwLabel, kwOfWeekStart, weekOf } from "@/lib/finance/week";
 import { IngestButton } from "./ingest-button";
 import { WeekInputs } from "./week-inputs";
 import { PickoshipUpload } from "./pickoship-upload";
@@ -22,11 +22,24 @@ const roasFmt = (r: number | null) => (r == null ? "—" : r.toFixed(2));
 const pctFmt = (p: number | null) => (p == null ? "—" : `${(p * 100).toFixed(1)} %`);
 const AMPEL_COLOR: Record<string, string> = { rot: "#e5634d", gelb: "#d9a300", gruen: "#3fb950", neutral: "#9aa0ab" };
 
+/** "25.05.–31.05.2026" aus dem Montags-Key. */
+function weekRange(weekStart: string): string {
+  const mon = new Date(`${weekStart}T00:00:00Z`);
+  const sun = new Date(mon.getTime() + 6 * 86_400_000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(mon.getUTCDate())}.${p(mon.getUTCMonth() + 1)}.–${p(sun.getUTCDate())}.${p(sun.getUTCMonth() + 1)}.${sun.getUTCFullYear()}`;
+}
+
 function Ampel({ a }: { a: string }) {
   return <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", background: AMPEL_COLOR[a] ?? "#999" }} title={a} />;
 }
 
-export default async function FinancePage() {
+export default async function FinancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
+  const { date: dateParam } = await searchParams;
   const user = await requireUser();
   const accessible = await accessibleShopIds(user);
   const shopList = accessible.length
@@ -55,6 +68,10 @@ export default async function FinancePage() {
   const cw = currentWeekStart();
   const liveWeek: WeekRow | undefined = report.weeks.find((w) => w.weekStart === cw);
   const lastComplete: WeekRow | undefined = report.weeks.find((w) => w.weekStart < cw);
+
+  // Woche im Detail: aus eingegebenem Datum -> Woche; sonst letzte vollständige Woche.
+  const selectedWeekStart = dateParam ? weekOf(new Date(`${dateParam}T12:00:00Z`)).weekStart : lastComplete?.weekStart;
+  const selectedWeek: WeekRow | undefined = report.weeks.find((w) => w.weekStart === selectedWeekStart);
 
   // Soll laut Shopify für die laufende Woche (Grundlage für Supplier-Abgleich).
   const sollBreakdown = await getProductBreakdown(activeShopId, cw);
@@ -131,6 +148,45 @@ export default async function FinancePage() {
           <div className="rstat"><div className="k">BE-ROAS YTD</div><div className="v">{roasFmt(ytd.beRoasGesamt)}</div></div>
           {lastComplete && <div className="rstat"><div className="k">Status {lastComplete.label}</div><div className="v"><Ampel a={lastComplete.pnl.ampel} /></div></div>}
         </div>
+      </section>
+
+      {/* Woche im Detail — beliebige Vergangenheit per Datum */}
+      <section className="card">
+        <div className="formhead" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>Woche im Detail{selectedWeek ? ` · ${selectedWeek.label}` : ""}</h2>
+          <form method="get" className="srcrow" style={{ margin: 0, gap: 8, alignItems: "center" }}>
+            <span className="muted" style={{ fontSize: 13 }}>Datum:</span>
+            <input
+              type="date"
+              name="date"
+              defaultValue={selectedWeekStart ?? today}
+              style={{ padding: "6px 8px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--panel-2)", color: "var(--text)", fontSize: 13 }}
+            />
+            <button className="btnlink primary" type="submit">Anzeigen</button>
+          </form>
+        </div>
+        {selectedWeek ? (
+          <>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Woche {weekRange(selectedWeek.weekStart)} · {selectedWeek.orderCount} Bestellungen
+            </p>
+            <div className="report">
+              <div className="rstat"><div className="k">Nettoumsatz</div><div className="v">{eur(selectedWeek.pnl.nettoumsatzCents)}</div></div>
+              <div className="rstat"><div className="k">Marketing</div><div className="v">{eur(selectedWeek.inputs.marketingCents)}</div></div>
+              <div className="rstat"><div className="k">COGS</div><div className="v">{eur(selectedWeek.inputs.produktkostenCents)}</div></div>
+              <div className="rstat"><div className="k">Versand</div><div className="v">{eur(selectedWeek.inputs.versandkostenCents)}</div></div>
+              <div className="rstat"><div className="k">Payment-Fee</div><div className="v">{eur(selectedWeek.pnl.paymentFeeCents)}</div></div>
+              <div className="rstat"><div className="k">Deckungsbeitrag</div><div className="v">{eur(selectedWeek.pnl.deckungsbeitragCents)}</div></div>
+              <div className="rstat"><div className="k">PnL</div><div className="v" style={{ color: selectedWeek.pnl.pnlCents < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen }}>{eur(selectedWeek.pnl.pnlCents)}</div></div>
+              <div className="rstat"><div className="k">Marge</div><div className="v">{pctFmt(selectedWeek.pnl.margePct)}</div></div>
+              <div className="rstat"><div className="k">Ist-ROAS</div><div className="v">{roasFmt(selectedWeek.pnl.roasGesamt)}</div></div>
+              <div className="rstat"><div className="k">BE-ROAS</div><div className="v">{roasFmt(selectedWeek.pnl.beRoasGesamt)}</div></div>
+              <div className="rstat"><div className="k">Status</div><div className="v"><Ampel a={selectedWeek.pnl.ampel} /></div></div>
+            </div>
+          </>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>Für dieses Datum gibt es noch keine Wochendaten.</p>
+        )}
       </section>
 
       {/* Daten ziehen */}
