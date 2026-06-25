@@ -169,6 +169,13 @@
       "when": 1782337259415,
       "tag": "0023_finance_ads_account",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1782364115099,
+      "tag": "0024_finance_google_ads",
+      "breakpoints": true
     }
   ]
 }

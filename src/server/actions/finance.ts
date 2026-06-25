@@ -9,6 +9,7 @@ import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@
 import { parseBlueprint } from "@/server/finance/blueprint";
 import { getCogsRates } from "@/server/finance/cogs-rates";
 import { saveAdsAccount, ingestMetaSpend } from "@/server/finance/meta-ads";
+import { saveGoogleAds as saveGoogleAdsCfg, ingestGoogleSpend, type GoogleAdsInput } from "@/server/finance/google-ads";
 import { COGS_RATE_DEFS } from "@/lib/finance/cogs";
 
 const euros = (n: unknown) => Math.round((Number(n) || 0) * 100);
@@ -163,6 +164,21 @@ export async function saveMetaAds(shopId: string, channel: string, accountId: st
 export async function pullMetaSpend(shopId: string, channel: string, since: string, until: string): Promise<{ weeks: number; totalCents: number }> {
   await requireFinance(shopId);
   const r = await ingestMetaSpend(shopId, channel, since, until);
+  revalidatePath("/finance");
+  return r;
+}
+
+/** Google-Ads-Verbindung speichern (validieren + verschlüsseln). */
+export async function saveGoogleAds(shopId: string, input: GoogleAdsInput): Promise<void> {
+  await requireFinance(shopId);
+  await saveGoogleAdsCfg(shopId, input);
+  revalidatePath("/finance");
+}
+
+/** Werbekosten aus Google Ads ziehen (Zeitraum) -> Marketing je Woche. */
+export async function pullGoogleSpend(shopId: string, since: string, until: string): Promise<{ weeks: number; totalCents: number }> {
+  await requireFinance(shopId);
+  const r = await ingestGoogleSpend(shopId, since, until);
   revalidatePath("/finance");
   return r;
 }

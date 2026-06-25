@@ -687,3 +687,16 @@ export const financeAdsAccount = pgTable(
   },
   (t) => [primaryKey({ columns: [t.shopId, t.channel] })],
 );
+
+// Google-Ads-Verbindung je Brand (automatischer Marketing-Import in die PnL).
+// Mehrere Secrets (Developer-Token, Client-Secret, Refresh-Token) AES-verschlüsselt.
+export const financeGoogleAds = pgTable("finance_google_ads", {
+  shopId: uuid("shop_id").primaryKey().references(() => shops.id, { onDelete: "cascade" }),
+  customerId: text("customer_id").notNull(), // 10-stellige Kunden-ID (ohne Bindestriche)
+  loginCustomerId: text("login_customer_id"), // MCC/Manager-ID (optional)
+  clientId: text("client_id").notNull(),
+  clientSecretEnc: text("client_secret_enc").notNull(),
+  developerTokenEnc: text("developer_token_enc").notNull(),
+  refreshTokenEnc: text("refresh_token_enc").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
