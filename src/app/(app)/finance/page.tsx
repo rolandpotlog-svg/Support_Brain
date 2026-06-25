@@ -96,8 +96,9 @@ export default async function FinancePage({
 
   return (
     <div className="adminwrap">
-      <div className="formhead" style={{ justifyContent: "space-between" }}>
-        <h1 style={{ margin: 0 }}>Finance · PnL</h1>
+      <div className="formhead" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <h1 style={{ margin: 0 }}>Finance · PnL <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>(Daten &amp; Setup)</span></h1>
+        <a href="/finance/cockpit" className="btnlink primary">🪟 Zum Cockpit</a>
       </div>
 
       {/* VAT-Falle erklären */}
