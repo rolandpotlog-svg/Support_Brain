@@ -2,13 +2,23 @@
 // Liest die bestehende Wochen-PnL-Engine (keine eigene Rechenlogik). finance-Cap.
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { buildFinanceReport, type WeekRow } from "@/server/finance/report";
+import { loadAdsAccounts } from "@/server/finance/meta-ads";
+import { loadGoogleAds } from "@/server/finance/google-ads";
 import { cockpitMetrics, waterfallSteps } from "@/lib/finance/cockpit";
 import { currentWeekStart, weekOf } from "@/lib/finance/week";
+
+function ago(d: Date): string {
+  const min = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+  if (min < 60) return `vor ${min} Min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `vor ${h} Std`;
+  return `vor ${Math.round(h / 24)} Tg`;
+}
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const eur2 = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -74,6 +84,29 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
   const steps = waterfallSteps(sel.inputs, sel.pnl);
   const maxAbs = Math.max(...steps.map((s) => Math.abs(s.cents)), 1);
 
+  // --- Datenlage-Intelligenz: erkennt Lücken, statt sie als „gut" zu zeigen ---
+  const ingestRow = await db
+    .select({ last: sql<string | null>`max(ingested_at)` })
+    .from(schema.financeOrder)
+    .where(and(eq(schema.financeOrder.shopId, activeShopId), eq(schema.financeOrder.weekStart, sel.weekStart)));
+  const lastIngest = ingestRow[0]?.last ? new Date(ingestRow[0].last) : null;
+  const metaConfigured = (await loadAdsAccounts(activeShopId)).some((a) => a.configured);
+  const googleConfigured = (await loadGoogleAds(activeShopId)).configured;
+  const ch = sel.marketingByChannel;
+
+  const issues: { warn: boolean; text: string }[] = [];
+  if (m.spendCents === 0) {
+    issues.push({ warn: true, text: "Kein Marketing-Spend erfasst → Ampel neutral, Profit nicht aussagekräftig." });
+  } else {
+    if (metaConfigured && (ch.meta ?? 0) + (ch.meta_garten ?? 0) === 0) issues.push({ warn: true, text: "Meta verbunden, aber kein Spend in dieser Woche — bitte Werbeausgaben holen." });
+    if (googleConfigured && (ch.google ?? 0) === 0) issues.push({ warn: true, text: "Google verbunden, aber kein Spend in dieser Woche." });
+    if (!googleConfigured && (ch.google ?? 0) === 0) issues.push({ warn: false, text: "Google-Spend noch nicht dabei (nicht verbunden) → Marketing/ROAS unvollständig." });
+  }
+  if (sel.shippingPending > 0) issues.push({ warn: true, text: `${sel.shippingPending} Bestellung(en) ohne Versandkosten → Lieferung unvollständig, PnL erscheint zu gut.` });
+  if (sel.unmappedOrders > 0) issues.push({ warn: true, text: `${sel.unmappedOrders} Bestellung(en) mit unbekanntem Produkt → COGS evtl. zu niedrig.` });
+  if (sel.inputs.fixkostenCents === 0) issues.push({ warn: false, text: "Fixkosten nicht erfasst → Profit = DB nach Werbung." });
+  const hasWarn = issues.some((i) => i.warn);
+
   return (
     <div className="adminwrap">
       <div className="formhead" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -109,6 +142,24 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
           </div>
         </div>
       </section>
+
+      {/* Datenlage: ehrlich machen, was fehlt — sonst sieht eine Woche besser aus als sie ist */}
+      {issues.length > 0 ? (
+        <section className="card" style={{ borderColor: hasWarn ? "#d9a30088" : "var(--border)", background: hasWarn ? "#d9a30010" : undefined }}>
+          <strong>{hasWarn ? "⚠ Datenlage unvollständig — Zahlen vorläufig:" : "ℹ Hinweise zur Datenlage:"}</strong>
+          <ul className="esc-list" style={{ margin: "6px 0 0" }}>
+            {issues.map((i, k) => <li key={k}>{i.warn ? "⚠" : "ℹ"} {i.text}</li>)}
+          </ul>
+          <p className="muted" style={{ margin: "8px 0 0", fontSize: 12 }}>
+            Shopify-Stand: {lastIngest ? ago(lastIngest) : "—"} · {sel.orderCount} Bestellungen erfasst.
+            Volle Synchronisierung im <a href="/finance">Board „Daten &amp; Setup"</a>.
+          </p>
+        </section>
+      ) : (
+        <p className="muted" style={{ margin: "-4px 0 0", fontSize: 13 }}>
+          ✓ Datenlage vollständig (Marketing, Versand, Produkt){lastIngest ? ` · Shopify-Stand ${ago(lastIngest)}` : ""}.
+        </p>
+      )}
 
       {/* Ebene 1: Headline-Kennzahlen mit Delta */}
       <section className="card">
