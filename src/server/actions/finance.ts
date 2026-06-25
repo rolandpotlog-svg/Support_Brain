@@ -151,6 +151,25 @@ export async function saveCogsRates(shopId: string, valuesEuros: Record<string, 
   revalidatePath("/finance");
 }
 
+/** Cockpit-Sync: Shopify + verbundene Ad-Konten für einen Zeitraum frisch ziehen. */
+export async function syncCockpit(shopId: string, since: string, until: string): Promise<{ shopifyCount: number; metaCents: number; googleCents: number }> {
+  await requireFinance(shopId);
+  const sh = await ingestShopifyOrders(shopId, since, until);
+  let metaCents = 0;
+  let googleCents = 0;
+  const metaAccs = await db.select().from(schema.financeAdsAccount).where(eq(schema.financeAdsAccount.shopId, shopId));
+  for (const a of metaAccs) {
+    try { metaCents += (await ingestMetaSpend(shopId, a.channel, since, until)).totalCents; } catch { /* Konto evtl. nicht erreichbar -> Teil-Sync */ }
+  }
+  const g = await db.query.financeGoogleAds.findFirst({ where: eq(schema.financeGoogleAds.shopId, shopId) });
+  if (g) {
+    try { googleCents = (await ingestGoogleSpend(shopId, since, until)).totalCents; } catch { /* z.B. Basic-Access fehlt */ }
+  }
+  revalidatePath("/finance/cockpit");
+  revalidatePath("/finance");
+  return { shopifyCount: sh.count, metaCents, googleCents };
+}
+
 export type CogsRateCheck = { priceCents: number; qty: number; known: boolean };
 /** Meta-Ads-Verbindung speichern (Token validieren + verschlüsseln). */
 export async function saveMetaAds(shopId: string, channel: string, accountId: string, token: string): Promise<{ name?: string }> {

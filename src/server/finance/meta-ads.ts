@@ -61,6 +61,14 @@ export async function ingestMetaSpend(
   const daily = await getDailySpend(decrypt(acc.tokenEnc), acc.accountId, since, until);
   const byWeek = new Map<string, number>();
   for (const d of daily) {
+    // Tages-Audit (für Heute/Rolling-7).
+    await db
+      .insert(schema.financeMarketingDaily)
+      .values({ shopId, channel, date: d.date, amountCents: d.spendCents })
+      .onConflictDoUpdate({
+        target: [schema.financeMarketingDaily.shopId, schema.financeMarketingDaily.channel, schema.financeMarketingDaily.date],
+        set: { amountCents: d.spendCents, updatedAt: new Date() },
+      });
     const { weekStart } = weekOf(new Date(`${d.date}T12:00:00Z`));
     byWeek.set(weekStart, (byWeek.get(weekStart) ?? 0) + d.spendCents);
   }

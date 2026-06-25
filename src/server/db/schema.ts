@@ -712,3 +712,17 @@ export const devTodo = pgTable("dev_todo", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   doneAt: timestamp("done_at", { withTimezone: true }),
 });
+
+// Tages-Spend-Audit (für Zeitfenster Heute/Rolling-7). Roh aus Meta/Google,
+// idempotent je Brand+Konto-Kanal+Tag. Wochensumme bleibt in financeMarketing.
+export const financeMarketingDaily = pgTable(
+  "finance_marketing_daily",
+  {
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    channel: text("channel").notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    amountCents: integer("amount_cents").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.shopId, t.channel, t.date] })],
+);

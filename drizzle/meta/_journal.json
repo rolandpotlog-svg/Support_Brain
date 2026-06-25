@@ -183,6 +183,13 @@
       "when": 1782364564359,
       "tag": "0025_dev_todo",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1782369745622,
+      "tag": "0026_finance_marketing_daily",
+      "breakpoints": true
     }
   ]
 }

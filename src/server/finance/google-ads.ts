@@ -83,6 +83,13 @@ export async function ingestGoogleSpend(shopId: string, since: string, until: st
   const daily = await getDailyCost(toCfg(row), since, until);
   const byWeek = new Map<string, number>();
   for (const d of daily) {
+    await db
+      .insert(schema.financeMarketingDaily)
+      .values({ shopId, channel: "google", date: d.date, amountCents: d.costCents })
+      .onConflictDoUpdate({
+        target: [schema.financeMarketingDaily.shopId, schema.financeMarketingDaily.channel, schema.financeMarketingDaily.date],
+        set: { amountCents: d.costCents, updatedAt: new Date() },
+      });
     const { weekStart } = weekOf(new Date(`${d.date}T12:00:00Z`));
     byWeek.set(weekStart, (byWeek.get(weekStart) ?? 0) + d.costCents);
   }
