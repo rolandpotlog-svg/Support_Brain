@@ -13,6 +13,7 @@ import { loadGoogleAds } from "@/server/finance/google-ads";
 import { cockpitMetrics, waterfallSteps } from "@/lib/finance/cockpit";
 import { currentWeekStart, weekOf } from "@/lib/finance/week";
 import { SyncButton } from "./sync-button";
+import { FinanceChat } from "./finance-chat";
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const eur2 = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -119,6 +120,7 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
             <p className="bad-text" style={{ margin: "6px 0 0", fontSize: 13 }}>⚠ Bestellungen, aber kein Marketing-Spend im Zeitraum — „Jetzt synchronisieren" oder Ads-Verbindung prüfen.</p>
           )}
         </section>
+        <FinanceChat shopId={activeShopId} />
       </div>
     );
   }
@@ -270,6 +272,8 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
           </table>
         </div>
       </section>
+
+      <FinanceChat shopId={activeShopId} />
     </div>
   );
 }

@@ -8,6 +8,8 @@ import { extractPdfText } from "@/server/finance/pickoship-pdf";
 import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@/lib/finance/pickoship";
 import { parseBlueprint } from "@/server/finance/blueprint";
 import { getCogsRates } from "@/server/finance/cogs-rates";
+import { buildAssistantContext } from "@/server/finance/assistant-context";
+import { complete, type ChatMessage } from "@/server/ai";
 import { saveAdsAccount, ingestMetaSpend } from "@/server/finance/meta-ads";
 import { saveGoogleAds as saveGoogleAdsCfg, ingestGoogleSpend, type GoogleAdsInput } from "@/server/finance/google-ads";
 import { COGS_RATE_DEFS } from "@/lib/finance/cogs";
@@ -149,6 +151,28 @@ export async function saveCogsRates(shopId: string, valuesEuros: Record<string, 
       });
   }
   revalidatePath("/finance");
+}
+
+/** Finance-Assistent: beantwortet Fragen NUR aus den echten Engine-Daten (Grounding). */
+export async function askFinanceAssistant(shopId: string, history: ChatMessage[]): Promise<string> {
+  await requireFinance(shopId);
+  if (history.length === 0) throw new Error("Keine Frage");
+  const context = await buildAssistantContext(shopId);
+  const system =
+    "Du bist der Finance-Analyst dieses Shops. Du beantwortest Fragen AUSSCHLIESSLICH auf Basis der unten gelieferten FINANZDATEN.\n" +
+    "REGELN (strikt):\n" +
+    "1. Erfinde NIEMALS Zahlen. Verwende nur Werte, die in den FINANZDATEN stehen.\n" +
+    "2. Wenn die Daten die Frage nicht beantworten, sage klar, dass du dazu keine Daten hast, und nenne, welche Daten fehlen würden. Rate NICHT.\n" +
+    "3. Zerlege deine Antwort nachvollziehbar: zeige die relevanten Zahlen und die Rechnung Schritt für Schritt.\n" +
+    "4. Rechne nur mit den gegebenen Zahlen. Wenn du eine Differenz erklärst, zeige beide Werte und die Differenz.\n" +
+    "5. Antworte auf Deutsch, präzise und kompakt. Euro mit € und 2 Nachkommastellen.\n" +
+    "6. Du bist read-only — du erklärst nur, du änderst nichts. Keine Erfindungen, keine externen Annahmen.\n\n" +
+    "Hinweise zur Bedeutung: COGS = Produktkosten (Menge×Stückkost). 'OhneVersand' = Bestellungen ohne erfasste Versandkosten (Versand dann unvollständig). " +
+    "'UnbekProd' = Bestellungen mit Produkt ohne Stückkost-Mapping (COGS evtl. zu niedrig). 'läuft' = laufende Woche (vorläufig). " +
+    "Marketing-Kanäle ohne Spend können fehlen (z. B. Google noch nicht verbunden).\n\n" +
+    "=== FINANZDATEN ===\n" +
+    context;
+  return complete({ system, messages: history.slice(-12), maxTokens: 1600, effort: "medium" });
 }
 
 /** Cockpit-Sync: Shopify + verbundene Ad-Konten für einen Zeitraum frisch ziehen. */
