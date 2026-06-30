@@ -13,7 +13,7 @@ import { loadGoogleAds } from "@/server/finance/google-ads";
 import { CHANNELS } from "@/lib/finance/channels";
 import { currentWeekStart, kwLabel, kwOfWeekStart } from "@/lib/finance/week";
 import { IngestButton } from "./ingest-button";
-import { WeekInputs } from "./week-inputs";
+import { WeekCostGrid } from "./week-cost-grid";
 import { PickoshipUpload } from "./pickoship-upload";
 import { BlueprintUpload } from "./blueprint-upload";
 import { CogsEditor } from "./cogs-editor";
@@ -175,8 +175,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       {tab === "eingaben" && (
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Marketing &amp; Kosten erfassen</h2>
-          <p className="muted" style={{ marginTop: 0 }}>Spend je Kanal + Fix-/Variable-Kosten pro Woche. PnL, BE-ROAS und Ampel rechnen automatisch nach.</p>
-          <WeekInputs shopId={activeShopId} weeks={inputWeeks} />
+          <WeekCostGrid shopId={activeShopId} weeks={inputWeeks} />
         </section>
       )}
     </div>
