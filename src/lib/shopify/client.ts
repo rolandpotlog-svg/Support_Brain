@@ -391,17 +391,18 @@ export async function getCustomerOrders(
 }
 
 export type FinanceLineItem = { title: string; quantity: number; sku: string | null };
+// Alle Geldwerte EX-USt (Shopify-Sales-Report-Logik; Shop rechnet tax-inclusive).
 export type ShopifyFinanceOrder = {
   gid: string;
   name: string;
   createdAt: string;
   financialStatus: string | null;
-  subtotal: string; // vor Steuer/Versand, nach Zeilen-Rabatt
-  discounts: string;
-  tax: string;
-  shipping: string;
-  total: string;
-  refunded: string;
+  grossExCents: number; // Bruttoumsatz ex-USt (Gross sales)
+  discountsExCents: number; // Rabatte ex-USt
+  shippingExCents: number; // Versandgebühren ex-USt
+  taxCents: number; // Steuern
+  totalCents: number; // Gesamt (inkl., aktuell)
+  refundedCents: number; // Gesamt-Erstattung (Referenz; Wochenzuordnung via finance_refund)
   lineItems: FinanceLineItem[];
 };
 
@@ -423,12 +424,15 @@ export async function getOrdersInRange(
            edges { cursor node {
              id name createdAt displayFinancialStatus
              subtotalPriceSet { shopMoney { amount } }
-             totalDiscountsSet { shopMoney { amount } }
              totalTaxSet { shopMoney { amount } }
              totalShippingPriceSet { shopMoney { amount } }
              totalPriceSet { shopMoney { amount } }
              totalRefundedSet { shopMoney { amount } }
-             lineItems(first: 50) { nodes { title quantity sku } }
+             lineItems(first: 50) { nodes {
+               title quantity sku
+               originalTotalSet { shopMoney { amount } }
+               taxLines { ratePercentage priceSet { shopMoney { amount } } }
+             } }
            } }
            pageInfo { hasNextPage }
          }
@@ -436,19 +440,33 @@ export async function getOrdersInRange(
       { q, after },
     );
     const edges = data.orders?.edges ?? [];
+    const c = (x: any) => Math.round((parseFloat(x?.shopMoney?.amount ?? "0") || 0) * 100);
     for (const e of edges) {
       const o = e.node;
+      const taxCents = c(o.totalTaxSet);
+      const subtotalInclCents = c(o.subtotalPriceSet);
+      const shipInclCents = c(o.totalShippingPriceSet);
+      let productTaxCents = 0;
+      let grossExCents = 0;
+      for (const li of o.lineItems?.nodes ?? []) {
+        const rate = (Number(li.taxLines?.[0]?.ratePercentage ?? 0) || 0) / 100;
+        const lineTax = (li.taxLines ?? []).reduce((s: number, t: any) => s + c(t.priceSet), 0);
+        productTaxCents += lineTax;
+        grossExCents += Math.round(c(li.originalTotalSet) / (1 + rate));
+      }
+      const netProductExCents = subtotalInclCents - productTaxCents;
+      const shippingExCents = shipInclCents - (taxCents - productTaxCents);
       out.push({
         gid: o.id,
         name: o.name,
         createdAt: o.createdAt,
         financialStatus: o.displayFinancialStatus ?? null,
-        subtotal: o.subtotalPriceSet?.shopMoney?.amount ?? "0",
-        discounts: o.totalDiscountsSet?.shopMoney?.amount ?? "0",
-        tax: o.totalTaxSet?.shopMoney?.amount ?? "0",
-        shipping: o.totalShippingPriceSet?.shopMoney?.amount ?? "0",
-        total: o.totalPriceSet?.shopMoney?.amount ?? "0",
-        refunded: o.totalRefundedSet?.shopMoney?.amount ?? "0",
+        grossExCents,
+        discountsExCents: grossExCents - netProductExCents,
+        shippingExCents,
+        taxCents,
+        totalCents: c(o.totalPriceSet),
+        refundedCents: c(o.totalRefundedSet),
         lineItems: (o.lineItems?.nodes ?? []).map((li: any) => ({
           title: li.title,
           quantity: Number(li.quantity ?? 0),

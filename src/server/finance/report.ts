@@ -125,9 +125,8 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
       const marketing = Object.values(mk).reduce((s, v) => s + v, 0);
       const ov = overrideByWeek.get(weekStart);
       const inputs: WeekInputs = {
-        // Shopify-Preise sind brutto (inkl. USt). USt rausrechnen -> Nettoumsatz ex-USt,
-        // wie in der Spec (Gesamtumsatz = Netto + Versand + USt addiert die USt wieder dazu).
-        umsatzBruttoCents: a.umsatzBrutto - a.ust,
+        // Brutto wird bereits ex-USt gespeichert (Shopify-Report-Logik bzw. Excel).
+        umsatzBruttoCents: a.umsatzBrutto,
         rabatteCents: a.rabatte,
         refundsCents: a.refunds,
         versandEinnahmeCents: a.versandEinnahme,

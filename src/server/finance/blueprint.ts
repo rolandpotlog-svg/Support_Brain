@@ -49,8 +49,8 @@ export function parseBlueprint(buffer: Buffer, sheetName: string): BlueprintWeek
         taboola: cents(r[C.taboola]),
         tiktok: cents(r[C.tiktok]),
       },
-      // Excel "Umsatz brutto" ist EX-USt; +USt speichern, damit der Report (zieht USt ab) korrekt rechnet.
-      umsatzBruttoCents: brutto + ust,
+      // Excel "Umsatz brutto" ist bereits EX-USt; Report zieht USt nicht mehr ab.
+      umsatzBruttoCents: brutto,
       rabatteCents: cents(r[C.rabatte]),
       refundsCents: cents(r[C.refunds]),
       versandEinnahmeCents: cents(r[C.versandEinnahme]),

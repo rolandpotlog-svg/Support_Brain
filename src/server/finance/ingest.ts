@@ -8,10 +8,6 @@ import { cogsForLineItem } from "@/lib/finance/cogs";
 import { getCogsRates } from "@/server/finance/cogs-rates";
 import { weekOf } from "@/lib/finance/week";
 
-function toCents(amount: string | null | undefined): number {
-  return amount ? Math.round(parseFloat(amount) * 100) : 0;
-}
-
 export async function ingestShopifyOrders(
   shopId: string,
   sinceDate: string,
@@ -24,8 +20,6 @@ export async function ingestShopifyOrders(
 
   let unmapped = 0;
   for (const o of orders) {
-    const subtotal = toCents(o.subtotal);
-    const discounts = toCents(o.discounts);
     const week = weekOf(new Date(o.createdAt));
 
     let cogs = 0;
@@ -42,12 +36,12 @@ export async function ingestShopifyOrders(
       orderGid: o.gid,
       createdAt: new Date(o.createdAt),
       weekStart: week.weekStart,
-      umsatzBruttoCents: subtotal + discounts, // "vor Rabatt" (Shopify-Subtotal ist netto-rabattiert)
-      rabatteCents: discounts,
-      refundsCents: toCents(o.refunded),
-      versandEinnahmeCents: toCents(o.shipping),
-      ustCents: toCents(o.tax),
-      totalCents: toCents(o.total),
+      umsatzBruttoCents: o.grossExCents, // Gross sales ex-USt (Shopify-Report-Logik)
+      rabatteCents: o.discountsExCents,
+      refundsCents: o.refundedCents, // Referenz; Wochen-Refunds via finance_refund
+      versandEinnahmeCents: o.shippingExCents,
+      ustCents: o.taxCents,
+      totalCents: o.totalCents,
       cogsCents: cogs,
       cogsUnknown: unknownOrder,
       financialStatus: o.financialStatus,
