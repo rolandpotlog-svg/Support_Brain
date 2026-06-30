@@ -1,0 +1,1 @@
+ALTER TABLE "finance_shipping" ADD COLUMN "invoice_cogs_cents" integer;

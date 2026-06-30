@@ -316,10 +316,10 @@ export async function commitPickoshipShipping(shopId: string, orders: PickoshipO
   for (const o of orders) {
     await db
       .insert(schema.financeShipping)
-      .values({ shopId, orderName: o.orderName, shippingCents: o.shippingCents, source: "invoice" })
+      .values({ shopId, orderName: o.orderName, shippingCents: o.shippingCents, invoiceCogsCents: o.productCents, source: "invoice" })
       .onConflictDoUpdate({
         target: [schema.financeShipping.shopId, schema.financeShipping.orderName],
-        set: { shippingCents: o.shippingCents, source: "invoice", updatedAt: new Date() },
+        set: { shippingCents: o.shippingCents, invoiceCogsCents: o.productCents, source: "invoice", updatedAt: new Date() },
       });
   }
   revalidatePath("/finance");

@@ -14,6 +14,8 @@ export type WeekRow = {
   orderCount: number;
   shippingPending: number;
   unmappedOrders: number;
+  cogsFromInvoice: number; // Orders mit echter Supplier-COGS (verbucht)
+  cogsRichtwert: number; // Orders mit Shopify-Schätzung (noch keine Rechnung)
 };
 
 export type FinanceReport = {
@@ -50,6 +52,9 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
     .where(eq(schema.financeCostOverride.shopId, shopId));
 
   const shipByOrder = new Map(shippingRows.map((s) => [s.orderName, s.shippingCents]));
+  // Echte COGS aus der Supplier-Rechnung (wenn verbucht). Sonst Shopify-Richtwert.
+  const invoiceCogsByOrder = new Map<string, number>();
+  for (const s of shippingRows) if (s.invoiceCogsCents != null) invoiceCogsByOrder.set(s.orderName, s.invoiceCogsCents);
   const overrideByWeek = new Map(overrideRows.map((o) => [o.weekStart, o]));
   const marketingByWeek = new Map<string, Record<string, number>>();
   for (const m of marketingRows) {
@@ -62,11 +67,13 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
   type Acc = {
     umsatzBrutto: number; rabatte: number; refunds: number; versandEinnahme: number; ust: number;
     cogs: number; versandkosten: number; orderCount: number; shippingPending: number; unmappedOrders: number;
+    cogsFromInvoice: number; cogsRichtwert: number;
   };
   const weeks = new Map<string, Acc>();
   const blank = (): Acc => ({
     umsatzBrutto: 0, rabatte: 0, refunds: 0, versandEinnahme: 0, ust: 0,
     cogs: 0, versandkosten: 0, orderCount: 0, shippingPending: 0, unmappedOrders: 0,
+    cogsFromInvoice: 0, cogsRichtwert: 0,
   });
 
   for (const o of orders) {
@@ -76,7 +83,10 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
     // Refunds NICHT hier (Bestell-Woche), sondern nach Erstattungs-Woche (Shopify-Logik) -> unten.
     a.versandEinnahme += o.versandEinnahmeCents;
     a.ust += o.ustCents;
-    a.cogs += o.cogsCents;
+    // COGS: echte Supplier-Rechnung (verbucht) vor Shopify-Richtwert (Menge × Stückkost).
+    const invCogs = invoiceCogsByOrder.get(o.orderName);
+    if (invCogs != null) { a.cogs += invCogs; a.cogsFromInvoice += 1; }
+    else { a.cogs += o.cogsCents; a.cogsRichtwert += 1; }
     a.orderCount += 1;
     if (o.cogsUnknown) a.unmappedOrders += 1;
     if (shipByOrder.has(o.orderName)) a.versandkosten += shipByOrder.get(o.orderName)!;
@@ -116,6 +126,8 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
       orderCount: 0,
       shippingPending: 0,
       unmappedOrders: 0,
+      cogsFromInvoice: 0,
+      cogsRichtwert: 0,
     });
   }
 
@@ -148,6 +160,8 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
         orderCount: a.orderCount,
         shippingPending: a.shippingPending,
         unmappedOrders: a.unmappedOrders,
+        cogsFromInvoice: a.cogsFromInvoice,
+        cogsRichtwert: a.cogsRichtwert,
       };
     })
     .sort((x, y) => (x.weekStart < y.weekStart ? 1 : -1)); // neueste oben

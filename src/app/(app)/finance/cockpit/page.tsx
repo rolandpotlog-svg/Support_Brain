@@ -186,6 +186,8 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
   }
   if (sel.shippingPending > 0) issues.push({ warn: true, text: `${sel.shippingPending} Bestellung(en) ohne Versandkosten → Lieferung unvollständig, PnL erscheint zu gut.` });
   if (sel.unmappedOrders > 0) issues.push({ warn: true, text: `${sel.unmappedOrders} Bestellung(en) mit unbekanntem Produkt → COGS evtl. zu niedrig.` });
+  if (sel.orderCount > 0 && sel.cogsFromInvoice === 0) issues.push({ warn: false, text: "COGS = Shopify-Richtwert (Schätzung). Pickoship-Beleg hochladen → echte Supplier-COGS." });
+  else if (sel.cogsRichtwert > 0) issues.push({ warn: false, text: `COGS: ${sel.cogsFromInvoice} Order(s) aus Supplier-Rechnung verbucht, ${sel.cogsRichtwert} noch Richtwert.` });
   if (sel.inputs.fixkostenCents === 0) issues.push({ warn: false, text: "Fixkosten nicht erfasst → Profit = DB nach Werbung." });
   const hasWarn = issues.some((i) => i.warn);
 

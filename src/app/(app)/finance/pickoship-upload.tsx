@@ -34,7 +34,7 @@ export function PickoshipUpload({ shopId }: { shopId: string }) {
     setBusy(true); setError(null);
     try {
       const r = await commitPickoshipShipping(shopId, review.orders);
-      setMsg(`${r.count} Versandwerte verbucht.`);
+      setMsg(`Versand + echte COGS für ${r.count} Bestellungen aus der Rechnung verbucht.`);
       setReview(null);
       router.refresh();
     } catch (err) {

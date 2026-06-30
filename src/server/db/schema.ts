@@ -577,6 +577,9 @@ export const financeShipping = pgTable(
     shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
     orderName: text("order_name").notNull(),
     shippingCents: integer("shipping_cents").notNull().default(0),
+    // Echte Produktkosten (COGS) aus der Supplier-Rechnung. null = noch nicht verbucht
+    // -> Report nutzt dann den Shopify-Richtwert (Menge × Stückkost).
+    invoiceCogsCents: integer("invoice_cogs_cents"),
     source: text("source").notNull().default("manual"),
     contaminated: boolean("contaminated").notNull().default(false),
     note: text("note"),
