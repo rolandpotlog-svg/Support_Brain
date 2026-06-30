@@ -514,3 +514,17 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .alertbar { border-radius: 12px; padding: 12px 15px; border: 1px solid var(--border); font-size: 13.5px; }
 .alertbar.warn { border-color: var(--tag-amber-fg); background: var(--tag-amber-bg); color: var(--tag-amber-fg); }
 .alertbar.ok { color: var(--green); }
+
+/* Feedback-Widget (schwebender Button) */
+.fab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 80;
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--panel); box-shadow: var(--shadow); font-size: 20px; cursor: pointer;
+  display: grid; place-items: center;
+}
+.fab:hover { background: var(--panel-2); }
+.fab-panel {
+  position: fixed; right: 20px; bottom: 76px; z-index: 80; width: 300px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow); padding: 14px;
+}

@@ -742,3 +742,28 @@ export const financeRefund = pgTable(
   },
   (t) => [primaryKey({ columns: [t.shopId, t.refundId] }), index("finance_refund_week_idx").on(t.shopId, t.refundWeek)],
 );
+
+// Textbausteine / Schnellantworten je Brand (im Antwort-Feld einfügbar).
+export const cannedReply = pgTable(
+  "canned_reply",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    sort: integer("sort").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("canned_reply_shop_idx").on(t.shopId)],
+);
+
+// Feedback/Ideen von Mitarbeitern an den Owner.
+export const feedback = pgTable("feedback", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  userEmail: text("user_email"),
+  kind: text("kind").notNull().default("idee"), // idee | bug
+  text: text("text").notNull(),
+  status: text("status").notNull().default("neu"), // neu | erledigt
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

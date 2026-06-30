@@ -4,6 +4,7 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser, type SessionUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { IconRail } from "./icon-rail";
+import { FeedbackWidget } from "./feedback-widget";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user: SessionUser;
@@ -38,6 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         canAdmin={user.isOwner || !!caps?.settings}
       />
       <div className="workspace">{children}</div>
+      <FeedbackWidget />
     </div>
   );
 }

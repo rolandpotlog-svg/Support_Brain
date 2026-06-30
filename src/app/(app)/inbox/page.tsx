@@ -5,6 +5,7 @@ import { accessibleShopIds, assignableUsers, requireUser } from "@/server/access
 import { getActiveShopId } from "@/server/active-shop";
 import { initials, tagColor, timeAgo } from "@/lib/format";
 import { Conversation } from "./conversation";
+import { listCannedReplies } from "@/server/canned";
 import { ShopifyPanel } from "./shopify-panel";
 import { SyncButton } from "./sync-button";
 
@@ -166,6 +167,7 @@ export default async function InboxPage({
   }
 
   const assignees = selected && activeShopId ? await assignableUsers(activeShopId) : [];
+  const cannedReplies = selected && activeShopId ? await listCannedReplies(activeShopId) : [];
 
   // Verknüpfter Dispute-Fall (Badge in der Konversation).
   let disputeId: string | null = null;
@@ -269,6 +271,7 @@ export default async function InboxPage({
           supportEmail={supportEmail}
           assignees={assignees}
           disputeId={disputeId}
+          cannedReplies={cannedReplies}
         />
       ) : (
         <section className="convo">

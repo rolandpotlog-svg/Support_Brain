@@ -43,12 +43,14 @@ export function Conversation({
   supportEmail,
   assignees,
   disputeId,
+  cannedReplies = [],
 }: {
   thread: Thread;
   messages: Msg[];
   supportEmail: string;
   assignees: Assignee[];
   disputeId?: string | null;
+  cannedReplies?: { id: string; title: string; body: string }[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
@@ -220,6 +222,23 @@ export function Conversation({
               onChange={(e) => setText(e.target.value)}
             />
             <div className="actions">
+              {cannedReplies.length > 0 ? (
+                <select
+                  value=""
+                  title="Textbaustein einfügen"
+                  onChange={(e) => {
+                    const c = cannedReplies.find((x) => x.id === e.target.value);
+                    if (c) setText((t) => (t.trim() ? `${t}\n\n${c.body}` : c.body));
+                    e.target.value = "";
+                  }}
+                  style={{ maxWidth: 180 }}
+                >
+                  <option value="">＋ Textbaustein…</option>
+                  {cannedReplies.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                </select>
+              ) : (
+                <Link href="/textbausteine" className="btnlink" style={{ fontSize: 13 }}>＋ Textbausteine anlegen</Link>
+              )}
               <button
                 disabled={drafting || pending}
                 title="Antwortentwurf von der KI (Shop-Profil + Bestelldaten)"
