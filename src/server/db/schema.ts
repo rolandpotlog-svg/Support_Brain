@@ -726,3 +726,19 @@ export const financeMarketingDaily = pgTable(
   },
   (t) => [primaryKey({ columns: [t.shopId, t.channel, t.date] })],
 );
+
+// Refunds mit Erstattungs-Datum (Shopify-Logik: Rückgaben zählen in der Woche der
+// Erstattung, nicht der Bestellung). Pro Shopify-Refund eine Zeile, idempotent.
+export const financeRefund = pgTable(
+  "finance_refund",
+  {
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    refundId: text("refund_id").notNull(), // Shopify-Refund-GID
+    orderName: text("order_name"),
+    refundedAt: date("refunded_at", { mode: "string" }).notNull(),
+    refundWeek: date("refund_week", { mode: "string" }).notNull(), // Montag der Erstattungs-Woche
+    amountCents: integer("amount_cents").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.shopId, t.refundId] }), index("finance_refund_week_idx").on(t.shopId, t.refundWeek)],
+);

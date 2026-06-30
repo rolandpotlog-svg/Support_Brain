@@ -462,6 +462,51 @@ export async function getOrdersInRange(
   return out;
 }
 
+export type ShopifyRefund = { refundId: string; orderName: string; createdAt: string; amountCents: number };
+
+/** Refunds, die in [since, until] ERSTATTET wurden (nach Refund-Datum, Shopify-Report-Logik).
+ *  Holt Orders, die seit `since` aktualisiert wurden (Refunds bewegen updated_at), und filtert die
+ *  Refunds nach ihrem createdAt. So werden auch Erstattungen auf ältere Bestellungen erfasst. */
+export async function getRefundsInRange(
+  creds: ShopifyCreds,
+  sinceDate: string,
+  untilDate: string,
+  max = 8000,
+): Promise<ShopifyRefund[]> {
+  const q = `updated_at:>='${sinceDate}'`;
+  const out: ShopifyRefund[] = [];
+  let after: string | null = null;
+  for (let guard = 0; guard < 400 && out.length < max; guard++) {
+    const data: { orders: { edges: any[]; pageInfo: { hasNextPage: boolean } } } = await gql(
+      creds,
+      `query($q: String!, $after: String) {
+         orders(first: 50, after: $after, query: $q, sortKey: UPDATED_AT) {
+           edges { cursor node {
+             name
+             refunds { id createdAt totalRefundedSet { shopMoney { amount } } }
+           } }
+           pageInfo { hasNextPage }
+         }
+       }`,
+      { q, after },
+    );
+    const edges = data.orders?.edges ?? [];
+    for (const e of edges) {
+      const name = e.node.name as string;
+      for (const r of e.node.refunds ?? []) {
+        const day = String(r.createdAt ?? "").slice(0, 10);
+        if (!day || day < sinceDate || day > untilDate) continue;
+        const amountCents = Math.round(parseFloat(r.totalRefundedSet?.shopMoney?.amount ?? "0") * 100);
+        if (!amountCents) continue;
+        out.push({ refundId: r.id, orderName: name, createdAt: day, amountCents });
+      }
+    }
+    if (!data.orders?.pageInfo?.hasNextPage || edges.length === 0) break;
+    after = edges[edges.length - 1].cursor;
+  }
+  return out;
+}
+
 /** Tracking-Link: gelieferte URL bevorzugen, sonst aus Carrier + Nummer bauen. */
 export function trackingUrl(t: Tracking): string | null {
   if (t.url) return t.url;

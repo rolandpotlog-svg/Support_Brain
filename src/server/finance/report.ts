@@ -73,7 +73,7 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
     const a = weeks.get(o.weekStart) ?? blank();
     a.umsatzBrutto += o.umsatzBruttoCents;
     a.rabatte += o.rabatteCents;
-    a.refunds += o.refundsCents;
+    // Refunds NICHT hier (Bestell-Woche), sondern nach Erstattungs-Woche (Shopify-Logik) -> unten.
     a.versandEinnahme += o.versandEinnahmeCents;
     a.ust += o.ustCents;
     a.cogs += o.cogsCents;
@@ -82,6 +82,20 @@ export async function buildFinanceReport(shopId: string): Promise<FinanceReport>
     if (shipByOrder.has(o.orderName)) a.versandkosten += shipByOrder.get(o.orderName)!;
     else a.shippingPending += 1;
     weeks.set(o.weekStart, a);
+  }
+
+  // Refunds nach ERSTATTUNGS-Woche (Shopify-Report-Logik). Gilt für Shopify-Wochen;
+  // die manuellen Excel-Wochen werden danach überschrieben und behalten ihre Excel-Refunds.
+  const refundRows = await db
+    .select({ refundWeek: schema.financeRefund.refundWeek, amount: schema.financeRefund.amountCents })
+    .from(schema.financeRefund)
+    .where(eq(schema.financeRefund.shopId, shopId));
+  const refundByWeek = new Map<string, number>();
+  for (const r of refundRows) refundByWeek.set(r.refundWeek, (refundByWeek.get(r.refundWeek) ?? 0) + r.amount);
+  for (const [wk, amt] of refundByWeek) {
+    const a = weeks.get(wk) ?? blank();
+    a.refunds = amt;
+    weeks.set(wk, a);
   }
 
   // Historische/importierte Wochen (Blueprint) einmischen — Vorrang, da nur für

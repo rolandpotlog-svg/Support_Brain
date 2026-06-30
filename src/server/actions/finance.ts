@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { requireFinance } from "@/server/access";
-import { ingestShopifyOrders } from "@/server/finance/ingest";
+import { ingestShopifyOrders, ingestRefunds } from "@/server/finance/ingest";
 import { extractPdfText } from "@/server/finance/pickoship-pdf";
 import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@/lib/finance/pickoship";
 import { parseBlueprint } from "@/server/finance/blueprint";
@@ -23,7 +23,9 @@ export async function ingestFinance(
   untilDate: string,
 ): Promise<{ count: number; unmapped: number }> {
   await requireFinance(shopId);
-  return ingestShopifyOrders(shopId, sinceDate, untilDate);
+  const r = await ingestShopifyOrders(shopId, sinceDate, untilDate);
+  await ingestRefunds(shopId, sinceDate, untilDate).catch(() => {}); // Refunds nach Erstattungs-Datum
+  return r;
 }
 
 export async function saveMarketing(shopId: string, weekStart: string, channel: string, amountEuros: number) {
@@ -179,6 +181,7 @@ export async function askFinanceAssistant(shopId: string, history: ChatMessage[]
 export async function syncCockpit(shopId: string, since: string, until: string): Promise<{ shopifyCount: number; metaCents: number; googleCents: number }> {
   await requireFinance(shopId);
   const sh = await ingestShopifyOrders(shopId, since, until);
+  await ingestRefunds(shopId, since, until).catch(() => {});
   let metaCents = 0;
   let googleCents = 0;
   const metaAccs = await db.select().from(schema.financeAdsAccount).where(eq(schema.financeAdsAccount.shopId, shopId));

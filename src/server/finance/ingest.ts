@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { loadShopifyCreds } from "@/server/shopify-config";
-import { getOrdersInRange } from "@/lib/shopify/client";
+import { getOrdersInRange, getRefundsInRange } from "@/lib/shopify/client";
 import { cogsForLineItem } from "@/lib/finance/cogs";
 import { getCogsRates } from "@/server/finance/cogs-rates";
 import { weekOf } from "@/lib/finance/week";
@@ -77,4 +77,24 @@ export async function ingestShopifyOrders(
     }
   }
   return { count: orders.length, unmapped };
+}
+
+/** Refunds nach Erstattungs-Datum holen (Shopify-Report-Logik) und je Erstattungs-Woche speichern. */
+export async function ingestRefunds(shopId: string, sinceDate: string, untilDate: string): Promise<{ count: number; totalCents: number }> {
+  const creds = await loadShopifyCreds(shopId);
+  if (!creds) throw new Error("Shopify für diesen Brand nicht verbunden");
+  const refunds = await getRefundsInRange(creds, sinceDate, untilDate);
+  let totalCents = 0;
+  for (const r of refunds) {
+    totalCents += r.amountCents;
+    const refundWeek = weekOf(new Date(`${r.createdAt}T12:00:00Z`)).weekStart;
+    await db
+      .insert(schema.financeRefund)
+      .values({ shopId, refundId: r.refundId, orderName: r.orderName, refundedAt: r.createdAt, refundWeek, amountCents: r.amountCents })
+      .onConflictDoUpdate({
+        target: [schema.financeRefund.shopId, schema.financeRefund.refundId],
+        set: { orderName: r.orderName, refundedAt: r.createdAt, refundWeek, amountCents: r.amountCents, updatedAt: new Date() },
+      });
+  }
+  return { count: refunds.length, totalCents };
 }
