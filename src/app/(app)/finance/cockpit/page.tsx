@@ -11,6 +11,7 @@ import { getWindowMetrics } from "@/server/finance/metrics";
 import { loadAdsAccounts } from "@/server/finance/meta-ads";
 import { loadGoogleAds } from "@/server/finance/google-ads";
 import { cockpitMetrics, waterfallSteps } from "@/lib/finance/cockpit";
+import { computeWeekPnl, type WeekInputs } from "@/lib/finance/pnl";
 import { currentWeekStart, weekOf } from "@/lib/finance/week";
 import { SyncButton } from "./sync-button";
 import { FinanceChat } from "./finance-chat";
@@ -56,6 +57,13 @@ function pill(cur: number, prev: number | undefined, goodUp: boolean, kind: "eur
   return { cls, arrow, text };
 }
 
+function spendSub(byChannel: Record<string, number>): string {
+  return Object.entries(byChannel)
+    .filter(([, c]) => c > 0)
+    .map(([ch, c]) => `${ch}: ${Math.round(c / 100).toLocaleString("de-DE")}€`)
+    .join(" · ");
+}
+
 function Kpi({ icon, label, value, valueColor, p, series, spark }: {
   icon: string; label: string; value: string; valueColor?: string; p: Pill; series: number[]; spark: string;
 }) {
@@ -72,7 +80,7 @@ function Kpi({ icon, label, value, valueColor, p, series, spark }: {
 }
 
 function Tabs({ win }: { win: string }) {
-  const tabs = [{ id: "today", label: "Heute" }, { id: "roll7", label: "7 Tage" }, { id: "thisweek", label: "Diese KW" }, { id: "lastweek", label: "Letzte KW" }];
+  const tabs = [{ id: "today", label: "Heute" }, { id: "roll7", label: "7 Tage" }, { id: "thisweek", label: "Diese KW" }, { id: "lastweek", label: "Letzte KW" }, { id: "ytd", label: "YTD" }];
   return (
     <div className="seg">
       {tabs.map((t) => <Link key={t.id} href={`/finance/cockpit?win=${t.id}`} className={win === t.id ? "on" : ""}>{t.label}</Link>)}
@@ -123,6 +131,104 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
           <Kpi icon="🛒" label="AOV (brutto)" value={wm.orders > 0 ? eur2(Math.round(wm.bruttoCents / wm.orders)) : "—"} p={null} series={[]} spark={C_BLUE} />
         </div>
         {wm.spendMissing && <div className="alertbar warn" style={{ marginTop: 14 }}>⚠ Bestellungen, aber kein Marketing-Spend im Zeitraum — „Jetzt synchronisieren" oder Ads-Verbindung prüfen.</div>}
+        <FinanceChat shopId={activeShopId} />
+      </div>
+    );
+  }
+
+  // ---------- YTD (alle abgeschlossenen Wochen) ----------
+  if (win === "ytd") {
+    const compl = report.weeks.filter((w) => w.weekStart < cw);
+    const ascC = [...compl].sort((a, b) => (a.weekStart < b.weekStart ? -1 : 1));
+    const sumI = (f: (w: WeekRow) => number) => compl.reduce((s, w) => s + f(w), 0);
+    const agg: WeekInputs = {
+      umsatzBruttoCents: sumI((w) => w.inputs.umsatzBruttoCents),
+      rabatteCents: sumI((w) => w.inputs.rabatteCents),
+      refundsCents: sumI((w) => w.inputs.refundsCents),
+      versandEinnahmeCents: sumI((w) => w.inputs.versandEinnahmeCents),
+      ustCents: sumI((w) => w.inputs.ustCents),
+      marketingCents: sumI((w) => w.inputs.marketingCents),
+      produktkostenCents: sumI((w) => w.inputs.produktkostenCents),
+      versandkostenCents: sumI((w) => w.inputs.versandkostenCents),
+      fixkostenCents: sumI((w) => w.inputs.fixkostenCents),
+      variableCents: sumI((w) => w.inputs.variableCents),
+    };
+    const ypnl = computeWeekPnl(agg);
+    const ym = cockpitMetrics(agg, ypnl, sumI((w) => w.orderCount));
+    const yc = AMPEL_COLOR[ym.ampel];
+    const ysteps = waterfallSteps(agg, ypnl);
+    const ymax = Math.max(...ysteps.map((s) => Math.abs(s.cents)), 1);
+    const chAgg: Record<string, number> = {};
+    for (const w of compl) for (const [c, v] of Object.entries(w.marketingByChannel)) chAgg[c] = (chAgg[c] ?? 0) + v;
+    const yr = compl[0] ? new Date(`${compl[0].weekStart}T00:00:00Z`).getUTCFullYear() : "";
+    return (
+      <div className="adminwrap">
+        <div className="formhead" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <h1 style={{ margin: 0 }}>Cockpit</h1>
+          <div className="srcrow" style={{ margin: 0, gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Tabs win="ytd" />
+            <Link href="/finance" className="btnlink">⚙ Setup</Link>
+          </div>
+        </div>
+        <div className="hero" style={{ borderColor: `${yc}55`, background: `linear-gradient(180deg, ${yc}14, transparent)` }}>
+          <span className="hero-dot" style={{ background: yc, boxShadow: `0 0 0 5px ${yc}26` }} />
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div className="hero-title">YTD {yr} <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>· {compl.length} abgeschlossene Wochen</span> · <span style={{ color: yc }}>{AMPEL_WORD[ym.ampel]}</span></div>
+            <div className="hero-sub">PnL <b style={{ color: ym.profitCents < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen }}>{signed(ym.profitCents)}</b> · ROAS <b>{roasFmt(ym.blendedRoas)}</b> vs. BE <b>{roasFmt(ym.beRoas)}</b> · Marge <b>{pctFmt(ym.margePct)}</b></div>
+          </div>
+          <div className="hero-gap">
+            <div className="l">GAP (ROAS − BE)</div>
+            <div className="n" style={{ color: yc }}>{ym.gap == null ? "—" : (ym.gap >= 0 ? "+" : "−") + Math.abs(ym.gap).toFixed(2)}</div>
+          </div>
+        </div>
+        <div className="dash-grid">
+          <Kpi icon="📈" label="Nettoumsatz YTD" value={eur(ym.nettoCents)} p={null} series={ascC.map((w) => w.pnl.nettoumsatzCents / 100)} spark={C_GREEN} />
+          <Kpi icon="🧮" label="DB nach Werbung" value={eur(ym.dbNachWerbungCents)} valueColor={ym.dbNachWerbungCents < 0 ? AMPEL_COLOR.rot : undefined} p={null} series={ascC.map((w) => (w.pnl.deckungsbeitragCents - w.inputs.marketingCents) / 100)} spark={C_BLUE} />
+          <Kpi icon="💰" label="Profit YTD" value={eur(ym.profitCents)} valueColor={ym.profitCents < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen} p={null} series={ascC.map((w) => w.pnl.pnlCents / 100)} spark={ym.profitCents < 0 ? C_ROSE : C_GREEN} />
+          <Kpi icon="📣" label="Marketing YTD" value={eur(ym.spendCents)} p={null} series={ascC.map((w) => w.inputs.marketingCents / 100)} spark={C_AMBER} />
+          <Kpi icon="🎯" label="ROAS / BE" value={`${roasFmt(ym.blendedRoas)} / ${roasFmt(ym.beRoas)}`} p={null} series={ascC.map((w) => w.pnl.roasGesamt ?? 0)} spark={C_GREEN} />
+          <Kpi icon="🏷️" label="Rabattquote" value={pctFmt(ym.rabattquote)} valueColor={(ym.rabattquote ?? 0) > 0.25 ? AMPEL_COLOR.rot : undefined} p={null} series={ascC.map((w) => (w.inputs.umsatzBruttoCents > 0 ? (w.inputs.rabatteCents / w.inputs.umsatzBruttoCents) * 100 : 0))} spark={C_ROSE} />
+        </div>
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>GuV-Wasserfall · YTD</h2>
+          <table className="fin-table">
+            <tbody>
+              {ysteps.map((s) => {
+                const w = Math.round((Math.abs(s.cents) / ymax) * 100);
+                return (
+                  <tr key={s.label} style={{ fontWeight: s.kind === "result" || s.kind === "subtotal" ? 700 : 400, background: s.kind === "result" ? `${AMPEL_COLOR[s.cents < 0 ? "rot" : "gruen"]}14` : undefined }}>
+                    <td style={{ width: "38%" }}>{s.label}</td>
+                    <td style={{ width: "30%" }}><div style={{ height: 9, background: "var(--panel-2)", borderRadius: 5, overflow: "hidden" }}><div style={{ width: `${w}%`, height: "100%", background: s.cents < 0 ? AMPEL_COLOR.rot : "#16a57155" }} /></div></td>
+                    <td style={{ textAlign: "right", width: "18%", color: s.cents < 0 ? AMPEL_COLOR.rot : "var(--text)" }}>{signed(s.cents)}</td>
+                    <td style={{ textAlign: "right", width: "14%" }} className="muted">{pctFmt(s.pctOfNet)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>Spend je Kanal: {spendSub(chAgg) || "—"}</p>
+        </section>
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Wochen-Historie</h2>
+          <div style={{ overflowX: "auto" }}>
+            <table className="fin-table">
+              <thead><tr><th>KW</th><th>Netto</th><th>Spend</th><th>ROAS</th><th>BE-ROAS</th><th>PnL</th><th>Ampel</th></tr></thead>
+              <tbody>
+                {report.weeks.map((w) => (
+                  <tr key={w.weekStart}>
+                    <td><Link href={`/finance/cockpit?week=${w.weekStart}`} className="btnlink" style={{ fontWeight: 700 }}>{w.label}</Link></td>
+                    <td>{eur(w.pnl.nettoumsatzCents)}</td>
+                    <td>{eur(w.inputs.marketingCents)}</td>
+                    <td>{roasFmt(w.pnl.roasGesamt)}</td>
+                    <td>{roasFmt(w.pnl.beRoasGesamt)}</td>
+                    <td style={{ color: w.pnl.pnlCents < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen }}>{eur(w.pnl.pnlCents)}</td>
+                    <td><span style={{ display: "inline-block", width: 11, height: 11, borderRadius: "50%", background: AMPEL_COLOR[w.pnl.ampel] }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <FinanceChat shopId={activeShopId} />
       </div>
     );
