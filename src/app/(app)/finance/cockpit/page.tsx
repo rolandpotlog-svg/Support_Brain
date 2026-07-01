@@ -16,6 +16,8 @@ import { currentWeekStart, weekOf } from "@/lib/finance/week";
 import { SyncButton } from "./sync-button";
 import { FinanceChat } from "./finance-chat";
 import { Sparkline } from "./sparkline";
+import { RevenueTicker } from "./revenue-ticker";
+import { CHANNEL_LABEL, type Channel } from "@/lib/finance/channels";
 
 const eur = (c: number) => `${(c / 100).toLocaleString("de-DE", { maximumFractionDigits: 0 })} €`;
 const eur2 = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -79,6 +81,25 @@ function Kpi({ icon, label, value, valueColor, p, series, spark }: {
   );
 }
 
+function MarketingKpi({ value, p, series, byChannel }: { value: string; p: Pill; series: number[]; byChannel: Record<string, number> }) {
+  const chans = Object.entries(byChannel).filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]);
+  return (
+    <details className="kpi">
+      <summary>
+        <div className="kpi-top"><span className="kpi-chip">📣</span><span className="kpi-label">Marketing (Spend) ▸</span></div>
+        <div className="kpi-mid"><span className="kpi-val">{value}</span>{p && <span className={`kpi-delta ${p.cls}`}>{p.arrow} {p.text}</span>}</div>
+        <Sparkline data={series} color={C_AMBER} />
+      </summary>
+      <div className="kpi-channels">
+        {chans.length === 0 ? <span className="muted" style={{ fontSize: 13 }}>kein Spend erfasst</span> : chans.map(([ch, c]) => (
+          <div key={ch} className="kpi-chan-row"><span>{CHANNEL_LABEL[ch as Channel] ?? ch}</span><b>{eur(c)}</b></div>
+        ))}
+        <div className="kpi-hint">Spend je Kanal · aufklappbar</div>
+      </div>
+    </details>
+  );
+}
+
 function Tabs({ win }: { win: string }) {
   const tabs = [{ id: "today", label: "Heute" }, { id: "roll7", label: "7 Tage" }, { id: "thisweek", label: "Diese KW" }, { id: "lastweek", label: "Letzte KW" }, { id: "ytd", label: "YTD" }];
   return (
@@ -121,6 +142,7 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
             <Link href="/finance" className="btnlink">⚙ Setup</Link>
           </div>
         </div>
+        <RevenueTicker cents={wm.gesamtCents} label={`Gesamtumsatz · ${label}`} />
         <div className="alertbar" style={{ marginBottom: 4 }}>📅 <b>{label}</b> · {since === todayV ? since : `${since} – ${todayV}`} · vorläufig — <b>kein Tagesprofit</b> (Refund-/Versand-Lag); Tagesansicht = Pacing &amp; Anomalien.</div>
         <div className="dash-grid">
           <Kpi icon="🧾" label="Bestellungen" value={String(wm.orders)} p={null} series={[]} spark={C_BLUE} />
@@ -170,6 +192,7 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
             <Link href="/finance" className="btnlink">⚙ Setup</Link>
           </div>
         </div>
+        <RevenueTicker cents={ypnl.gesamtumsatzCents} label={`Gesamtumsatz · YTD ${yr}`} />
         <div className="hero" style={{ borderColor: `${yc}55`, background: `linear-gradient(180deg, ${yc}14, transparent)` }}>
           <span className="hero-dot" style={{ background: yc, boxShadow: `0 0 0 5px ${yc}26` }} />
           <div style={{ flex: 1, minWidth: 240 }}>
@@ -185,9 +208,11 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
           <Kpi icon="📈" label="Nettoumsatz YTD" value={eur(ym.nettoCents)} p={null} series={ascC.map((w) => w.pnl.nettoumsatzCents / 100)} spark={C_GREEN} />
           <Kpi icon="🧮" label="DB nach Werbung" value={eur(ym.dbNachWerbungCents)} valueColor={ym.dbNachWerbungCents < 0 ? AMPEL_COLOR.rot : undefined} p={null} series={ascC.map((w) => (w.pnl.deckungsbeitragCents - w.inputs.marketingCents) / 100)} spark={C_BLUE} />
           <Kpi icon="💰" label="Profit YTD" value={eur(ym.profitCents)} valueColor={ym.profitCents < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen} p={null} series={ascC.map((w) => w.pnl.pnlCents / 100)} spark={ym.profitCents < 0 ? C_ROSE : C_GREEN} />
-          <Kpi icon="📣" label="Marketing YTD" value={eur(ym.spendCents)} p={null} series={ascC.map((w) => w.inputs.marketingCents / 100)} spark={C_AMBER} />
+          <MarketingKpi value={eur(ym.spendCents)} p={null} series={ascC.map((w) => w.inputs.marketingCents / 100)} byChannel={chAgg} />
           <Kpi icon="🎯" label="ROAS / BE" value={`${roasFmt(ym.blendedRoas)} / ${roasFmt(ym.beRoas)}`} p={null} series={ascC.map((w) => w.pnl.roasGesamt ?? 0)} spark={C_GREEN} />
-          <Kpi icon="🏷️" label="Rabattquote" value={pctFmt(ym.rabattquote)} valueColor={(ym.rabattquote ?? 0) > 0.25 ? AMPEL_COLOR.rot : undefined} p={null} series={ascC.map((w) => (w.inputs.umsatzBruttoCents > 0 ? (w.inputs.rabatteCents / w.inputs.umsatzBruttoCents) * 100 : 0))} spark={C_ROSE} />
+          <Kpi icon="↩️" label="Retourenquote" value={pctFmt(ym.retourenquote)} valueColor={(ym.retourenquote ?? 0) > 0.1 ? AMPEL_COLOR.rot : undefined} p={null} series={ascC.map((w) => (w.inputs.umsatzBruttoCents > 0 ? (w.inputs.refundsCents / w.inputs.umsatzBruttoCents) * 100 : 0))} spark={C_ROSE} />
+          <Kpi icon="📦" label="Produktkosten %" value={pctFmt(ym.cogsPct)} p={null} series={ascC.map((w) => (w.pnl.nettoumsatzCents > 0 ? (w.inputs.produktkostenCents / w.pnl.nettoumsatzCents) * 100 : 0))} spark={C_AMBER} />
+          <Kpi icon="📐" label="Marge gesamt" value={pctFmt(ym.margePct)} valueColor={(ym.margePct ?? 0) < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen} p={null} series={ascC.map((w) => (w.pnl.margePct ?? 0) * 100)} spark={(ym.margePct ?? 0) < 0 ? C_ROSE : C_GREEN} />
         </div>
         <section className="card">
           <h2 style={{ marginTop: 0 }}>GuV-Wasserfall · YTD</h2>
@@ -274,7 +299,9 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
   const sDb = asc.map((w) => (w.pnl.deckungsbeitragCents - w.inputs.marketingCents) / 100);
   const sSpend = asc.map((w) => w.inputs.marketingCents / 100);
   const sRoas = asc.map((w) => w.pnl.roasGesamt ?? 0);
-  const sRabatt = asc.map((w) => (w.inputs.umsatzBruttoCents > 0 ? (w.inputs.rabatteCents / w.inputs.umsatzBruttoCents) * 100 : 0));
+  const sRetouren = asc.map((w) => (w.inputs.umsatzBruttoCents > 0 ? (w.inputs.refundsCents / w.inputs.umsatzBruttoCents) * 100 : 0));
+  const sCogs = asc.map((w) => (w.pnl.nettoumsatzCents > 0 ? (w.inputs.produktkostenCents / w.pnl.nettoumsatzCents) * 100 : 0));
+  const sMarge = asc.map((w) => (w.pnl.margePct ?? 0) * 100);
 
   // Datenlage
   const ingestRow = await db.select({ last: sql<string | null>`max(ingested_at)` }).from(schema.financeOrder)
@@ -300,6 +327,8 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
   return (
     <div className="adminwrap">
       {header}
+
+      <RevenueTicker cents={sel.pnl.gesamtumsatzCents} label={`Gesamtumsatz · ${sel.label}`} />
 
       {/* Hero-Status */}
       <div className="hero" style={{ borderColor: `${color}55`, background: `linear-gradient(180deg, ${color}14, transparent)` }}>
@@ -330,9 +359,11 @@ export default async function CockpitPage({ searchParams }: { searchParams: Prom
         <Kpi icon="📈" label="Nettoumsatz" value={eur(m.nettoCents)} p={pill(m.nettoCents, pm?.nettoCents, true, "eur")} series={sNetto} spark={C_GREEN} />
         <Kpi icon="🧮" label="DB nach Werbung" value={eur(m.dbNachWerbungCents)} valueColor={m.dbNachWerbungCents < 0 ? AMPEL_COLOR.rot : undefined} p={pill(m.dbNachWerbungCents, pm?.dbNachWerbungCents, true, "eur")} series={sDb} spark={C_BLUE} />
         <Kpi icon="💰" label="Profit (nach Fix)" value={eur(m.profitCents)} valueColor={m.profitCents < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen} p={pill(m.profitCents, pm?.profitCents, true, "eur")} series={sPnl} spark={m.profitCents < 0 ? C_ROSE : C_GREEN} />
-        <Kpi icon="📣" label="Marketing (Spend)" value={eur(m.spendCents)} p={pill(m.spendCents, pm?.spendCents, false, "eur")} series={sSpend} spark={C_AMBER} />
+        <MarketingKpi value={eur(m.spendCents)} p={pill(m.spendCents, pm?.spendCents, false, "eur")} series={sSpend} byChannel={sel.marketingByChannel} />
         <Kpi icon="🎯" label="ROAS (vs BE)" value={`${roasFmt(m.blendedRoas)} / ${roasFmt(m.beRoas)}`} p={pill(m.blendedRoas ?? 0, pm?.blendedRoas ?? undefined, true, "roas")} series={sRoas} spark={C_GREEN} />
-        <Kpi icon="🏷️" label="Rabattquote" value={pctFmt(m.rabattquote)} valueColor={(m.rabattquote ?? 0) > 0.25 ? AMPEL_COLOR.rot : undefined} p={pill(m.rabattquote ?? 0, pm?.rabattquote ?? undefined, false, "pp")} series={sRabatt} spark={C_ROSE} />
+        <Kpi icon="↩️" label="Retourenquote" value={pctFmt(m.retourenquote)} valueColor={(m.retourenquote ?? 0) > 0.1 ? AMPEL_COLOR.rot : undefined} p={pill(m.retourenquote ?? 0, pm?.retourenquote ?? undefined, false, "pp")} series={sRetouren} spark={C_ROSE} />
+        <Kpi icon="📦" label="Produktkosten %" value={pctFmt(m.cogsPct)} p={pill(m.cogsPct ?? 0, pm?.cogsPct ?? undefined, false, "pp")} series={sCogs} spark={C_AMBER} />
+        <Kpi icon="📐" label="Marge gesamt" value={pctFmt(m.margePct)} valueColor={(m.margePct ?? 0) < 0 ? AMPEL_COLOR.rot : AMPEL_COLOR.gruen} p={pill(m.margePct ?? 0, pm?.margePct ?? undefined, true, "pp")} series={sMarge} spark={(m.margePct ?? 0) < 0 ? C_ROSE : C_GREEN} />
       </div>
 
       {/* GuV-Wasserfall */}
