@@ -139,6 +139,14 @@ export default async function InboxPage({
         .from(schema.messages)
         .where(eq(schema.messages.threadId, t.id))
         .orderBy(schema.messages.createdAt);
+      // Sende-Status (Outbox) je ausgehender Nachricht — für „gesendet/Warteschlange/fehlgeschlagen".
+      const outboxRows = messages.length
+        ? await db
+            .select({ messageId: schema.outbox.messageId, status: schema.outbox.status, lastError: schema.outbox.lastError })
+            .from(schema.outbox)
+            .where(inArray(schema.outbox.messageId, messages.map((m) => m.id)))
+        : [];
+      const obMap = new Map(outboxRows.map((o) => [o.messageId, o]));
       const mb = await db.query.shopMailboxes.findFirst({
         where: eq(schema.shopMailboxes.shopId, t.shopId),
       });
@@ -161,6 +169,8 @@ export default async function InboxPage({
           subject: m.subject,
           bodyText: m.bodyText,
           createdAt: m.createdAt.toISOString(),
+          sendStatus: obMap.get(m.id)?.status ?? null,
+          sendError: obMap.get(m.id)?.lastError ?? null,
         })),
       };
     }
@@ -300,4 +310,6 @@ type Msg = {
   subject: string | null;
   bodyText: string | null;
   createdAt: string;
+  sendStatus: "pending" | "sent" | "failed" | null;
+  sendError: string | null;
 };

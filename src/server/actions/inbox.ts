@@ -177,3 +177,17 @@ export async function replyToThread(threadId: string, bodyText: string) {
   revalidatePath(`/threads/${threadId}`);
   revalidatePath("/inbox");
 }
+
+/** Fehlgeschlagenen Versand erneut in die Warteschlange stellen (Worker sendet dann neu). */
+export async function retrySend(messageId: string) {
+  const user = await requireUser();
+  const msg = await db.query.messages.findFirst({ where: eq(schema.messages.id, messageId) });
+  if (!msg) throw new Error("Nachricht nicht gefunden");
+  const t = await loadThread(msg.threadId);
+  await requireWrite(t.shopId, "support");
+  await db
+    .update(schema.outbox)
+    .set({ status: "pending", attempts: 0, lastError: null })
+    .where(eq(schema.outbox.messageId, messageId));
+  revalidatePath("/inbox");
+}

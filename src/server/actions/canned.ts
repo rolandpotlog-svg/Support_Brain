@@ -8,7 +8,7 @@ export async function createCannedReply(shopId: string, title: string, body: str
   await requireWrite(shopId, "support");
   const t = title.trim();
   const b = body.trim();
-  if (!t || !b) throw new Error("Titel und Text nötig");
+  if (!t || !b) throw new Error("Titel und Anweisung nötig");
   await db.insert(schema.cannedReply).values({ shopId, title: t, body: b });
   revalidatePath("/textbausteine");
 }

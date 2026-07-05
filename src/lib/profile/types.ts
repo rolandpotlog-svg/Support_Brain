@@ -95,7 +95,8 @@ export function buildSystemPrompt(data: ProfileData, shopName: string): string {
       data.length && `Antwortlänge: ${LENGTH_LABEL[data.length]}.`,
       data.emojis && `Emojis: ${data.emojis === "ja" ? "sparsam erlaubt" : "nicht verwenden"}.`,
       data.greeting && `Begrüßung: „${data.greeting}".`,
-      data.signature && `Signatur/Abschluss: „${data.signature}".`,
+      // Signatur NICHT als Anweisung — sie wird deterministisch an den Entwurf angehängt
+      // (immer exakt gleich, kann nicht von der KI abgewandelt werden).
       ...data.examples.filter(Boolean).map((ex, i) => `Beispiel-Antwort ${i + 1}:\n${ex}`),
     ]),
   );

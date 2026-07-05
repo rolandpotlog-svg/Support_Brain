@@ -4,6 +4,7 @@ import {
   loadCustomerOrders,
   manualSearch,
   pickCandidate,
+  refundOrder,
   resolveThreadShopify,
   setThreadOrder,
 } from "@/server/actions/shopify";
@@ -23,7 +24,114 @@ function Badges({ order }: { order: ShopifyOrder }) {
   );
 }
 
-function OrderBlock({ order }: { order: ShopifyOrder }) {
+type RefundCtx = { shopId: string; threadId: string; customerName: string };
+
+function RefundBox({ ctx, order }: { ctx: RefundCtx; order: ShopifyOrder }) {
+  const totalMajor = order.total ? parseFloat(order.total.amount) : 0;
+  const cur = order.total?.currencyCode ?? "EUR";
+  const [amount, setAmount] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const preset = (pct: number) => setAmount(((totalMajor * pct) / 100).toFixed(2));
+  const amountCents = Math.round(parseFloat(amount || "0") * 100);
+  const valid = amountCents > 0;
+
+  async function doRefund() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await refundOrder({
+        shopId: ctx.shopId,
+        threadId: ctx.threadId,
+        orderId: order.id,
+        orderName: order.name,
+        amountCents,
+      });
+      setDone(`${r.refundedAmount} ${r.currency}`);
+      setConfirming(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="sec">
+        <div className="sec-label">Erstattung</div>
+        <div className="ok-text" style={{ fontSize: 13 }}>
+          ✓ {done} an {ctx.customerName || "den Kunden"} erstattet.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="sec">
+      <div className="sec-label">Erstattung (Kulanz)</div>
+      {!confirming ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[30, 50, 100].map((p) => (
+              <button
+                key={p}
+                className="candidate"
+                style={{ justifyContent: "center", padding: "6px 8px" }}
+                onClick={() => preset(p)}
+                type="button"
+              >
+                {p}%
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input
+              inputMode="decimal"
+              placeholder="Betrag"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(",", "."))}
+              style={{ flex: 1 }}
+            />
+            <span className="muted" style={{ fontSize: 12 }}>{cur}</span>
+          </div>
+          <button className="primary" disabled={!valid} onClick={() => { setErr(null); setConfirming(true); }} type="button">
+            {valid ? `${amount} ${cur} erstatten` : "Betrag wählen"}
+          </button>
+          {err && <div className="formerror" style={{ margin: 0, fontSize: 12 }}>{err}</div>}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          <div className="note" style={{ fontSize: 13 }}>
+            Wirklich <b>{amount} {cur}</b> an <b>{ctx.customerName || "den Kunden"}</b> für <b>{order.name}</b> zurückerstatten?
+            <br />
+            Das bewegt <b>echtes Geld</b> und kann nicht rückgängig gemacht werden.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={doRefund}
+              type="button"
+              style={{ background: "var(--danger, #e5634d)", borderColor: "transparent" }}
+            >
+              {busy ? "Erstattet…" : "Ja, jetzt erstatten"}
+            </button>
+            <button className="btnlink" disabled={busy} onClick={() => setConfirming(false)} type="button">Abbrechen</button>
+          </div>
+          {err && <div className="formerror" style={{ margin: 0, fontSize: 12 }}>{err}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: RefundCtx }) {
+  const refundable =
+    !!order.total && ["PAID", "PARTIALLY_REFUNDED"].includes((order.financialStatus ?? "").toUpperCase());
   return (
     <>
       <div className="sec">
@@ -79,6 +187,8 @@ function OrderBlock({ order }: { order: ShopifyOrder }) {
           ))}
         </div>
       )}
+
+      {refundCtx && refundable && <RefundBox ctx={refundCtx} order={order} />}
     </>
   );
 }
@@ -240,7 +350,7 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
     return (
       <>
         <CustomerHead customer={res.customer} />
-        <OrderBlock order={res.order} />
+        <OrderBlock order={res.order} refundCtx={{ shopId, threadId, customerName: res.customer?.displayName ?? "" }} />
         <PinOrder threadId={threadId} orderName={res.order.name} onResult={apply} />
         <ManualSearch shopId={shopId} onResult={apply} />
       </>
@@ -263,7 +373,7 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
                 <button disabled={idx + 1 >= orders.length} onClick={() => setIdx(idx + 1)}>›</button>
               </div>
             </div>
-            <OrderBlock order={current} />
+            <OrderBlock order={current} refundCtx={{ shopId, threadId, customerName: "" }} />
             <PinOrder threadId={threadId} orderName={current.name} onResult={apply} />
           </>
         ) : (
@@ -325,7 +435,7 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
               <button disabled={navBusy || (idx + 1 >= orders.length && !cursorNext)} onClick={next}>›</button>
             </div>
           </div>
-          <OrderBlock order={current} />
+          <OrderBlock order={current} refundCtx={{ shopId, threadId, customerName: customer?.displayName ?? "" }} />
           <PinOrder threadId={threadId} orderName={current.name} onResult={apply} />
         </>
       ) : (

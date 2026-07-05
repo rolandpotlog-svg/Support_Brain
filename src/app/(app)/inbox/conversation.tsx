@@ -7,6 +7,7 @@ import {
   assignThread,
   escalateThread,
   replyToThread,
+  retrySend,
   setThreadStatus,
   setThreadTag,
 } from "@/server/actions/inbox";
@@ -25,6 +26,8 @@ type Msg = {
   subject: string | null;
   bodyText: string | null;
   createdAt: string;
+  sendStatus?: "pending" | "sent" | "failed" | null;
+  sendError?: string | null;
 };
 type Assignee = { id: string; name: string | null; email: string };
 type Thread = {
@@ -200,6 +203,20 @@ export function Conversation({
                 <div className="mtime">{timeAgo(new Date(m.createdAt))}</div>
               </div>
               <pre className="mbody">{m.bodyText || "(kein Text)"}</pre>
+              {m.direction === "outbound" && m.sendStatus && (
+                <div className="sendstatus" style={{ marginTop: 6 }}>
+                  {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ gesendet</span>}
+                  {m.sendStatus === "pending" && <span className="muted" style={{ fontSize: 12 }}>⏳ in Warteschlange…</span>}
+                  {m.sendStatus === "failed" && (
+                    <span className="bad-text" style={{ fontSize: 12, display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      ⚠ Senden fehlgeschlagen{m.sendError ? `: ${m.sendError}` : ""}
+                      <button className="btnlink" disabled={pending} onClick={() => run(() => retrySend(m.id))} style={{ fontSize: 12 }}>
+                        Erneut senden
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
             </article>
           ),
         )}
@@ -225,19 +242,29 @@ export function Conversation({
               {cannedReplies.length > 0 ? (
                 <select
                   value=""
-                  title="Textbaustein einfügen"
-                  onChange={(e) => {
+                  disabled={drafting || pending}
+                  title="Schnellantwort: KI schreibt die Mail zur gewählten Absicht"
+                  onChange={async (e) => {
                     const c = cannedReplies.find((x) => x.id === e.target.value);
-                    if (c) setText((t) => (t.trim() ? `${t}\n\n${c.body}` : c.body));
                     e.target.value = "";
+                    if (!c) return;
+                    setError(null);
+                    setDrafting(true);
+                    try {
+                      setText(await draftReply(thread.id, c.body));
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : String(err));
+                    } finally {
+                      setDrafting(false);
+                    }
                   }}
-                  style={{ maxWidth: 180 }}
+                  style={{ maxWidth: 200 }}
                 >
-                  <option value="">＋ Textbaustein…</option>
+                  <option value="">⚡ Schnellantwort (KI)…</option>
                   {cannedReplies.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                 </select>
               ) : (
-                <Link href="/textbausteine" className="btnlink" style={{ fontSize: 13 }}>＋ Textbausteine anlegen</Link>
+                <Link href="/textbausteine" className="btnlink" style={{ fontSize: 13 }}>⚡ Schnellantworten anlegen</Link>
               )}
               <button
                 disabled={drafting || pending}

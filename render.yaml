@@ -1,0 +1,65 @@
+# Render Blueprint: Web (Next.js) + Worker (Mail/Cron) + PostgreSQL.
+# Anlegen: Render Dashboard -> New -> Blueprint -> dieses Repo waehlen.
+# Danach im Dashboard die "sync: false"-Secrets einmalig setzen (siehe DEPLOY.md).
+
+databases:
+  - name: support-brain-db
+    plan: basic-256mb            # bezahlt; NICHT free (free verfaellt nach 30 Tagen)
+    region: frankfurt            # EU / naeher an AT (DSGVO)
+    postgresMajorVersion: "17"
+
+# Geteilte Variablen: EINMAL setzen, gelten fuer Web UND Worker gleich.
+# Kritisch: MAILBOX_ENC_KEY muss auf beiden identisch sein -> deshalb hier zentral.
+envVarGroups:
+  - name: support-brain-shared
+    envVars:
+      - key: MAILBOX_ENC_KEY     # openssl rand -base64 32   -> einmal generieren, hier eintragen
+        sync: false
+      - key: AUTH_SECRET         # openssl rand -base64 32   -> einmal generieren, hier eintragen
+        sync: false
+      - key: ANTHROPIC_API_KEY   # dein Claude-API-Key
+        sync: false
+      - key: POLL_INTERVAL_SECONDS
+        value: "60"
+      - key: MAX_SEND_ATTEMPTS
+        value: "5"
+
+services:
+  # --- Next.js Web-App ---
+  - type: web
+    name: support-brain-web
+    runtime: node
+    region: frankfurt
+    plan: starter                # bezahlt; free schlaeft ein
+    buildCommand: npm install && npm run build
+    preDeployCommand: npm run db:migrate   # Schema auf die (leere) DB anwenden
+    startCommand: npm run start
+    envVars:
+      - fromGroup: support-brain-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: support-brain-db
+          property: connectionString
+      - key: NODE_VERSION
+        value: "22"
+      - key: APP_URL             # nach dem 1. Deploy auf die echte URL/Domain setzen
+        sync: false
+      - key: META_VERIFY_TOKEN   # erst beim Meta-Setup (nach Deploy) noetig
+        sync: false
+
+  # --- Worker: Mail-Sync (IMAP/SMTP) + Auto-Tag + Wochenbericht (Dauerdienst) ---
+  - type: worker
+    name: support-brain-worker
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm run worker
+    envVars:
+      - fromGroup: support-brain-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: support-brain-db
+          property: connectionString
+      - key: NODE_VERSION
+        value: "22"

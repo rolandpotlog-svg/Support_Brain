@@ -22,7 +22,7 @@ export function CannedManage({ shopId, items }: { shopId: string; items: Item[] 
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   }
   async function remove(id: string) {
-    if (!confirm("Baustein löschen?")) return;
+    if (!confirm("Schnellantwort löschen?")) return;
     setBusy(true);
     try { await deleteCannedReply(id); router.refresh(); } finally { setBusy(false); }
   }
@@ -32,10 +32,10 @@ export function CannedManage({ shopId, items }: { shopId: string; items: Item[] 
   return (
     <div>
       <form onSubmit={add} style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
-        <input style={fld} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titel (z. B. Sendungsverfolgung)" />
-        <textarea style={{ ...fld, resize: "vertical" }} rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Text des Bausteins…" />
+        <input style={fld} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Knopf-Titel (z. B. 10 % Rabatt anbieten)" />
+        <textarea style={{ ...fld, resize: "vertical" }} rows={4} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Anweisung an die KI — was soll die Antwort erreichen? z. B. Biete dem Kunden 10 % Rabatt auf seine aktuelle Bestellung an, damit er zufrieden ist und das Produkt behält." />
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button className="primary" type="submit" disabled={busy || !title.trim() || !body.trim()}>+ Baustein speichern</button>
+          <button className="primary" type="submit" disabled={busy || !title.trim() || !body.trim()}>+ Schnellantwort speichern</button>
           {err && <span className="formerror" style={{ margin: 0 }}>{err}</span>}
         </div>
       </form>
@@ -50,7 +50,9 @@ export function CannedManage({ shopId, items }: { shopId: string; items: Item[] 
                 <b>{c.title}</b>
                 <button className="btnlink" onClick={() => remove(c.id)} style={{ color: "var(--tag-rose-fg)" }}>Löschen</button>
               </div>
-              <div className="muted" style={{ whiteSpace: "pre-wrap", marginTop: 4, fontSize: 13.5 }}>{c.body}</div>
+              <div className="muted" style={{ whiteSpace: "pre-wrap", marginTop: 4, fontSize: 13.5 }}>
+                <span style={{ opacity: 0.7 }}>KI-Anweisung: </span>{c.body}
+              </div>
             </div>
           ))}
         </div>

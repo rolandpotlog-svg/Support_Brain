@@ -45,8 +45,12 @@ function formatResolution(r: Resolution): string {
   return "Shopify nicht verfügbar.";
 }
 
-/** KI-Antwortentwurf: Shop-Profil + Ticket-Verlauf + Shopify-Bestelldaten -> Entwurf. Draft-First. */
-export async function draftReply(threadId: string): Promise<string> {
+/**
+ * KI-Antwortentwurf: Shop-Profil + Ticket-Verlauf + Shopify-Bestelldaten -> Entwurf. Draft-First.
+ * `intent` = optionale, vom Mitarbeiter gewählte Schnellantwort/Absicht
+ * (z. B. „Biete 10 % Rabatt auf die aktuelle Bestellung an"), die die Antwort steuert.
+ */
+export async function draftReply(threadId: string, intent?: string): Promise<string> {
   const user = await requireUser();
   const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
   if (!thread) throw new Error("Thread nicht gefunden");
@@ -56,7 +60,11 @@ export async function draftReply(threadId: string): Promise<string> {
   const profile = await db.query.shopProfile.findFirst({
     where: eq(schema.shopProfile.shopId, thread.shopId),
   });
-  const systemBase = profile?.systemPrompt || buildSystemPrompt(emptyProfile(), shop?.name ?? "unser Shop");
+  // Prompt frisch aus den Profildaten bauen (nicht den gespeicherten Prompt nehmen):
+  // die Signatur wird unten deterministisch angehängt, darf also NICHT als KI-Anweisung drinstehen.
+  const pdata = profile?.data ?? emptyProfile();
+  const systemBase = buildSystemPrompt(pdata, shop?.name ?? "unser Shop");
+  const signature = (pdata.signature ?? "").trim();
 
   // Rückgabe-Brücke: ist das Portal aktiv, bekommt die KI den Link + die Anweisung,
   // ihn NUR bei Rückgabe-/Umtausch-/Erstattungswunsch einzubauen.
@@ -79,8 +87,18 @@ export async function draftReply(threadId: string): Promise<string> {
     "\n\n--- AUSGABE-REGELN ---\n" +
     "Verfasse NUR die nächste E-Mail-Antwort an den Kunden, auf Deutsch. " +
     "Keine Betreffzeile, keine Vorrede, keine Erklärungen, keine Meta-Kommentare, keine Platzhalter. " +
+    (signature
+      ? "Schreibe KEINE Grußformel und KEINE Signatur am Ende (auch kein Viele-Gruesse-Abschluss) — die feste Signatur wird automatisch angehängt. Ende mit dem letzten inhaltlichen Satz. "
+      : "") +
     "Wenn die Richtlinien eine Eskalation verlangen oder zentrale Infos fehlen, schreibe stattdessen kurz und freundlich, " +
     "dass du dich kümmerst und ggf. Rücksprache hältst — erfinde nichts (keine Tracking-Nummern, Fristen, Beträge)." +
+    "\n\n--- ABSCHLIESSEND ANTWORTEN (SEHR WICHTIG) ---\n" +
+    "Ziel: das Anliegen in DIESER einen Mail vollständig erledigen — so, dass danach WEDER wir noch der Kunde nochmal ran müssen. Kein Ping-Pong. " +
+    "Denke die wahrscheinliche Folgefrage mit und beantworte sie gleich. " +
+    "Handle proaktiv statt zu fragen: wenn ein Zugeständnis feststeht (Rabatt/Erstattung/Ersatz/Behalten), sag es verbindlich zu und erklär konkret, was wir jetzt für den Kunden veranlassen und bis wann — statt zu fragen, ob er es möchte. " +
+    "Lege den nächsten Schritt, wo möglich, beim Kunden (Self-Service/klare Handlungsanweisung), nicht bei uns. " +
+    "Vermeide offene Enden wie wir melden uns, wir prüfen das und kommen auf Sie zu oder bitte bestätigen Sie kurz — ausser es ist eine echte Eskalation. " +
+    "Stelle nur dann eine Rückfrage, wenn die Antwort ohne diese Info wirklich unmöglich ist." +
     returnsHint;
 
   const msgs = await db
@@ -118,6 +136,7 @@ export async function draftReply(threadId: string): Promise<string> {
     }
   }
 
+  const wish = (intent ?? "").trim();
   const userMsg = [
     `KUNDE: ${thread.customerName || ""} <${thread.customerEmail}>`,
     `BETREFF: ${thread.subject ?? "(kein Betreff)"}`,
@@ -128,13 +147,20 @@ export async function draftReply(threadId: string): Promise<string> {
     "SHOPIFY-KONTEXT:",
     orderContext,
     "",
+    // Gewählte Schnellantwort: verbindliche Vorgabe, vom Mitarbeiter freigegeben —
+    // auch wenn sie über die Standard-Rabattbefugnis hinausgeht.
+    wish
+      ? `GEWÜNSCHTE AKTION (vom Support-Mitarbeiter gewählt und freigegeben — setze GENAU das um, freundlich und markengerecht, mit Bezug auf die echte Bestellung):\n${wish}\n`
+      : "",
     "Verfasse jetzt die nächste Antwort an den Kunden.",
   ].join("\n");
 
   const draft = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 2000, effort: "low" });
+  // Feste Signatur deterministisch anhängen (immer exakt gleich; die KI weicht nie ab).
+  const full = signature ? `${draft.trimEnd()}\n\n${signature}` : draft;
   // Entwurf merken, um beim Senden zu erkennen, ob er 1:1 übernommen oder bearbeitet wurde.
-  await db.update(schema.threads).set({ lastAiDraft: draft }).where(eq(schema.threads.id, threadId));
-  return draft;
+  await db.update(schema.threads).set({ lastAiDraft: full }).where(eq(schema.threads.id, threadId));
+  return full;
 }
 
 /** Ganzen Ticket-Verlauf knapp zusammenfassen (damit man nicht alles lesen muss). */

@@ -321,6 +321,74 @@ export async function getOrderByName(
   return { order: mapOrder(node), customer: node.customer ? mapCustomer(node.customer) : null };
 }
 
+/**
+ * Erstattet einen Betrag (Hauptwährung, z. B. "12.30") auf eine Bestellung.
+ * Sucht die erfolgreiche Zahlungs-Transaktion (SALE/CAPTURE) und bucht dagegen eine REFUND-Transaktion.
+ * Shopify lehnt Über-Erstattungen selbst ab (zusätzliche Sicherheitsnetz).
+ */
+export async function refundOrderAmount(
+  creds: ShopifyCreds,
+  orderId: string,
+  amount: string,
+  note: string,
+): Promise<{ refundedAmount: string; currency: string }> {
+  const q = `query($id: ID!) {
+    order(id: $id) {
+      currencyCode
+      totalRefundedSet { shopMoney { amount } }
+      totalReceivedSet { shopMoney { amount } }
+      transactions(first: 30) { id kind status gateway }
+    }
+  }`;
+  const d = await gql<{
+    order: {
+      currencyCode: string;
+      totalRefundedSet: { shopMoney: { amount: string } } | null;
+      totalReceivedSet: { shopMoney: { amount: string } } | null;
+      transactions: { id: string; kind: string; status: string; gateway: string }[];
+    } | null;
+  }>(creds, q, { id: orderId });
+
+  const order = d.order;
+  if (!order) throw new ShopifyError("Bestellung nicht gefunden");
+  const parent = order.transactions.find(
+    (t) => (t.kind === "SALE" || t.kind === "CAPTURE") && t.status === "SUCCESS",
+  );
+  if (!parent) throw new ShopifyError("Keine erstattbare Zahlung gefunden (evtl. manuell/unbezahlt).");
+
+  // Verbleibend erstattbar grob prüfen (harte Prüfung macht Shopify).
+  const received = Number(order.totalReceivedSet?.shopMoney.amount ?? "0");
+  const refunded = Number(order.totalRefundedSet?.shopMoney.amount ?? "0");
+  const remaining = received - refunded;
+  if (Number(amount) > remaining + 0.001) {
+    throw new ShopifyError(
+      `Betrag zu hoch: max. erstattbar sind ${remaining.toFixed(2)} ${order.currencyCode}.`,
+    );
+  }
+
+  const m = `mutation($input: RefundInput!) {
+    refundCreate(input: $input) {
+      refund { id totalRefundedSet { shopMoney { amount currencyCode } } }
+      userErrors { field message }
+    }
+  }`;
+  const input = {
+    orderId,
+    note,
+    notify: false, // wir schicken unsere eigene Mail
+    transactions: [{ orderId, gateway: parent.gateway, kind: "REFUND", amount, parentId: parent.id }],
+  };
+  const r = await gql<{
+    refundCreate: {
+      refund: { id: string; totalRefundedSet: { shopMoney: Money } } | null;
+      userErrors: { field: string[]; message: string }[];
+    };
+  }>(creds, m, { input });
+  if (r.refundCreate.userErrors?.length) throw new ShopifyError(r.refundCreate.userErrors[0].message);
+  const money = r.refundCreate.refund?.totalRefundedSet?.shopMoney;
+  return { refundedAmount: money?.amount ?? amount, currency: money?.currencyCode ?? order.currencyCode };
+}
+
 /** Kunde exakt über die E-Mail-Adresse. */
 export async function findCustomerByEmail(
   creds: ShopifyCreds,

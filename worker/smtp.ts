@@ -1,6 +1,6 @@
 // SMTP-Versand (raus): vom Menschen freigegebene Outbound-Messages senden.
 import nodemailer from "nodemailer";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db, schema } from "../src/server/db/index";
 import { decrypt } from "../src/lib/mailbox/crypto";
 
@@ -64,15 +64,39 @@ export async function processOutbox(): Promise<number> {
       sent++;
     } catch (err) {
       const attempts = job.attempts + 1;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const failed = attempts >= MAX_ATTEMPTS;
       await db
         .update(schema.outbox)
-        .set({
-          attempts,
-          lastError: err instanceof Error ? err.message : String(err),
-          status: attempts >= MAX_ATTEMPTS ? "failed" : "pending",
-        })
+        .set({ attempts, lastError: errMsg, status: failed ? "failed" : "pending" })
         .where(eq(schema.outbox.id, job.id));
       console.error(`[smtp] Outbox ${job.id} Fehler (Versuch ${attempts}):`, err);
+
+      // Endgueltig fehlgeschlagen: nicht still liegen lassen. Ticket wieder sichtbar machen
+      // (zurueck auf offen, ausser eskaliert/spam) und eine interne Notiz mit dem Grund anlegen.
+      if (failed) {
+        try {
+          const m = await db.query.messages.findFirst({ where: eq(schema.messages.id, job.messageId) });
+          if (m) {
+            await db.insert(schema.messages).values({
+              threadId: m.threadId,
+              direction: "outbound",
+              internal: true,
+              fromEmail: "system",
+              bodyText: `⚠ Zustellung fehlgeschlagen nach ${attempts} Versuchen: ${errMsg}. Bitte Empfaenger/Postfach pruefen und erneut senden.`,
+            });
+            await db
+              .update(schema.threads)
+              .set({
+                status: sql`case when ${schema.threads.status} in ('escalated','spam') then ${schema.threads.status} else 'open' end`,
+                lastMessageAt: new Date(),
+              })
+              .where(eq(schema.threads.id, m.threadId));
+          }
+        } catch (e) {
+          console.error(`[smtp] Fehler-Notiz fuer Outbox ${job.id}:`, e instanceof Error ? e.message : e);
+        }
+      }
     }
   }
   return sent;

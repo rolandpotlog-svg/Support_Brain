@@ -1,5 +1,6 @@
 "use server";
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { assertShopAccess, requireUser, requireWrite } from "@/server/access";
 import { loadShopifyCreds } from "@/server/shopify-config";
@@ -10,6 +11,7 @@ import {
   findOrdersByEmail,
   getCustomerOrders,
   getOrderByName,
+  refundOrderAmount,
   type ShopifyCustomer,
   type ShopifyOrder,
 } from "@/lib/shopify/client";
@@ -114,4 +116,44 @@ export async function pickCandidate(
   } catch (e) {
     return { mode: "error", message: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Erstattung direkt aus dem Panel auslösen (echtes Geld!). Erfordert Support-Schreibrecht.
+ * Der Betrag kommt in Cent; die Bestätigung/Sicherheitsabfrage passiert im UI.
+ * Bei Erfolg wird eine interne Audit-Notiz am Ticket hinterlegt (wer, wieviel, welche Bestellung).
+ */
+export async function refundOrder(args: {
+  shopId: string;
+  threadId: string;
+  orderId: string;
+  orderName: string;
+  amountCents: number;
+}): Promise<{ refundedAmount: string; currency: string }> {
+  const { user } = await requireWrite(args.shopId, "support");
+  if (!Number.isFinite(args.amountCents) || args.amountCents <= 0) {
+    throw new Error("Ungültiger Betrag.");
+  }
+  const creds = await loadShopifyCreds(args.shopId);
+  if (!creds) throw new Error("Shopify ist für diesen Shop nicht verbunden.");
+
+  const amount = (args.amountCents / 100).toFixed(2);
+  const note = `Support-Kulanz-Erstattung über ${amount} (ausgelöst von ${user.email})`;
+  const r = await refundOrderAmount(creds, args.orderId, amount, note);
+
+  // Audit-Spur im Ticket (interne Notiz, Kunde sieht sie nie).
+  try {
+    await db.insert(schema.messages).values({
+      threadId: args.threadId,
+      direction: "outbound",
+      internal: true,
+      fromEmail: user.email,
+      bodyText: `💶 Erstattung ausgelöst: ${r.refundedAmount} ${r.currency} für Bestellung ${args.orderName} (via Shopify).`,
+      sentBy: user.id,
+    });
+    revalidatePath("/inbox");
+  } catch {
+    // Notiz ist nur Bonus — Erstattung ist bereits durch.
+  }
+  return r;
 }

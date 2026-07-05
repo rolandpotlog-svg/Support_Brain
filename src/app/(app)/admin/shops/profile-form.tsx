@@ -176,7 +176,10 @@ export function ProfileForm({
           {select("emojis", "Emojis", [["ja", "ja, sparsam"], ["nein", "nein"]])}
         </div>
         {text("greeting", "Begrüßung", "z. B. Hallo {Name},")}
-        {area("signature", "Grußformel & Signatur", "z. B. Viele Grüße, dein Repello-Team")}
+        {area("signature", "Feste Signatur (wird automatisch unter jede Antwort gesetzt)", "z. B.\nViele Grüße\ndein Repello-Team\nsupport@repello.de")}
+        <p className="muted" style={{ margin: "-4px 0 4px", fontSize: 12 }}>
+          Diese Signatur hängt die KI immer exakt so an den Entwurf an — sie schreibt keine eigene Grußformel mehr. Leer lassen = die KI formuliert den Abschluss selbst.
+        </p>
         <ListField
           label="Beispiel-Antworten"
           items={data.examples}
