@@ -145,9 +145,9 @@ function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: Ref
         <Badges order={order} />
       </div>
 
-      {order.discountCodes.length > 0 && (
-        <div className="sec">
-          <div className="sec-label">Rabatte genutzt</div>
+      <div className="sec">
+        <div className="sec-label">Rabatt (diese Bestellung)</div>
+        {order.discountCodes.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {order.discountCodes.map((code, i) => {
               const known = /welcome|newsletter/i.test(code);
@@ -163,8 +163,10 @@ function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: Ref
               );
             })}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="muted" style={{ fontSize: 13 }}>Kein Rabatt genutzt</div>
+        )}
+      </div>
 
       {order.shippingAddress && (
         <div className="sec">
