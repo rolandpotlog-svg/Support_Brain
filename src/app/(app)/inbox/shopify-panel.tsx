@@ -132,6 +132,12 @@ function RefundBox({ ctx, order }: { ctx: RefundCtx; order: ShopifyOrder }) {
 function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: RefundCtx }) {
   const refundable =
     !!order.total && ["PAID", "PARTIALLY_REFUNDED"].includes((order.financialStatus ?? "").toUpperCase());
+  // Rabatt-%: Shopifys exakter %-Wert, sonst effektiv aus €-Rabatt / (Summe + Rabatt) berechnet.
+  const discAmt = order.totalDiscount ? parseFloat(order.totalDiscount.amount) : 0;
+  const grossApprox = order.total ? parseFloat(order.total.amount) + discAmt : 0;
+  const discPct =
+    order.discountPercentage ?? (discAmt > 0 && grossApprox > 0 ? Math.round((discAmt / grossApprox) * 100) : null);
+  const pctExact = order.discountPercentage != null;
   return (
     <>
       <div className="sec">
@@ -147,21 +153,35 @@ function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: Ref
 
       <div className="sec">
         <div className="sec-label">Rabatt (diese Bestellung)</div>
-        {order.discountCodes.length > 0 ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {order.discountCodes.map((code, i) => {
-              const known = /welcome|newsletter/i.test(code);
-              return (
-                <span
-                  key={i}
-                  className={`sbadge ${known ? "paid" : "unfulfilled"}`}
-                  style={{ textTransform: "uppercase" }}
-                  title={known ? "Welcome/Newsletter-Rabatt" : "Rabattcode"}
-                >
-                  🏷 {code}
-                </span>
-              );
-            })}
+        {order.discountCodes.length > 0 || order.totalDiscount ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {order.discountCodes.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {order.discountCodes.map((code, i) => {
+                  const known = /welcome|newsletter/i.test(code);
+                  return (
+                    <span
+                      key={i}
+                      className={`sbadge ${known ? "paid" : "unfulfilled"}`}
+                      style={{ textTransform: "uppercase" }}
+                      title={known ? "Welcome/Newsletter-Rabatt" : "Rabattcode"}
+                    >
+                      🏷 {code}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {(discPct != null || order.totalDiscount) && (
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--danger, #e5634d)" }}>
+                {discPct != null && <span>−{pctExact ? "" : "≈"}{discPct}% </span>}
+                {order.totalDiscount && (
+                  <span className="muted" style={{ fontWeight: 500 }}>
+                    (−{euro(order.totalDiscount.amount, order.totalDiscount.currencyCode)})
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="muted" style={{ fontSize: 13 }}>Kein Rabatt genutzt</div>

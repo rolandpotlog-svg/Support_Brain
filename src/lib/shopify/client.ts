@@ -44,6 +44,8 @@ export type ShopifyOrder = {
   financialStatus: string | null;
   fulfillmentStatus: string | null;
   discountCodes: string[];
+  discountPercentage: number | null; // erste Prozent-Anwendung (z. B. 20 für 20 %)
+  totalDiscount: Money | null; // gesamter Rabatt in Geld (nur wenn > 0)
   shippingAddress: ShopifyAddress | null;
   tracking: Tracking[];
   lineItems: LineItem[];
@@ -81,6 +83,16 @@ const ORDER_FIELDS = `
   displayFulfillmentStatus
   totalPriceSet { shopMoney { amount currencyCode } }
   discountCodes
+  totalDiscountsSet { shopMoney { amount currencyCode } }
+  discountApplications(first: 5) {
+    nodes {
+      value {
+        __typename
+        ... on PricingPercentageValue { percentage }
+        ... on MoneyV2 { amount currencyCode }
+      }
+    }
+  }
   shippingAddress {
     name
     address1
@@ -123,6 +135,17 @@ function mapOrder(o: any): ShopifyOrder {
     financialStatus: o.displayFinancialStatus ?? null,
     fulfillmentStatus: o.displayFulfillmentStatus ?? null,
     discountCodes: (o.discountCodes ?? []).filter(Boolean),
+    discountPercentage: (() => {
+      for (const a of o.discountApplications?.nodes ?? []) {
+        const v = a?.value;
+        if (v?.__typename === "PricingPercentageValue" && v.percentage) return Math.round(v.percentage);
+      }
+      return null;
+    })(),
+    totalDiscount:
+      o.totalDiscountsSet?.shopMoney && Number(o.totalDiscountsSet.shopMoney.amount) > 0
+        ? o.totalDiscountsSet.shopMoney
+        : null,
     shippingAddress: o.shippingAddress
       ? {
           name: o.shippingAddress.name ?? null,
