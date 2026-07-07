@@ -15,12 +15,25 @@ export type ShopifyCustomer = {
   amountSpent: Money | null;
 };
 export type Tracking = { number: string | null; url: string | null; company: string | null };
+export type LineItemProperty = { key: string; value: string };
 export type LineItem = {
   title: string;
   variantTitle: string | null;
   quantity: number;
   price: Money | null;
   imageUrl: string | null;
+  // Personalisierung/Gravur: Shopify line-item customAttributes (interne _-Keys gefiltert).
+  properties: LineItemProperty[];
+};
+export type ShopifyAddress = {
+  name: string | null;
+  address1: string | null;
+  address2: string | null;
+  zip: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  phone: string | null;
 };
 export type ShopifyOrder = {
   id: string;
@@ -30,6 +43,8 @@ export type ShopifyOrder = {
   total: Money | null;
   financialStatus: string | null;
   fulfillmentStatus: string | null;
+  discountCodes: string[];
+  shippingAddress: ShopifyAddress | null;
   tracking: Tracking[];
   lineItems: LineItem[];
 };
@@ -65,6 +80,17 @@ const ORDER_FIELDS = `
   displayFinancialStatus
   displayFulfillmentStatus
   totalPriceSet { shopMoney { amount currencyCode } }
+  discountCodes
+  shippingAddress {
+    name
+    address1
+    address2
+    zip
+    city
+    province
+    country
+    phone
+  }
   fulfillments(first: 10) { trackingInfo { number url company } }
   lineItems(first: 25) {
     nodes {
@@ -73,6 +99,7 @@ const ORDER_FIELDS = `
       quantity
       originalUnitPriceSet { shopMoney { amount currencyCode } }
       image { url }
+      customAttributes { key value }
     }
   }
 `;
@@ -95,6 +122,19 @@ function mapOrder(o: any): ShopifyOrder {
     total: o.totalPriceSet?.shopMoney ?? null,
     financialStatus: o.displayFinancialStatus ?? null,
     fulfillmentStatus: o.displayFulfillmentStatus ?? null,
+    discountCodes: (o.discountCodes ?? []).filter(Boolean),
+    shippingAddress: o.shippingAddress
+      ? {
+          name: o.shippingAddress.name ?? null,
+          address1: o.shippingAddress.address1 ?? null,
+          address2: o.shippingAddress.address2 ?? null,
+          zip: o.shippingAddress.zip ?? null,
+          city: o.shippingAddress.city ?? null,
+          province: o.shippingAddress.province ?? null,
+          country: o.shippingAddress.country ?? null,
+          phone: o.shippingAddress.phone ?? null,
+        }
+      : null,
     tracking: (o.fulfillments ?? []).flatMap((f: any) => f.trackingInfo ?? []),
     lineItems: (o.lineItems?.nodes ?? []).map((li: any) => ({
       title: li.title,
@@ -102,6 +142,10 @@ function mapOrder(o: any): ShopifyOrder {
       quantity: li.quantity,
       price: li.originalUnitPriceSet?.shopMoney ?? null,
       imageUrl: li.image?.url ?? null,
+      // Gravur/Personalisierung: nur befüllte, nicht-interne (_-Präfix) Attribute.
+      properties: (li.customAttributes ?? [])
+        .filter((a: any) => a?.value && String(a.value).trim() && !String(a.key).startsWith("_"))
+        .map((a: any) => ({ key: String(a.key), value: String(a.value) })),
     })),
   };
 }

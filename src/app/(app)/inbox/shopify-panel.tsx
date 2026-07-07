@@ -145,6 +145,45 @@ function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: Ref
         <Badges order={order} />
       </div>
 
+      {order.discountCodes.length > 0 && (
+        <div className="sec">
+          <div className="sec-label">Rabatte genutzt</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {order.discountCodes.map((code, i) => {
+              const known = /welcome|newsletter/i.test(code);
+              return (
+                <span
+                  key={i}
+                  className={`sbadge ${known ? "paid" : "unfulfilled"}`}
+                  style={{ textTransform: "uppercase" }}
+                  title={known ? "Welcome/Newsletter-Rabatt" : "Rabattcode"}
+                >
+                  🏷 {code}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {order.shippingAddress && (
+        <div className="sec">
+          <div className="sec-label">Lieferadresse</div>
+          <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+            {order.shippingAddress.name && <div>{order.shippingAddress.name}</div>}
+            {order.shippingAddress.address1 && <div>{order.shippingAddress.address1}</div>}
+            {order.shippingAddress.address2 && <div>{order.shippingAddress.address2}</div>}
+            <div>{[order.shippingAddress.zip, order.shippingAddress.city].filter(Boolean).join(" ")}</div>
+            {(order.shippingAddress.province || order.shippingAddress.country) && (
+              <div className="muted">
+                {[order.shippingAddress.province, order.shippingAddress.country].filter(Boolean).join(", ")}
+              </div>
+            )}
+            {order.shippingAddress.phone && <div className="muted">📞 {order.shippingAddress.phone}</div>}
+          </div>
+        </div>
+      )}
+
       {order.tracking.length > 0 && (
         <div className="sec">
           <div className="sec-label">Sendungsverfolgung</div>
@@ -181,6 +220,26 @@ function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: Ref
                   {li.variantTitle ? `${li.variantTitle} · ` : ""}
                   {li.quantity}×
                 </div>
+                {li.properties.length > 0 && (
+                  <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3 }}>
+                    {li.properties.map((p, j) => (
+                      <div
+                        key={j}
+                        style={{
+                          fontSize: 12,
+                          background: "var(--panel-2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 6,
+                          padding: "3px 7px",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        <span className="muted">✏️ {p.key}: </span>
+                        <b>{p.value}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="li-price">{li.price ? euro(li.price.amount, li.price.currencyCode) : ""}</div>
             </div>
