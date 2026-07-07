@@ -20,6 +20,10 @@ export async function loadProfile(shopId: string): Promise<ProfileView> {
   });
 
   const data: ProfileData = { ...emptyProfile(), ...(row?.data ?? {}) };
+  // Defensiv: Altdaten können examples/faq als null gespeichert haben -> sonst crasht das
+  // Rendern (data.examples.filter / .map). Immer als Liste garantieren.
+  if (!Array.isArray(data.examples)) data.examples = [];
+  if (!Array.isArray(data.faq)) data.faq = [];
   const sources: ProfileSources = row?.sources ?? {};
 
   /* eslint-disable @typescript-eslint/no-explicit-any */

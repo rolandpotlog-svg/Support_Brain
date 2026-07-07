@@ -97,7 +97,8 @@ export function buildSystemPrompt(data: ProfileData, shopName: string): string {
       data.greeting && `Begrüßung: „${data.greeting}".`,
       // Signatur NICHT als Anweisung — sie wird deterministisch an den Entwurf angehängt
       // (immer exakt gleich, kann nicht von der KI abgewandelt werden).
-      ...data.examples.filter(Boolean).map((ex, i) => `Beispiel-Antwort ${i + 1}:\n${ex}`),
+      // Defensiv: examples/faq können in Altdaten null sein -> als leere Liste behandeln.
+      ...(data.examples ?? []).filter(Boolean).map((ex, i) => `Beispiel-Antwort ${i + 1}:\n${ex}`),
     ]),
   );
 
@@ -116,7 +117,7 @@ export function buildSystemPrompt(data: ProfileData, shopName: string): string {
   blocks.push(
     section("Produktwissen & häufige Fragen", [
       data.specialties && `Besonderheiten: ${data.specialties}`,
-      ...data.faq
+      ...(data.faq ?? [])
         .filter((f) => f.q.trim() || f.a.trim())
         .map((f) => `F: ${f.q}\nA: ${f.a}`),
     ]),
