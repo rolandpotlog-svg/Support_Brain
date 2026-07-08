@@ -18,7 +18,7 @@ export function FeedbackList({ items }: { items: Item[] }) {
       {items.map((f) => (
         <div key={f.id} className="card" style={{ margin: 0, padding: 12, opacity: f.status === "erledigt" ? 0.6 : 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 12, fontWeight: 700 }}>{f.kind === "bug" ? "🐞 Bug" : "💡 Idee"}</span>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>{f.kind === "bug" ? "🐞 Problem" : f.kind === "gut" ? "👍 Läuft gut" : "💡 Idee"}</span>
             <span className="muted" style={{ fontSize: 11 }}>{f.userEmail ?? "?"} · {new Date(f.createdAtISO).toLocaleDateString("de-DE")}</span>
           </div>
           <div style={{ whiteSpace: "pre-wrap", margin: "6px 0", fontSize: 14 }}>{f.text}</div>

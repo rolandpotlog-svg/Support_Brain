@@ -4,17 +4,20 @@ import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { requireUser, requireOwner } from "@/server/access";
 
-/** Feedback/Idee von einem Mitarbeiter (jeder eingeloggte Nutzer). */
-export async function submitFeedback(kind: "idee" | "bug", text: string) {
+/** Notiz/Feedback von einem Mitarbeiter (jeder eingeloggte Nutzer). gut=läuft, bug=Problem, idee=Vorschlag. */
+export async function submitFeedback(kind: "gut" | "bug" | "idee", text: string) {
   const user = await requireUser();
   const t = text.trim();
   if (!t) throw new Error("Bitte etwas eintragen");
+  const k = kind === "gut" || kind === "bug" ? kind : "idee";
   await db.insert(schema.feedback).values({
     userId: user.id,
     userEmail: user.email,
-    kind: kind === "bug" ? "bug" : "idee",
+    kind: k,
     text: t,
   });
+  revalidatePath("/notizen");
+  revalidatePath("/roadmap");
 }
 
 /** Owner: Feedback als erledigt/neu markieren oder löschen. */
