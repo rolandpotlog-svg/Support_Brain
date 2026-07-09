@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, count, desc, eq, ilike, inArray, isNull, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, or, type SQL } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accessibleShopIds, assignableUsers, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
@@ -17,21 +17,25 @@ const FOLDERS = [
   { key: "unassigned", label: "Nicht zugewiesen", ico: "👥" },
   { key: "solved", label: "Gelöst", ico: "✓" },
   { key: "spam", label: "Spam", ico: "⊘" },
+  { key: "trash", label: "Papierkorb", ico: "🗑" },
 ] as const;
 
 function folderConds(folder: string, userId: string, shopId: string): SQL[] {
   const base: SQL[] = [eq(schema.threads.shopId, shopId)];
+  // Papierkorb zeigt nur gelöschte; alle anderen Ordner blenden gelöschte aus.
+  if (folder === "trash") return [...base, isNotNull(schema.threads.deletedAt)];
+  const live: SQL[] = [...base, isNull(schema.threads.deletedAt)];
   switch (folder) {
     case "mine":
-      return [...base, eq(schema.threads.assigneeId, userId), inArray(schema.threads.status, OPEN)];
+      return [...live, eq(schema.threads.assigneeId, userId), inArray(schema.threads.status, OPEN)];
     case "unassigned":
-      return [...base, isNull(schema.threads.assigneeId), inArray(schema.threads.status, OPEN)];
+      return [...live, isNull(schema.threads.assigneeId), inArray(schema.threads.status, OPEN)];
     case "solved":
-      return [...base, eq(schema.threads.status, "closed")];
+      return [...live, eq(schema.threads.status, "closed")];
     case "spam":
-      return [...base, eq(schema.threads.status, "spam")];
+      return [...live, eq(schema.threads.status, "spam")];
     default:
-      return [...base, inArray(schema.threads.status, OPEN)];
+      return [...live, inArray(schema.threads.status, OPEN)];
   }
 }
 
@@ -93,7 +97,7 @@ export default async function InboxPage({
         ilike(schema.threads.customerName, like),
       ];
       if (/^\d+$/.test(search)) parts.push(eq(schema.threads.number, Number(search)));
-      return and(eq(schema.threads.shopId, shopId), or(...parts)!)!;
+      return and(eq(schema.threads.shopId, shopId), isNull(schema.threads.deletedAt), or(...parts)!)!;
     }
     return and(...folderConds(folder, user.id, shopId))!;
   }
@@ -276,6 +280,7 @@ export default async function InboxPage({
             status: selected.status,
             assigneeId: selected.assigneeId,
             tag: selected.tag,
+            deleted: selectedThread!.deletedAt != null,
           }}
           messages={selected.messages}
           supportEmail={supportEmail}

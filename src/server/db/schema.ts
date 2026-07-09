@@ -345,6 +345,8 @@ export const threads = pgTable(
     // Effizienz-Tracking: wann zuerst geantwortet / wann geschlossen.
     firstResponseAt: timestamp("first_response_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    // Papierkorb: gesetzt = Ticket ausgeblendet, Mail wandert serverseitig in den Trash-Ordner.
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
     // KI-Klassifizierung (einmalig je Ticket, dann deterministisch aggregiert).
     aiCategory: text("ai_category"),
     aiSentiment: text("ai_sentiment"),

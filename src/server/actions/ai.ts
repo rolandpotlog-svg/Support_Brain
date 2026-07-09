@@ -8,6 +8,7 @@ import { getSettings } from "@/server/returns";
 import { sendWeeklyReport } from "@/server/reports-send";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
+import { trackingUrl } from "@/lib/shopify/client";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
 import { euro } from "@/lib/format";
 
@@ -16,7 +17,14 @@ function money(m: { amount: string; currencyCode: string } | null): string {
 }
 
 function orderLines(o: import("@/lib/shopify/client").ShopifyOrder): string {
-  const tracking = o.tracking.map((t) => `${t.company ?? "Carrier"} ${t.number ?? ""}`.trim()).join(", ");
+  // Tracking inkl. echtem Sendungslink (Carrier-korrekt), damit die KI den richtigen Link einsetzt.
+  const tracking = o.tracking
+    .map((t) => {
+      const label = `${t.company ?? "Carrier"} ${t.number ?? ""}`.trim();
+      const url = trackingUrl(t);
+      return url ? `${label} — Sendungslink: ${url}` : label;
+    })
+    .join(" | ");
   const items = o.lineItems.map((li) => `${li.quantity}× ${li.title}`).join(", ");
   return [
     `Bestellung ${o.name} vom ${new Date(o.createdAt).toLocaleDateString("de-DE")}`,

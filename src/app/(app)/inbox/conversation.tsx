@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   addNote,
   assignThread,
+  deleteThread,
   escalateThread,
   replyToThread,
+  restoreThread,
   retrySend,
   setThreadStatus,
   setThreadTag,
@@ -38,6 +40,7 @@ type Thread = {
   status: string;
   assigneeId: string | null;
   tag: string | null;
+  deleted?: boolean;
 };
 
 export function Conversation({
@@ -79,6 +82,7 @@ export function Conversation({
 
   const isClosed = thread.status === "closed";
   const isSpam = thread.status === "spam";
+  const isDeleted = !!thread.deleted;
 
   return (
     <section className="convo">
@@ -110,6 +114,20 @@ export function Conversation({
         >
           {isSpam ? "Kein Spam" : "⊘ Spam"}
         </button>
+        {isDeleted ? (
+          <button disabled={pending} onClick={() => run(() => restoreThread(thread.id))}>
+            ↩ Wiederherstellen
+          </button>
+        ) : (
+          <button
+            className="warn"
+            disabled={pending}
+            title="Ins Papierkorb legen — Mail wandert in den Trash-Ordner"
+            onClick={() => run(() => deleteThread(thread.id))}
+          >
+            🗑 Löschen
+          </button>
+        )}
       </div>
 
       <div className="ctoolbar">

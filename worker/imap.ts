@@ -15,7 +15,7 @@ function normalizeSubject(subject: string | null | undefined): string {
   return s.trim().toLowerCase();
 }
 
-type Folders = { inbox: string; wartet: string; erledigt: string; sent: string };
+type Folders = { inbox: string; wartet: string; erledigt: string; sent: string; trash: string; junk: string };
 type MailboxRow = typeof schema.shopMailboxes.$inferSelect;
 
 /** Ordner sicherstellen (anlegen, falls fehlend) + Sent-Ordner finden. */
@@ -39,27 +39,48 @@ async function setupFolders(client: ImapFlow): Promise<Folders> {
     }
   }
 
-  let sent = list.find((m) => m.specialUse === "\\Sent")?.path;
-  if (!sent) {
-    const names = ["Sent", "Gesendet", "Sent Items", "Gesendete Objekte", prefix + "Sent", prefix + "Gesendet"];
-    sent = list.find((m) => names.some((n) => up(m.path) === up(n)))?.path;
-  }
-  if (!sent) {
-    sent = prefix + "Gesendet";
-    try {
-      await client.mailboxCreate(sent);
-    } catch {
-      /* egal */
+  // Sonder-Ordner (Gesendet/Papierkorb/Junk) über specialUse oder gängige Namen finden, sonst anlegen.
+  const findSpecial = async (special: string, names: string[], fallback: string): Promise<string> => {
+    let path = list.find((m) => m.specialUse === special)?.path;
+    if (!path) path = list.find((m) => names.some((n) => up(m.path) === up(n)))?.path;
+    if (!path) {
+      path = prefix + fallback;
+      if (!list.some((m) => m.path === path)) {
+        try {
+          await client.mailboxCreate(path);
+        } catch {
+          /* existiert schon / egal */
+        }
+      }
     }
-  }
-  return { inbox: "INBOX", wartet, erledigt, sent };
+    return path;
+  };
+
+  const sent = await findSpecial(
+    "\\Sent",
+    ["Sent", "Gesendet", "Sent Items", "Gesendete Objekte", prefix + "Sent", prefix + "Gesendet"],
+    "Gesendet",
+  );
+  const trash = await findSpecial(
+    "\\Trash",
+    ["Trash", "Papierkorb", "Deleted", "Deleted Items", "Deleted Messages", "Gelöscht", "Gelöschte Objekte", prefix + "Papierkorb"],
+    "Papierkorb",
+  );
+  const junk = await findSpecial(
+    "\\Junk",
+    ["Junk", "Spam", "Junk E-mail", "Junk Email", "Bulk Mail", prefix + "Spam"],
+    "Spam",
+  );
+  return { inbox: "INBOX", wartet, erledigt, sent, trash, junk };
 }
 
-/** Ziel-Ordner aus dem Ticket-Status (Tool ist führend). */
-function desiredFolder(status: string, F: Folders): string {
-  if (status === "closed") return F.erledigt;
+/** Ziel-Ordner aus dem Ticket-Zustand (Tool ist führend). */
+function desiredFolder(status: string, deletedAt: Date | null, F: Folders): string {
+  if (deletedAt) return F.trash; // gelöscht -> Papierkorb
+  if (status === "closed") return F.erledigt; // abgeschlossen -> Erledigt
   if (status === "pending") return F.wartet;
-  return F.inbox; // open, escalated, spam -> bleibt im Posteingang
+  if (status === "spam") return F.junk; // Spam -> Junk-Ordner
+  return F.inbox; // open, escalated -> bleibt im Posteingang
 }
 
 function encHeader(s: string): string {
@@ -80,11 +101,6 @@ function buildMime(o: { toEmail: string | null; subject: string | null; bodyText
     "Content-Transfer-Encoding: 8bit",
   ].filter(Boolean);
   return headers.join("\r\n") + "\r\n\r\n" + (o.bodyText ?? "");
-}
-
-function hasCap(client: ImapFlow, cap: string): boolean {
-  const c = client.capabilities as unknown as { has?: (k: string) => boolean } | undefined;
-  return Boolean(c?.has?.(cap));
 }
 
 async function resolveThreadId(
@@ -129,14 +145,15 @@ async function resolveThreadId(
 
 /** Bearbeitete Mails serverseitig in den passenden Ordner spiegeln (Status -> Ordner). */
 async function reconcileFolders(client: ImapFlow, mb: MailboxRow, F: Folders) {
-  if (!hasCap(client, "MOVE")) return; // ohne MOVE nicht verschieben (kein Löschen riskieren)
-
+  // Verschieben via messageMove: nutzt MOVE, falls vorhanden — sonst emuliert ImapFlow via COPY+EXPUNGE.
+  // (Kein früher Abbruch mehr bei fehlender MOVE-Capability; sonst blieb alles im Posteingang liegen.)
   const rows = await db
     .select({
       id: schema.messages.id,
       imapUid: schema.messages.imapUid,
       imapFolder: schema.messages.imapFolder,
       status: schema.threads.status,
+      deletedAt: schema.threads.deletedAt,
     })
     .from(schema.messages)
     .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
@@ -150,7 +167,7 @@ async function reconcileFolders(client: ImapFlow, mb: MailboxRow, F: Folders) {
     );
 
   const moves = rows
-    .map((r) => ({ ...r, target: desiredFolder(r.status, F) }))
+    .map((r) => ({ ...r, target: desiredFolder(r.status, r.deletedAt, F) }))
     .filter((r) => r.target !== r.imapFolder);
   if (!moves.length) return;
 

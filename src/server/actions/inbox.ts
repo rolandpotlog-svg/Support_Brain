@@ -191,3 +191,22 @@ export async function retrySend(messageId: string) {
     .where(eq(schema.outbox.messageId, messageId));
   revalidatePath("/inbox");
 }
+
+/** Ticket in den Papierkorb legen. Beim nächsten Worker-Lauf wandert die Mail in den Trash-Ordner. */
+export async function deleteThread(threadId: string) {
+  const t = await loadThread(threadId);
+  await requireWrite(t.shopId, "support");
+  await db.update(schema.threads).set({ deletedAt: new Date() }).where(eq(schema.threads.id, threadId));
+  revalidatePath("/inbox");
+}
+
+/** Ticket aus dem Papierkorb wiederherstellen (zurueck in den Posteingang). */
+export async function restoreThread(threadId: string) {
+  const t = await loadThread(threadId);
+  await requireWrite(t.shopId, "support");
+  await db
+    .update(schema.threads)
+    .set({ deletedAt: null, status: "open" })
+    .where(eq(schema.threads.id, threadId));
+  revalidatePath("/inbox");
+}
