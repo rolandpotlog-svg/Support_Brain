@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { db, schema } from "@/server/db";
 import { assertShopAccess, requireUser, requireWrite } from "@/server/access";
 import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
+import { sendOutboxMessage } from "@/server/send";
 
 /** Aktiven Shop wechseln (vom Shop-Umschalter aufgerufen). */
 export async function setActiveShop(shopId: string, redirectTo: string = "/inbox") {
@@ -145,6 +146,7 @@ export async function replyToThread(threadId: string, bodyText: string) {
       : "edited"
     : "manual";
 
+  let createdMessageId: string | null = null;
   await db.transaction(async (tx) => {
     const [msg] = await tx
       .insert(schema.messages)
@@ -161,6 +163,7 @@ export async function replyToThread(threadId: string, bodyText: string) {
         sentBy: user.id,
       })
       .returning({ id: schema.messages.id });
+    createdMessageId = msg.id;
     await tx.insert(schema.outbox).values({ messageId: msg.id });
     await tx
       .update(schema.threads)
@@ -173,6 +176,16 @@ export async function replyToThread(threadId: string, bodyText: string) {
       })
       .where(eq(schema.threads.id, threadId));
   });
+
+  // SOFORT senden (nicht auf den Worker warten). Klappt es, sieht der Mitarbeiter direkt „gesendet".
+  // Schlägt SMTP fehl, bleibt die Zeile in der Warteschlange und der Worker versucht es erneut.
+  if (createdMessageId) {
+    try {
+      await sendOutboxMessage(createdMessageId);
+    } catch {
+      /* egal — Worker übernimmt den Retry */
+    }
+  }
 
   revalidatePath(`/threads/${threadId}`);
   revalidatePath("/inbox");

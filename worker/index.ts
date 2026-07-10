@@ -10,8 +10,9 @@ import { autoTagRecent } from "../src/server/ai/autotag";
 
 async function runCycle() {
   try {
-    const fetched = await ingestAll();
+    // Erst senden (Ausgang hat Vorrang) — dann abholen + Ordner spiegeln (kann bei vielen Mails dauern).
     const sent = await processOutbox();
+    const fetched = await ingestAll();
     let tagged = 0;
     try {
       tagged = await autoTagRecent();
