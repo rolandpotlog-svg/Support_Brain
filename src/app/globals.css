@@ -546,3 +546,16 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .kpi-chan-row { display: flex; justify-content: space-between; font-size: 13px; }
 .kpi-chan-row b { font-variant-numeric: tabular-nums; }
 .kpi-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* Kontrolle: Warnbanner für hängende (nicht zugestellte) Antworten */
+.stuckbar {
+  margin: 8px 10px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger, #e5634d) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger, #e5634d) 40%, transparent);
+  color: var(--danger, #e5634d);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.stuckbar a { color: inherit; font-weight: 700; text-decoration: underline; }

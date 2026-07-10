@@ -191,9 +191,8 @@ export async function replyToThread(threadId: string, bodyText: string) {
   revalidatePath("/inbox");
 }
 
-/** Fehlgeschlagenen Versand erneut in die Warteschlange stellen (Worker sendet dann neu). */
+/** Hängende/fehlgeschlagene Antwort sofort erneut senden (nicht nur neu einreihen). */
 export async function retrySend(messageId: string) {
-  const user = await requireUser();
   const msg = await db.query.messages.findFirst({ where: eq(schema.messages.id, messageId) });
   if (!msg) throw new Error("Nachricht nicht gefunden");
   const t = await loadThread(msg.threadId);
@@ -202,6 +201,12 @@ export async function retrySend(messageId: string) {
     .update(schema.outbox)
     .set({ status: "pending", attempts: 0, lastError: null })
     .where(eq(schema.outbox.messageId, messageId));
+  // Direkt zustellen, damit der Mitarbeiter sofort das Ergebnis sieht.
+  try {
+    await sendOutboxMessage(messageId);
+  } catch {
+    /* egal — Worker übernimmt den Retry */
+  }
   revalidatePath("/inbox");
 }
 

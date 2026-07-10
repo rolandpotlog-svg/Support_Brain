@@ -30,6 +30,7 @@ type Msg = {
   createdAt: string;
   sendStatus?: "pending" | "sent" | "failed" | null;
   sendError?: string | null;
+  sendStuck?: boolean;
 };
 type Assignee = { id: string; name: string | null; email: string };
 type Thread = {
@@ -224,7 +225,22 @@ export function Conversation({
               {m.direction === "outbound" && m.sendStatus && (
                 <div className="sendstatus" style={{ marginTop: 6 }}>
                   {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ gesendet</span>}
-                  {m.sendStatus === "pending" && <span className="muted" style={{ fontSize: 12 }}>⏳ in Warteschlange…</span>}
+                  {m.sendStatus === "pending" && !m.sendStuck && (
+                    <span style={{ fontSize: 12, display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <span className="muted">⏳ in Warteschlange…</span>
+                      <button className="btnlink" disabled={pending} onClick={() => run(() => retrySend(m.id))} style={{ fontSize: 12 }}>
+                        Jetzt senden
+                      </button>
+                    </span>
+                  )}
+                  {m.sendStatus === "pending" && m.sendStuck && (
+                    <span className="bad-text" style={{ fontSize: 12, display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      ⚠ Hängt fest — noch nicht zugestellt
+                      <button className="btnlink" disabled={pending} onClick={() => run(() => retrySend(m.id))} style={{ fontSize: 12 }}>
+                        Jetzt senden
+                      </button>
+                    </span>
+                  )}
                   {m.sendStatus === "failed" && (
                     <span className="bad-text" style={{ fontSize: 12, display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       ⚠ Senden fehlgeschlagen{m.sendError ? `: ${m.sendError}` : ""}

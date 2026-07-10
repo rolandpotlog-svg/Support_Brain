@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, lt, or, type SQL } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accessibleShopIds, assignableUsers, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
@@ -10,6 +10,9 @@ import { ShopifyPanel } from "./shopify-panel";
 import { SyncButton } from "./sync-button";
 
 const OPEN: ("open" | "pending" | "escalated")[] = ["open", "pending", "escalated"];
+
+// Ab wann eine noch nicht gesendete Antwort als "hängt fest" gilt (Kontrolle gegen stille Ausfälle).
+const STUCK_SEND_MS = Number(process.env.STUCK_SEND_MINUTES ?? 10) * 60_000;
 
 const FOLDERS = [
   { key: "all-open", label: "Alle Offenen", ico: "📥" },
@@ -87,6 +90,25 @@ export default async function InboxPage({
     );
   }
 
+  // Kontrolle: Antworten, die seit über der Schwelle in der Warteschlange hängen (nicht zugestellt).
+  let stuckSends: { number: number; id: string }[] = [];
+  if (activeShopId) {
+    stuckSends = await db
+      .selectDistinct({ number: schema.threads.number, id: schema.threads.id })
+      .from(schema.outbox)
+      .innerJoin(schema.messages, eq(schema.messages.id, schema.outbox.messageId))
+      .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+      .where(
+        and(
+          eq(schema.threads.shopId, activeShopId),
+          eq(schema.outbox.status, "pending"),
+          lt(schema.outbox.createdAt, new Date(Date.now() - STUCK_SEND_MS)),
+        ),
+      )
+      .orderBy(desc(schema.threads.number))
+      .limit(50);
+  }
+
   // Ticket-Liste: bei Suche shop-weit über alle Status, sonst aktiver Ordner.
   function listWhere(shopId: string): SQL {
     if (search) {
@@ -146,7 +168,7 @@ export default async function InboxPage({
       // Sende-Status (Outbox) je ausgehender Nachricht — für „gesendet/Warteschlange/fehlgeschlagen".
       const outboxRows = messages.length
         ? await db
-            .select({ messageId: schema.outbox.messageId, status: schema.outbox.status, lastError: schema.outbox.lastError })
+            .select({ messageId: schema.outbox.messageId, status: schema.outbox.status, lastError: schema.outbox.lastError, createdAt: schema.outbox.createdAt })
             .from(schema.outbox)
             .where(inArray(schema.outbox.messageId, messages.map((m) => m.id)))
         : [];
@@ -175,6 +197,10 @@ export default async function InboxPage({
           createdAt: m.createdAt.toISOString(),
           sendStatus: obMap.get(m.id)?.status ?? null,
           sendError: obMap.get(m.id)?.lastError ?? null,
+          // "hängt fest": noch in Warteschlange, aber älter als die Schwelle -> nicht zugestellt.
+          sendStuck:
+            obMap.get(m.id)?.status === "pending" &&
+            obMap.get(m.id)!.createdAt < new Date(Date.now() - STUCK_SEND_MS),
         })),
       };
     }
@@ -224,6 +250,18 @@ export default async function InboxPage({
 
       {/* Spalte: Ticket-Liste */}
       <section className="tickets">
+        {stuckSends.length > 0 && (
+          <div className="stuckbar" title="Diese Antworten wurden noch nicht zugestellt">
+            ⚠ {stuckSends.length} Antwort(en) hängen fest (nicht zugestellt):{" "}
+            {stuckSends.slice(0, 8).map((s, i) => (
+              <span key={s.id}>
+                {i > 0 ? ", " : ""}
+                <Link href={`/inbox?folder=${folder}&ticket=${s.id}`}>#{s.number}</Link>
+              </span>
+            ))}
+            {stuckSends.length > 8 ? " …" : ""} — Postfach/Worker prüfen.
+          </div>
+        )}
         <div className="head">
           <span className="title">
             <span className="play">▶</span> {search ? `Suche: „${search}"` : activeFolder.label}
@@ -317,4 +355,5 @@ type Msg = {
   createdAt: string;
   sendStatus: "pending" | "sent" | "failed" | null;
   sendError: string | null;
+  sendStuck: boolean;
 };
