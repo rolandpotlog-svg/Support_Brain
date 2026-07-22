@@ -13,17 +13,17 @@ const REPELLO: ProfileData = {
     "Repello steht für giftfreien, tierfreundlichen Schutz von Zuhause und Garten — freundlich, kompetent, ruhig und souverän, menschlich, lösungsorientiert. Jeder Kunde soll sich ernst genommen, verstanden und gut betreut fühlen.",
   website: "",
   supportHours: "",
-  address: "du",
+  address: "sie",
   style: "locker",
-  greeting: "Hallo und vielen Dank für deine Nachricht 😊",
-  signature: "Liebe Grüße\nDein Repello-Team",
+  greeting: "Hallo Herr/Frau [Nachname],",
+  signature: "Liebe Grüße\nIhr Repello-Team",
   emojis: "ja",
   length: "kurz",
   examples: [
-    "Hallo und vielen Dank für deine Nachricht 😊\n\nGerne helfen wir dir weiter.\n\n[Antwort]\n\nFalls du noch Fragen hast, sind wir jederzeit für dich da. 👍",
-    "Vielen Dank für dein Feedback.\n\nSchade, dass deine Erfahrung nicht wie gewünscht verlaufen ist.\n\nBitte sende uns kurz deine Bestellnummer per Nachricht, damit wir uns deinen Fall persönlich ansehen können.\n\nGemeinsam finden wir eine passende Lösung. 😊",
-    "Vielen Dank für deine Nachricht 😊\n\nJe nach Tierart und Umgebung kann es etwas Zeit dauern, bis die gewünschte Wirkung vollständig eintritt.\n\nWichtig ist, dass das Gerät dauerhaft und entsprechend der Anleitung eingesetzt wird.\n\nFalls du uns kurz beschreibst, welches Produkt du verwendest und gegen welches Tier es eingesetzt wird, helfen wir gerne weiter.",
-    "Vielen Dank für dein tolles Feedback! 😊\n\nEs freut uns sehr zu hören, dass du gute Erfahrungen mit deinem Repello-Produkt gemacht hast.\n\nWir wünschen dir weiterhin ein geschütztes Zuhause und viel Freude mit deinem Produkt. 🏡",
+    "Hallo und vielen Dank für Ihre Nachricht 😊\n\nGerne helfen wir Ihnen weiter.\n\n[Antwort]\n\nFalls Sie noch Fragen haben, sind wir jederzeit für Sie da. 👍",
+    "Vielen Dank für Ihr Feedback.\n\nSchade, dass Ihre Erfahrung nicht wie gewünscht verlaufen ist.\n\nBitte senden Sie uns kurz Ihre Bestellnummer, damit wir uns Ihren Fall persönlich ansehen können.\n\nGemeinsam finden wir eine passende Lösung. 😊",
+    "Vielen Dank für Ihre Nachricht 😊\n\nJe nach Tierart und Umgebung kann es etwas Zeit dauern, bis die gewünschte Wirkung vollständig eintritt.\n\nWichtig ist, dass das Gerät dauerhaft und entsprechend der Anleitung eingesetzt wird.\n\nFalls Sie uns kurz beschreiben, welches Produkt Sie verwenden und gegen welches Tier es eingesetzt wird, helfen wir gerne weiter.",
+    "Vielen Dank für Ihr tolles Feedback! 😊\n\nEs freut uns sehr zu hören, dass Sie gute Erfahrungen mit Ihrem Repello-Produkt gemacht haben.\n\nWir wünschen Ihnen weiterhin ein geschütztes Zuhause und viel Freude mit Ihrem Produkt. 🏡",
   ],
   returnPeriod:
     "Rücksendung in ungenutztem Zustand und Originalverpackung an: Repello Retourenabteilung, Roland Potlog, Aufeldstraße 21, 4050 Traun, Österreich. Immer Bestellnummer und vollständige Adresse angeben. Es gibt keinen Rücksendeschein.",
@@ -114,7 +114,7 @@ async function main() {
       target: schema.shopProfile.shopId,
       set: { data, sources, systemPrompt },
     });
-  console.log(`${shop.name}: Profil (KI-Wissen) gesetzt — ${slug.includes("lovenja") ? "Lovenja (Sie)" : "Repello (Du)"}.`);
+  console.log(`${shop.name}: Profil (KI-Wissen) gesetzt — ${slug.includes("lovenja") ? "Lovenja (Sie)" : "Repello (Sie)"}.`);
   process.exit(0);
 }
 main().catch((e) => {
