@@ -6,6 +6,7 @@ import { simpleParser } from "mailparser";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, schema } from "../src/server/db/index";
 import { decrypt } from "../src/lib/mailbox/crypto";
+import { bestBodyText } from "../src/lib/mailbox/html-text";
 
 const RE_PREFIX = /^\s*(re|aw|fwd|wg)\s*:\s*/i;
 
@@ -111,10 +112,15 @@ async function resolveThreadId(
   refIds: string[],
 ): Promise<string> {
   if (refIds.length) {
-    const m = await db.query.messages.findFirst({
-      where: inArray(schema.messages.messageId, refIds),
-    });
-    if (m) return m.threadId;
+    // WICHTIG: nur innerhalb DESSELBEN Shops zuordnen — sonst kann eine Antwort im falschen
+    // Shop landen, wenn eine Referenz-Message-ID zufällig zu einem Ticket des anderen Shops passt.
+    const m = await db
+      .select({ threadId: schema.messages.threadId })
+      .from(schema.messages)
+      .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+      .where(and(inArray(schema.messages.messageId, refIds), eq(schema.threads.shopId, shopId)))
+      .limit(1);
+    if (m.length) return m[0].threadId;
   }
 
   const norm = normalizeSubject(subject);
@@ -305,7 +311,8 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
             fromEmail,
             toEmail: mb.fromEmail,
             subject,
-            bodyText: parsed.text ?? null,
+            // HTML-only-Mails: Text aus dem HTML ableiten, sonst bleibt der Verlauf leer.
+            bodyText: bestBodyText(parsed.text ?? null, typeof parsed.html === "string" ? parsed.html : null),
             bodyHtml: typeof parsed.html === "string" ? parsed.html : null,
             messageId,
             inReplyTo,

@@ -51,6 +51,7 @@ export function Conversation({
   assignees,
   disputeId,
   cannedReplies = [],
+  nextHref = null,
 }: {
   thread: Thread;
   messages: Msg[];
@@ -58,6 +59,7 @@ export function Conversation({
   assignees: Assignee[];
   disputeId?: string | null;
   cannedReplies?: { id: string; title: string; body: string }[];
+  nextHref?: string | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
@@ -271,6 +273,7 @@ export function Conversation({
               placeholder="Antwort verfassen… (wird erst nach Freigabe gesendet)"
               value={text}
               onChange={(e) => setText(e.target.value)}
+              style={{ minHeight: 240, resize: "vertical" }}
             />
             <div className="actions">
               {cannedReplies.length > 0 ? (
@@ -321,14 +324,17 @@ export function Conversation({
               <button
                 className="primary"
                 disabled={pending || drafting || !text.trim()}
+                title={nextHref ? "Sendet und springt direkt zum nächsten Ticket" : undefined}
                 onClick={() =>
                   run(async () => {
                     await replyToThread(thread.id, text);
                     setText("");
+                    // Wie im Mail-Fach: nach dem Senden direkt das nächste Ticket öffnen.
+                    if (nextHref) router.push(nextHref);
                   })
                 }
               >
-                {pending ? "Sendet…" : "Antwort freigeben & senden"}
+                {pending ? "Sendet…" : nextHref ? "Senden ▸ nächstes Ticket" : "Antwort freigeben & senden"}
               </button>
             </div>
           </>

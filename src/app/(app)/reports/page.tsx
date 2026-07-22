@@ -6,6 +6,7 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { fullReport, unclassifiedInPeriod, weekdayLabel } from "@/server/reports";
 import { ComplaintAnalysis } from "./complaint-analysis";
+import { CategoryBreakdown } from "./category-breakdown";
 import { ClassifyButton } from "./classify-button";
 import { TestReportButton } from "./test-report-button";
 
@@ -147,19 +148,12 @@ export default async function ReportsPage({
         </p>
         <ClassifyButton shopId={activeShopId} days={days} pending={pending} />
         {r.byCategory.length > 0 ? (
-          <table className="cat-table" style={{ marginTop: 14 }}>
-            <tbody>
-              {r.byCategory.map((c) => (
-                <tr key={c.category}>
-                  <td style={{ width: 220 }}>{c.category}</td>
-                  <td style={{ width: 160 }}>
-                    <div className="catbar" style={{ width: `${Math.round((c.n / maxCat) * 100)}%` }} />
-                  </td>
-                  <td><strong>{c.n}</strong> <Trend cur={c.n} prev={c.prev} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
+              Kategorie anklicken → Tickets dahinter anzeigen (so siehst du auch, was „Sonstiges" enthält).
+            </p>
+            <CategoryBreakdown categories={r.byCategory} tickets={r.categoryTickets} maxCat={maxCat} />
+          </>
         ) : (
           <p className="muted">Noch keine Klassifizierung — Button oben klicken.</p>
         )}

@@ -9,6 +9,7 @@ import { sendWeeklyReport } from "@/server/reports-send";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
 import { trackingUrl } from "@/lib/shopify/client";
+import { bestBodyText } from "@/lib/mailbox/html-text";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
 import { euro } from "@/lib/format";
 
@@ -114,14 +115,16 @@ export async function draftReply(threadId: string, intent?: string): Promise<str
       direction: schema.messages.direction,
       internal: schema.messages.internal,
       bodyText: schema.messages.bodyText,
+      bodyHtml: schema.messages.bodyHtml,
     })
     .from(schema.messages)
     .where(eq(schema.messages.threadId, threadId))
     .orderBy(schema.messages.createdAt);
   const history =
     msgs
-      .filter((m) => !m.internal && m.bodyText)
-      .map((m) => `${m.direction === "inbound" ? thread.customerName || "Kunde" : "Support"}: ${m.bodyText!.trim()}`)
+      .map((m) => ({ ...m, text: bestBodyText(m.bodyText, m.bodyHtml) }))
+      .filter((m) => !m.internal && m.text)
+      .map((m) => `${m.direction === "inbound" ? thread.customerName || "Kunde" : "Support"}: ${m.text!.trim()}`)
       .join("\n\n") || "(kein Text)";
 
   let orderContext = "Shopify ist für diesen Shop nicht verbunden.";
@@ -134,7 +137,7 @@ export async function draftReply(threadId: string, intent?: string): Promise<str
       const r = await resolveForThread(creds, {
         email: thread.customerEmail,
         subject: thread.subject,
-        body: firstInbound?.bodyText ?? null,
+        body: firstInbound ? bestBodyText(firstInbound.bodyText, firstInbound.bodyHtml) : null,
         name: thread.customerName,
         manualOrderName: thread.manualOrderName,
       });
@@ -183,16 +186,18 @@ export async function summarizeThread(threadId: string): Promise<string> {
       direction: schema.messages.direction,
       internal: schema.messages.internal,
       bodyText: schema.messages.bodyText,
+      bodyHtml: schema.messages.bodyHtml,
     })
     .from(schema.messages)
     .where(eq(schema.messages.threadId, threadId))
     .orderBy(schema.messages.createdAt);
 
   const transcript = msgs
-    .filter((m) => m.bodyText)
+    .map((m) => ({ ...m, text: bestBodyText(m.bodyText, m.bodyHtml) }))
+    .filter((m) => m.text)
     .map((m) => {
       const who = m.internal ? "Notiz" : m.direction === "inbound" ? thread.customerName || "Kunde" : "Support";
-      return `${who}: ${m.bodyText!.trim()}`;
+      return `${who}: ${m.text!.trim()}`;
     })
     .join("\n\n");
   if (!transcript) return "Kein Text zum Zusammenfassen vorhanden.";

@@ -31,6 +31,7 @@ export type FullReport = {
   classifiedCount: number;
   unclassifiedCount: number;
   byCategory: { category: string; n: number; prev: number }[];
+  categoryTickets: Record<string, { id: string; number: number; subject: string | null; sentiment: string | null }[]>;
   byProduct: { product: string; n: number }[];
   // Effizienz
   avgFirstResponseMin: number | null;
@@ -117,6 +118,8 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
   const threadRows = await db
     .select({
       id: schema.threads.id,
+      number: schema.threads.number,
+      subject: schema.threads.subject,
       createdAt: schema.threads.createdAt,
       status: schema.threads.status,
       tag: schema.threads.tag,
@@ -139,6 +142,8 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
   const tagMap = new Map<string, number>();
   const catCur = new Map<string, number>();
   const catPrev = new Map<string, number>();
+  // Beispiel-Tickets je Kategorie (für den Drilldown „was steckt in Sonstiges?"), max. 40 je Kategorie.
+  const catTickets = new Map<string, { id: string; number: number; subject: string | null; sentiment: string | null }[]>();
   const productMap = new Map<string, number>();
   const sentiment = { positiv: 0, neutral: 0, negativ: 0 };
   let classifiedCount = 0;
@@ -154,6 +159,9 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
       classifiedCount++;
       const c = normalizeCategory(t.aiCategory);
       catCur.set(c, (catCur.get(c) ?? 0) + 1);
+      const arr = catTickets.get(c) ?? [];
+      if (arr.length < 40) arr.push({ id: t.id, number: t.number, subject: t.subject, sentiment: t.aiSentiment });
+      catTickets.set(c, arr);
       if (t.aiProduct) productMap.set(t.aiProduct, (productMap.get(t.aiProduct) ?? 0) + 1);
       const s = t.aiSentiment as keyof typeof sentiment;
       if (s in sentiment) sentiment[s]++;
@@ -319,6 +327,7 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
     classifiedCount,
     unclassifiedCount: newTickets - classifiedCount,
     byCategory,
+    categoryTickets: Object.fromEntries(catTickets),
     byProduct,
     avgFirstResponseMin: respMins.length ? r1(avg(respMins)) : null,
     avgResolutionHours: resHours.length ? r1(avg(resHours)) : null,

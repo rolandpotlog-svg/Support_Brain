@@ -4,6 +4,7 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, assignableUsers, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { initials, tagColor, timeAgo } from "@/lib/format";
+import { bestBodyText } from "@/lib/mailbox/html-text";
 import { Conversation } from "./conversation";
 import { listCannedReplies } from "@/server/canned";
 import { ShopifyPanel } from "./shopify-panel";
@@ -193,7 +194,8 @@ export default async function InboxPage({
           internal: m.internal,
           fromEmail: m.fromEmail,
           subject: m.subject,
-          bodyText: m.bodyText,
+          // HTML-only-Mails lesbar machen (alte Bestände haben teils keinen Klartext).
+          bodyText: bestBodyText(m.bodyText, m.bodyHtml),
           createdAt: m.createdAt.toISOString(),
           sendStatus: obMap.get(m.id)?.status ?? null,
           sendError: obMap.get(m.id)?.lastError ?? null,
@@ -205,6 +207,11 @@ export default async function InboxPage({
       };
     }
   }
+
+  // „Senden & nächstes": das Ticket NACH dem aktuellen in der Liste (gleicher Ordner).
+  const curIdx = ticket ? tickets.findIndex((t) => t.id === ticket) : -1;
+  const nextTicket = curIdx >= 0 ? tickets[curIdx + 1] ?? null : null;
+  const nextHref = nextTicket ? `/inbox?folder=${folder}&ticket=${nextTicket.id}` : null;
 
   const assignees = selected && activeShopId ? await assignableUsers(activeShopId) : [];
   const cannedReplies = selected && activeShopId ? await listCannedReplies(activeShopId) : [];
@@ -325,6 +332,7 @@ export default async function InboxPage({
           assignees={assignees}
           disputeId={disputeId}
           cannedReplies={cannedReplies}
+          nextHref={nextHref}
         />
       ) : (
         <section className="convo">
