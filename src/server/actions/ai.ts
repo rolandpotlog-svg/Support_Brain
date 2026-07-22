@@ -166,7 +166,8 @@ export async function draftReply(threadId: string, intent?: string): Promise<str
     "Verfasse jetzt die nächste Antwort an den Kunden.",
   ].join("\n");
 
-  const draft = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 2000, effort: "low" });
+  // Hoher Denk-Aufwand: der Entwurf ist das Kernprodukt — Qualität vor Sparsamkeit.
+  const draft = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 3000, effort: "high" });
   // Feste Signatur deterministisch anhängen (immer exakt gleich; die KI weicht nie ab).
   const full = signature ? `${draft.trimEnd()}\n\n${signature}` : draft;
   // Entwurf merken, um beim Senden zu erkennen, ob er 1:1 übernommen oder bearbeitet wurde.

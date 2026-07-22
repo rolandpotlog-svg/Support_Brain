@@ -20,6 +20,16 @@ async function deliver(messageId: string): Promise<void> {
     (await db.query.shopMailboxes.findFirst({ where: eq(schema.shopMailboxes.shopId, thread.shopId) }));
   if (!mb) throw new Error("Shop ohne Postfach-Konfiguration");
 
+  // Anhänge der Nachricht mitsenden (Fotos, PDFs …).
+  const atts = await db
+    .select({
+      filename: schema.messageAttachment.filename,
+      contentType: schema.messageAttachment.contentType,
+      content: schema.messageAttachment.content,
+    })
+    .from(schema.messageAttachment)
+    .where(eq(schema.messageAttachment.messageId, messageId));
+
   const transport = nodemailer.createTransport({
     host: mb.smtpHost,
     port: mb.smtpPort,
@@ -39,6 +49,7 @@ async function deliver(messageId: string): Promise<void> {
       text: msg.bodyText ?? "",
       inReplyTo: msg.inReplyTo ?? undefined,
       references: msg.inReplyTo ?? undefined,
+      attachments: atts.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })),
     });
   } finally {
     transport.close();

@@ -303,7 +303,7 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
 
       await db.transaction(async (tx) => {
         const threadId = await resolveThreadId(shop.id, mb.id, fromEmail, subject, refIds);
-        await tx
+        const insertedMsg = await tx
           .insert(schema.messages)
           .values({
             threadId,
@@ -319,7 +319,25 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
             imapUid: uid,
             imapFolder: "INBOX",
           })
-          .onConflictDoNothing();
+          .onConflictDoNothing()
+          .returning({ id: schema.messages.id });
+
+        // Anhänge (Fotos, PDFs …) mit abspeichern — max. 10 Stück à 8 MB.
+        const newMsgDbId = insertedMsg[0]?.id ?? null;
+        if (newMsgDbId) {
+          const atts = (parsed.attachments ?? [])
+            .filter((a) => a.content && a.content.length > 0 && a.content.length <= 8 * 1024 * 1024)
+            .slice(0, 10);
+          for (const a of atts) {
+            await tx.insert(schema.messageAttachment).values({
+              messageId: newMsgDbId,
+              filename: a.filename || "anhang",
+              contentType: a.contentType || "application/octet-stream",
+              sizeBytes: a.content.length,
+              content: a.content,
+            });
+          }
+        }
         // Kunde antwortet auf Wartet/Erledigt -> Ticket wieder offen (Mail kommt zurück in INBOX).
         await tx
           .update(schema.threads)

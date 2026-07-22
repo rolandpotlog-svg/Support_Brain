@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -411,6 +412,30 @@ export const outbox = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
   (t) => [index("outbox_pending_idx").on(t.status, t.createdAt)],
+);
+
+// Binärdaten (Mail-Anhänge) direkt in Postgres.
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+// Anhänge (Fotos, PDFs …) einer Nachricht — eingehend (IMAP) wie ausgehend (Antwort).
+export const messageAttachment = pgTable(
+  "message_attachment",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    content: bytea("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("message_attachment_msg_idx").on(t.messageId)],
 );
 
 export const escalations = pgTable(

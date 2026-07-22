@@ -174,6 +174,25 @@ export default async function InboxPage({
             .where(inArray(schema.outbox.messageId, messages.map((m) => m.id)))
         : [];
       const obMap = new Map(outboxRows.map((o) => [o.messageId, o]));
+      // Anhänge (Fotos etc.) je Nachricht — nur Metadaten, Inhalt kommt über /api/attachments/[id].
+      const attRows = messages.length
+        ? await db
+            .select({
+              id: schema.messageAttachment.id,
+              messageId: schema.messageAttachment.messageId,
+              filename: schema.messageAttachment.filename,
+              contentType: schema.messageAttachment.contentType,
+              sizeBytes: schema.messageAttachment.sizeBytes,
+            })
+            .from(schema.messageAttachment)
+            .where(inArray(schema.messageAttachment.messageId, messages.map((m) => m.id)))
+        : [];
+      const attMap = new Map<string, typeof attRows>();
+      for (const a of attRows) {
+        const arr = attMap.get(a.messageId) ?? [];
+        arr.push(a);
+        attMap.set(a.messageId, arr);
+      }
       const mb = await db.query.shopMailboxes.findFirst({
         where: eq(schema.shopMailboxes.shopId, t.shopId),
       });
@@ -203,6 +222,12 @@ export default async function InboxPage({
           sendStuck:
             obMap.get(m.id)?.status === "pending" &&
             obMap.get(m.id)!.createdAt < new Date(Date.now() - STUCK_SEND_MS),
+          attachments: (attMap.get(m.id) ?? []).map((a) => ({
+            id: a.id,
+            filename: a.filename,
+            contentType: a.contentType,
+            sizeBytes: a.sizeBytes,
+          })),
         })),
       };
     }
@@ -364,4 +389,5 @@ type Msg = {
   sendStatus: "pending" | "sent" | "failed" | null;
   sendError: string | null;
   sendStuck: boolean;
+  attachments: { id: string; filename: string; contentType: string; sizeBytes: number }[];
 };

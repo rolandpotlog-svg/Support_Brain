@@ -218,6 +218,13 @@
       "when": 1783583102176,
       "tag": "0030_thread_deleted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784726975278,
+      "tag": "0031_message_attachments",
+      "breakpoints": true
     }
   ]
 }

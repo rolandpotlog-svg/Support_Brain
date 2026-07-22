@@ -107,7 +107,7 @@ export async function escalateThread(threadId: string, reason: string) {
 }
 
 /** Draft-First: vom Menschen freigegebene Antwort -> Outbound-Message + Outbox-Job. */
-export async function replyToThread(threadId: string, bodyText: string) {
+export async function replyToThread(threadId: string, bodyText: string, filesForm?: FormData) {
   const user = await requireUser();
   const t = await loadThread(threadId);
   await requireWrite(t.shopId, "support");
@@ -176,6 +176,22 @@ export async function replyToThread(threadId: string, bodyText: string) {
       })
       .where(eq(schema.threads.id, threadId));
   });
+
+  // Anhänge VOR dem Senden speichern, damit sie in der Mail mitgehen (max. 5 × 8 MB).
+  if (createdMessageId && filesForm) {
+    const files = filesForm.getAll("files").filter((f): f is File => f instanceof File).slice(0, 5);
+    for (const f of files) {
+      if (f.size <= 0 || f.size > 8 * 1024 * 1024) continue;
+      const buf = Buffer.from(await f.arrayBuffer());
+      await db.insert(schema.messageAttachment).values({
+        messageId: createdMessageId,
+        filename: f.name || "anhang",
+        contentType: f.type || "application/octet-stream",
+        sizeBytes: buf.length,
+        content: buf,
+      });
+    }
+  }
 
   // SOFORT senden (nicht auf den Worker warten). Klappt es, sieht der Mitarbeiter direkt „gesendet".
   // Schlägt SMTP fehl, bleibt die Zeile in der Warteschlange und der Worker versucht es erneut.

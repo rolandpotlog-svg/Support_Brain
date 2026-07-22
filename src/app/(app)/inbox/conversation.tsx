@@ -31,7 +31,50 @@ type Msg = {
   sendStatus?: "pending" | "sent" | "failed" | null;
   sendError?: string | null;
   sendStuck?: boolean;
+  attachments?: { id: string; filename: string; contentType: string; sizeBytes: number }[];
 };
+
+function AttachmentList({ atts }: { atts: { id: string; filename: string; contentType: string; sizeBytes: number }[] }) {
+  if (!atts.length) return null;
+  const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+      {atts.map((a) =>
+        a.contentType.startsWith("image/") ? (
+          <a key={a.id} href={`/api/attachments/${a.id}`} target="_blank" rel="noopener noreferrer" title={`${a.filename} (${kb(a.sizeBytes)})`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/attachments/${a.id}`}
+              alt={a.filename}
+              style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)", display: "block" }}
+            />
+          </a>
+        ) : (
+          <a
+            key={a.id}
+            href={`/api/attachments/${a.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--panel-2)",
+              color: "inherit",
+              textDecoration: "none",
+              fontSize: 13,
+            }}
+          >
+            📎 {a.filename} <span className="muted">({kb(a.sizeBytes)})</span>
+          </a>
+        ),
+      )}
+    </div>
+  );
+}
 type Assignee = { id: string; name: string | null; email: string };
 type Thread = {
   id: string;
@@ -64,6 +107,7 @@ export function Conversation({
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [noteText, setNoteText] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -224,6 +268,7 @@ export function Conversation({
                 <div className="mtime">{timeAgo(new Date(m.createdAt))}</div>
               </div>
               <pre className="mbody">{m.bodyText || "(kein Text)"}</pre>
+              <AttachmentList atts={m.attachments ?? []} />
               {m.direction === "outbound" && m.sendStatus && (
                 <div className="sendstatus" style={{ marginTop: 6 }}>
                   {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ gesendet</span>}
@@ -275,7 +320,49 @@ export function Conversation({
               onChange={(e) => setText(e.target.value)}
               style={{ minHeight: 240, resize: "vertical" }}
             />
+            {files.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 0" }}>
+                {files.map((f, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "4px 8px",
+                      borderRadius: 8,
+                      border: "1px solid var(--border)",
+                      background: "var(--panel-2)",
+                      fontSize: 12,
+                    }}
+                  >
+                    📎 {f.name}
+                    <button
+                      type="button"
+                      onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0 }}
+                      title="Anhang entfernen"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="actions">
+              <label className="btnlink" style={{ cursor: "pointer", fontSize: 13, display: "inline-flex", alignItems: "center" }} title="Datei/Foto anhängen (max. 5 × 8 MB)">
+                📎
+                <input
+                  type="file"
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const list = Array.from(e.target.files ?? []).filter((f) => f.size <= 8 * 1024 * 1024);
+                    setFiles((prev) => [...prev, ...list].slice(0, 5));
+                    e.target.value = "";
+                  }}
+                />
+              </label>
               {cannedReplies.length > 0 ? (
                 <select
                   value=""
@@ -327,8 +414,14 @@ export function Conversation({
                 title={nextHref ? "Sendet und springt direkt zum nächsten Ticket" : undefined}
                 onClick={() =>
                   run(async () => {
-                    await replyToThread(thread.id, text);
+                    let fd: FormData | undefined;
+                    if (files.length) {
+                      fd = new FormData();
+                      for (const f of files) fd.append("files", f);
+                    }
+                    await replyToThread(thread.id, text, fd);
                     setText("");
+                    setFiles([]);
                     // Wie im Mail-Fach: nach dem Senden direkt das nächste Ticket öffnen.
                     if (nextHref) router.push(nextHref);
                   })
