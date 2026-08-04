@@ -3,16 +3,36 @@
 //   npm run worker:once   -> ein Zyklus, dann Ende (z. B. zum Testen / Cron)
 import "dotenv/config";
 import cron from "node-cron";
+import { sql } from "drizzle-orm";
+import { db } from "../src/server/db/index";
 import { ingestAll } from "./imap";
 import { processOutbox } from "./smtp";
 import { runWeeklyReports } from "./reports";
 import { autoTagRecent } from "../src/server/ai/autotag";
+
+// Anhänge (Fotos) automatisch begrenzen: alte löschen, damit die DB nicht vollläuft. Höchstens 1×/Std.
+const KEEP_DAYS = Number(process.env.ATTACHMENT_KEEP_DAYS ?? 30);
+let lastPrune = 0;
+async function pruneOldAttachments() {
+  if (Date.now() - lastPrune < 3_600_000) return; // max. stündlich
+  lastPrune = Date.now();
+  try {
+    const r: any = await db.execute(
+      sql`DELETE FROM message_attachment WHERE created_at < now() - make_interval(days => ${KEEP_DAYS})`,
+    );
+    const n = r?.rowCount ?? 0;
+    if (n) console.log(`[worker] ${n} alte Anhänge (>${KEEP_DAYS} Tage) gelöscht.`);
+  } catch (e) {
+    console.error("[worker] Anhang-Prune-Fehler:", e instanceof Error ? e.message : e);
+  }
+}
 
 async function runCycle() {
   try {
     // Erst senden (Ausgang hat Vorrang) — dann abholen + Ordner spiegeln (kann bei vielen Mails dauern).
     const sent = await processOutbox();
     const fetched = await ingestAll();
+    await pruneOldAttachments();
     let tagged = 0;
     try {
       tagged = await autoTagRecent();

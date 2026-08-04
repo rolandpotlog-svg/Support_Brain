@@ -1,9 +1,10 @@
 "use server";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { requireOwner } from "@/server/access";
 import { hashPassword } from "@/lib/password";
+import { htmlToPlainText } from "@/lib/mailbox/html-text";
 
 const ROLES = ["founder", "admin", "mitarbeiter", "gast"] as const;
 function cleanRole(r: string): (typeof ROLES)[number] {
@@ -88,4 +89,45 @@ export async function removeMembership(userId: string, shopId: string) {
     .delete(schema.userShops)
     .where(and(eq(schema.userShops.userId, userId), eq(schema.userShops.shopId, shopId)));
   revalidatePath("/admin");
+}
+
+/** Wartung: Speicherplatz freigeben (Owner). Entfernt gespeicherte Anhänge + rohes HTML aus der DB. */
+export async function freeSpaceNow(): Promise<{ before: string; after: string; attachments: number; html: number }> {
+  await requireOwner();
+
+  const sizeOf = async (): Promise<string> => {
+    const r = await db.execute(sql`SELECT pg_size_pretty(pg_database_size(current_database())) AS s`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return ((r as any)?.rows ?? r)[0]?.s ?? "?";
+  };
+  const before = await sizeOf();
+
+  // 1) Anhänge sofort freigeben (bleiben im Postfach erhalten).
+  const cntRes = await db.execute(sql`SELECT count(*)::int AS n FROM message_attachment`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const attachments = Number(((cntRes as any)?.rows ?? cntRes)[0]?.n ?? 0);
+  await db.execute(sql`TRUNCATE TABLE message_attachment`);
+
+  // 2) Klartext aus HTML retten, dann HTML löschen.
+  const missing = await db
+    .select({ id: schema.messages.id, bodyHtml: schema.messages.bodyHtml })
+    .from(schema.messages)
+    .where(and(isNotNull(schema.messages.bodyHtml), or(isNull(schema.messages.bodyText), eq(schema.messages.bodyText, ""))));
+  for (const m of missing) {
+    if (m.bodyHtml) await db.update(schema.messages).set({ bodyText: htmlToPlainText(m.bodyHtml) }).where(eq(schema.messages.id, m.id));
+  }
+  const htmlRes = await db.execute(sql`UPDATE messages SET body_html = NULL WHERE body_html IS NOT NULL`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const html = Number((htmlRes as any)?.rowCount ?? 0);
+
+  // 3) Platz an Render zurückgeben (best effort).
+  try {
+    await db.execute(sql`VACUUM FULL message_attachment`);
+    await db.execute(sql`VACUUM FULL messages`);
+  } catch {
+    /* kein Platz für VACUUM FULL -> Schritt 1+2 haben schon geholfen */
+  }
+
+  revalidatePath("/admin");
+  return { before, after: await sizeOf(), attachments, html };
 }

@@ -311,9 +311,10 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
             fromEmail,
             toEmail: mb.fromEmail,
             subject,
-            // HTML-only-Mails: Text aus dem HTML ableiten, sonst bleibt der Verlauf leer.
+            // HTML-only-Mails: Text aus dem HTML ableiten. Das rohe HTML NICHT speichern
+            // (spart massiv DB-Platz — der Klartext genügt für Anzeige und KI).
             bodyText: bestBodyText(parsed.text ?? null, typeof parsed.html === "string" ? parsed.html : null),
-            bodyHtml: typeof parsed.html === "string" ? parsed.html : null,
+            bodyHtml: null,
             messageId,
             inReplyTo,
             imapUid: uid,
@@ -326,8 +327,8 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
         const newMsgDbId = insertedMsg[0]?.id ?? null;
         if (newMsgDbId) {
           const atts = (parsed.attachments ?? [])
-            .filter((a) => a.content && a.content.length > 0 && a.content.length <= 8 * 1024 * 1024)
-            .slice(0, 10);
+            .filter((a) => a.content && a.content.length > 0 && a.content.length <= 5 * 1024 * 1024)
+            .slice(0, 5);
           for (const a of atts) {
             await tx.insert(schema.messageAttachment).values({
               messageId: newMsgDbId,

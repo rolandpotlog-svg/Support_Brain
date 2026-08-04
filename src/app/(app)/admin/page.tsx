@@ -6,6 +6,7 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { createUser, resetUserPassword, setUserActive, setUserOwner } from "@/server/actions/admin";
 import { MembershipForm } from "./membership-form";
+import { Maintenance } from "./maintenance";
 
 export default async function AdminPage() {
   const user = await requireUser();
@@ -43,6 +44,13 @@ export default async function AdminPage() {
   return (
     <div className="adminwrap">
       <h1 style={{ marginTop: 0 }}>Admin</h1>
+
+      {user.isOwner && (
+        <section className="card">
+          <h2>Wartung — Speicher</h2>
+          <Maintenance />
+        </section>
+      )}
 
       {(user.isOwner || caps?.settings) && (
         <section className="card">
