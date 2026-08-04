@@ -7,6 +7,7 @@ import { loadSocialAccounts } from "@/server/social-config";
 import { ShopForm } from "../shop-form";
 import { ProfileForm } from "../profile-form";
 import { SocialConfig } from "../social-config";
+import { LoadDefaults } from "../load-defaults";
 
 export default async function EditShopPage({
   params,
@@ -53,6 +54,7 @@ export default async function EditShopPage({
       </div>
 
       {activeTab === "zugang" && <ShopForm initial={shop} hideHead />}
+      {activeTab === "profil" && <LoadDefaults shopId={id} />}
       {activeTab === "profil" && (
         <ProfileForm
           shopId={id}

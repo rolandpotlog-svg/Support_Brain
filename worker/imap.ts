@@ -265,31 +265,36 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
   }
 
   let processed = 0;
-  let maxUid = mb.lastSeenUid ?? 0;
+  let maxUid = mb.lastSeenUid ?? 0; // höchste ERFOLGREICH verarbeitete UID
+  let firstUnhandled: number | null = null; // niedrigste UID, die (noch) nicht ging -> nicht überspringen
   const newUids: number[] = [];
   const lock = await client.getMailboxLock("INBOX");
   try {
     const range = `${(mb.lastSeenUid ?? 0) + 1}:*`;
+    const markUnhandled = (u: number) => {
+      if (firstUnhandled === null || u < firstUnhandled) firstUnhandled = u;
+    };
     for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
       const uid = msg.uid;
-      if (uid <= (mb.lastSeenUid ?? 0)) {
-        maxUid = Math.max(maxUid, uid);
+      if (uid <= (mb.lastSeenUid ?? 0)) continue; // schon verarbeitet
+      // Kam der Inhalt nicht mit? UID NICHT als gesehen markieren -> nächste Runde erneut (kein Verlust).
+      if (!msg.source) {
+        markUnhandled(uid);
         continue;
       }
-      maxUid = Math.max(maxUid, uid);
-      if (!msg.source) continue;
-
-      const parsed = await simpleParser(msg.source);
-      const messageId = parsed.messageId ?? null;
-      if (messageId) {
-        const dup = await db.query.messages.findFirst({ where: eq(schema.messages.messageId, messageId) });
-        if (dup) {
-          newUids.push(uid);
-          continue;
+      try {
+        const parsed = await simpleParser(msg.source);
+        const messageId = parsed.messageId ?? null;
+        if (messageId) {
+          const dup = await db.query.messages.findFirst({ where: eq(schema.messages.messageId, messageId) });
+          if (dup) {
+            maxUid = Math.max(maxUid, uid);
+            newUids.push(uid);
+            continue;
+          }
         }
-      }
 
-      const fromAddr = parsed.from?.value?.[0];
+        const fromAddr = parsed.from?.value?.[0];
       const fromEmail = fromAddr?.address ?? "unknown";
       const fromName = fromAddr?.name || null;
       const subject = parsed.subject ?? null;
@@ -351,8 +356,15 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
           })
           .where(eq(schema.threads.id, threadId));
       });
-      newUids.push(uid);
-      processed++;
+        maxUid = Math.max(maxUid, uid);
+        newUids.push(uid);
+        processed++;
+      } catch (e) {
+        // Einzelne Mail scheiterte -> NICHT als gesehen markieren, nächste Runde erneut versuchen.
+        // Blockiert die anderen Mails nicht (kein "poison message").
+        console.error(`[ingest] Mail UID ${uid} übersprungen (nächste Runde erneut):`, e instanceof Error ? e.message : e);
+        markUnhandled(uid);
+      }
     }
 
     // Abgeholte Mails als gelesen markieren (kein ungelesener Wust).
@@ -367,10 +379,12 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
     lock.release();
   }
 
-  if (maxUid > (mb.lastSeenUid ?? 0)) {
+  // NIE über eine nicht-verarbeitete UID hinaus vormerken -> solche Mails werden erneut abgeholt.
+  const newLastSeen = firstUnhandled !== null ? Math.min(maxUid, firstUnhandled - 1) : maxUid;
+  if (newLastSeen > (mb.lastSeenUid ?? 0)) {
     await db
       .update(schema.shopMailboxes)
-      .set({ lastSeenUid: maxUid, updatedAt: new Date() })
+      .set({ lastSeenUid: newLastSeen, updatedAt: new Date() })
       .where(eq(schema.shopMailboxes.id, mb.id));
   }
 

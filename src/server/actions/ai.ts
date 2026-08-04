@@ -27,8 +27,9 @@ function orderLines(o: import("@/lib/shopify/client").ShopifyOrder): string {
     })
     .join(" | ");
   const items = o.lineItems.map((li) => `${li.quantity}× ${li.title}`).join(", ");
+  const ageDays = Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 86_400_000);
   return [
-    `Bestellung ${o.name} vom ${new Date(o.createdAt).toLocaleDateString("de-DE")}`,
+    `Bestellung ${o.name} vom ${new Date(o.createdAt).toLocaleDateString("de-DE")} (vor ${ageDays} Tag(en))`,
     `Zahlung: ${o.financialStatus ?? "?"} · Versand: ${o.fulfillmentStatus ?? "?"} · Summe: ${money(o.total)}`,
     tracking ? `Tracking: ${tracking}` : "Tracking: keins hinterlegt",
     items ? `Artikel: ${items}` : "",

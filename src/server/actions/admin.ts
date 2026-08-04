@@ -5,6 +5,7 @@ import { db, schema } from "@/server/db";
 import { requireOwner } from "@/server/access";
 import { hashPassword } from "@/lib/password";
 import { htmlToPlainText } from "@/lib/mailbox/html-text";
+import { applyBrandDefaults } from "@/server/seed-defaults";
 
 const ROLES = ["founder", "admin", "mitarbeiter", "gast"] as const;
 function cleanRole(r: string): (typeof ROLES)[number] {
@@ -130,4 +131,12 @@ export async function freeSpaceNow(): Promise<{ before: string; after: string; a
 
   revalidatePath("/admin");
   return { before, after: await sizeOf(), attachments, html };
+}
+
+/** Standard-KI-Profil + Schnellantworten für einen Brand (neu) laden (Owner). */
+export async function loadBrandDefaults(shopId: string): Promise<{ brand: string; set: string; replies: number }> {
+  await requireOwner();
+  const r = await applyBrandDefaults(shopId);
+  revalidatePath(`/admin/shops/${shopId}`);
+  return r;
 }
