@@ -40,6 +40,7 @@ export type FullReport = {
   backlogAging: number;
   // KI-Qualität
   draftOutcomes: { verbatim: number; edited: number; manual: number };
+  categoryQuality: { category: string; total: number; verbatim: number; edited: number; verbatimPct: number; ready: boolean }[];
   // Sentiment
   sentiment: { positiv: number; neutral: number; negativ: number };
   // Retouren-Portal
@@ -208,9 +209,9 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
     );
   const backlogAging = backlogRows[0]?.n ?? 0;
 
-  // 5) KI-Entwurf-Nutzung in der Periode.
+  // 5) KI-Entwurf-Nutzung in der Periode — gesamt UND je Problem-Kategorie (für die KI-Reife).
   const draftRows = await db
-    .select({ outcome: schema.messages.aiOutcome })
+    .select({ outcome: schema.messages.aiOutcome, category: schema.threads.aiCategory })
     .from(schema.messages)
     .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
     .where(
@@ -221,11 +222,27 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
       ),
     );
   const draftOutcomes = { verbatim: 0, edited: 0, manual: 0 };
+  const catQual = new Map<string, { verbatim: number; edited: number; manual: number }>();
   for (const d of draftRows) {
     if (d.outcome === "verbatim") draftOutcomes.verbatim++;
     else if (d.outcome === "edited") draftOutcomes.edited++;
     else draftOutcomes.manual++;
+    // Nur KI-gestützte Antworten (verbatim/edited) je Kategorie zählen — "manual" war ohne KI.
+    if (d.outcome === "verbatim" || d.outcome === "edited") {
+      const c = normalizeCategory(d.category);
+      const q = catQual.get(c) ?? { verbatim: 0, edited: 0, manual: 0 };
+      q[d.outcome]++;
+      catQual.set(c, q);
+    }
   }
+  // Reife je Kategorie: hoher Anteil "unverändert" + genug Fälle => reif fürs Auto-Senden (später).
+  const categoryQuality = [...catQual.entries()]
+    .map(([category, q]) => {
+      const total = q.verbatim + q.edited;
+      const verbatimPct = total ? Math.round((q.verbatim / total) * 100) : 0;
+      return { category, total, verbatim: q.verbatim, edited: q.edited, verbatimPct, ready: total >= 20 && verbatimPct >= 90 };
+    })
+    .sort((a, b) => b.total - a.total);
 
   // 6) Retouren-Portal (Fälle im Zeitraum).
   const retRows = await db
@@ -334,6 +351,7 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
     fcrRate: closedCur ? fcrCount / closedCur : null,
     backlogAging,
     draftOutcomes,
+    categoryQuality,
     sentiment,
     returns,
     warnings,

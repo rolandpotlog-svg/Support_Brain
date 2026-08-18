@@ -8,6 +8,7 @@ import { db, schema } from "@/server/db";
 import { assertShopAccess, requireUser, requireWrite } from "@/server/access";
 import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
 import { sendOutboxMessage } from "@/server/send";
+import { emailFromBody, isRelayAddress } from "@/lib/mailbox/extract";
 
 /** Aktiven Shop wechseln (vom Shop-Umschalter aufgerufen). */
 export async function setActiveShop(shopId: string, redirectTo: string = "/inbox") {
@@ -133,6 +134,18 @@ export async function replyToThread(threadId: string, bodyText: string, filesFor
     orderBy: desc(schema.messages.createdAt),
   });
 
+  // Empfänger bestimmen. Bei Kontaktformular-/Relay-Adressen (z. B. mailer@shopify.com) den echten
+  // Kunden aus der ersten eingehenden Nachricht ziehen — sonst ginge die Antwort an das Relay.
+  let recipient = t.customerEmail;
+  if (isRelayAddress(recipient)) {
+    const firstInbound = await db.query.messages.findFirst({
+      where: and(eq(schema.messages.threadId, threadId), eq(schema.messages.direction, "inbound")),
+      orderBy: schema.messages.createdAt,
+    });
+    const real = emailFromBody(firstInbound?.bodyText ?? null, mailbox.fromEmail);
+    if (real) recipient = real;
+  }
+
   const subject = (t.subject ?? "").toLowerCase().startsWith("re:")
     ? t.subject
     : `Re: ${t.subject ?? ""}`.trim();
@@ -154,12 +167,13 @@ export async function replyToThread(threadId: string, bodyText: string, filesFor
         threadId,
         direction: "outbound",
         fromEmail: mailbox.fromEmail,
-        toEmail: t.customerEmail,
+        toEmail: recipient,
         subject,
         bodyText,
         messageId: newMsgId,
         inReplyTo: lastInbound?.messageId ?? null,
         aiOutcome,
+        aiDraft: t.lastAiDraft ?? null,
         sentBy: user.id,
       })
       .returning({ id: schema.messages.id });

@@ -385,6 +385,8 @@ export const messages = pgTable(
     imapFolder: text("imap_folder"),
     // KI-Entwurf-Nutzung bei ausgehenden Antworten: verbatim | edited | manual.
     aiOutcome: text("ai_outcome"),
+    // Der ursprüngliche KI-Entwurf (für den Lern-Loop: was hat der Mitarbeiter geändert?).
+    aiDraft: text("ai_draft"),
     sentBy: uuid("sent_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

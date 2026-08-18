@@ -205,6 +205,35 @@ export default async function ReportsPage({
         </section>
       </div>
 
+      {/* KI-Reife je Kategorie — wann kann welches Thema auto-beantwortet werden? */}
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>KI-Reife je Problem-Typ</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Wie oft die KI-Antwort <b>unverändert</b> rausging (Support musste nichts ändern). Ab <b>20 Fällen und ≥ 90 % unverändert</b> gilt ein Thema als „reif" — dann können wir es später sicher auto-senden.
+        </p>
+        {r.categoryQuality.length === 0 ? (
+          <p className="muted">Noch keine KI-Antworten im Zeitraum.</p>
+        ) : (
+          <table className="cat-table">
+            <tbody>
+              {r.categoryQuality.map((c) => (
+                <tr key={c.category}>
+                  <td style={{ width: 230 }}>{c.category}</td>
+                  <td style={{ width: 150 }}>
+                    <div className="catbar" style={{ width: `${c.verbatimPct}%`, background: c.ready ? "#16a34a" : undefined }} />
+                  </td>
+                  <td>
+                    <strong>{c.verbatimPct} %</strong> unverändert{" "}
+                    <span className="muted" style={{ fontSize: 12 }}>({c.verbatim}/{c.total})</span>{" "}
+                    {c.ready ? <span className="ok-text" style={{ fontSize: 12 }}>✓ reif</span> : <span className="muted" style={{ fontSize: 12 }}>· noch üben</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
       {/* Retouren-Portal */}
       {r.returns.total > 0 && (
         <section className="card">

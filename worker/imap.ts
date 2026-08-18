@@ -7,6 +7,7 @@ import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, schema } from "../src/server/db/index";
 import { decrypt } from "../src/lib/mailbox/crypto";
 import { bestBodyText } from "../src/lib/mailbox/html-text";
+import { bestCustomerEmail, nameFromBody } from "../src/lib/mailbox/extract";
 
 const RE_PREFIX = /^\s*(re|aw|fwd|wg)\s*:\s*/i;
 
@@ -295,9 +296,17 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
         }
 
         const fromAddr = parsed.from?.value?.[0];
-      const fromEmail = fromAddr?.address ?? "unknown";
-      const fromName = fromAddr?.name || null;
-      const subject = parsed.subject ?? null;
+        const rawFrom = fromAddr?.address ?? "unknown";
+        const replyToAddr = parsed.replyTo?.value?.[0]?.address ?? null;
+        // Kontaktformular/Relay (z. B. mailer@shopify.com): echte Kunden-Adresse aus Reply-To/Text ziehen.
+        const fromEmail = bestCustomerEmail({
+          from: rawFrom,
+          replyTo: replyToAddr,
+          bodyText: parsed.text ?? null,
+          shopAddress: mb.fromEmail,
+        });
+        const fromName = fromAddr?.name || nameFromBody(parsed.text) || null;
+        const subject = parsed.subject ?? null;
       const inReplyTo = parsed.inReplyTo ?? null;
       const references = Array.isArray(parsed.references)
         ? parsed.references
