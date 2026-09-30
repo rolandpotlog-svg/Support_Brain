@@ -6,7 +6,6 @@ import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { listPendingIntake } from "@/server/returns";
 import { receiveReturnForm } from "@/server/actions/returns";
-import { categorizeLineItem } from "@/lib/finance/cogs";
 
 type CaseItem = { title: string; variantTitle: string | null; quantity: number };
 
@@ -77,7 +76,7 @@ export default async function ReturnIntakePage({
             </div>
             <ul className="esc-list" style={{ marginTop: 4 }}>
               {items.map((it, i) => {
-                const claimHref = `/reklamationen?product=${encodeURIComponent(categorizeLineItem(it.title))}&order=${encodeURIComponent(c.orderName)}&qty=${it.quantity}&source=wareneingang`;
+                const claimHref = `/reklamationen?product=${encodeURIComponent(it.title)}&order=${encodeURIComponent(c.orderName)}&qty=${it.quantity}&source=wareneingang`;
                 return (
                   <li key={i}>
                     {it.quantity}× {it.title}{it.variantTitle ? ` (${it.variantTitle})` : ""}

@@ -26,16 +26,16 @@ export async function GET(req: Request) {
 
   const aoa: (string | number)[][] = [
     [`Defekt-Report ${rep.label} — ${shop?.name ?? "Shop"}`],
-    ["Gutschrift-Anfrage an Supplier · defekte Stück × Stückkost"],
+    ["Grundlage für die Gutschrift-Anfrage an den Supplier"],
     [],
-    ["Produkt", "Fälle", "Defekte Stück", "Stückkost (€)", "Gutschrift angefragt (€)", "erhalten (€)"],
-    ...rep.rows.map((r) => [r.product, r.claims, r.units, e(r.unitCostCents), e(r.requestedCents), e(r.receivedCents)]),
-    ["Summe", rep.totals.claims, rep.totals.units, "", e(rep.totals.requestedCents), e(rep.totals.receivedCents)],
+    ["Produkt", "Fälle", "Defekte Stück", "Gutschrift erhalten (€)"],
+    ...rep.rows.map((r) => [r.product, r.claims, r.units, e(r.receivedCents)]),
+    ["Summe", rep.totals.claims, rep.totals.units, e(rep.totals.receivedCents)],
   ];
 
   const XLSX = require("xlsx");
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 24 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 14 }];
+  ws["!cols"] = [{ wch: 28 }, { wch: 8 }, { wch: 14 }, { wch: 22 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Defekt-Report");
   const buf: Buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });

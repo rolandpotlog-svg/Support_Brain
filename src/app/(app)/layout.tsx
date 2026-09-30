@@ -39,7 +39,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         canReports={!!caps?.reports}
         canCases={!!caps?.cases}
         canReturns={!!caps?.returns}
-        canFinance={!!caps?.finance}
         canAdmin={user.isOwner || !!caps?.settings}
       />
       <div className="workspace-wrap" style={{ ["--shop" as string]: active?.color ?? "var(--accent)" }}>

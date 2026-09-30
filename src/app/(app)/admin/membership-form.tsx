@@ -15,26 +15,21 @@ export function MembershipForm({
   shopId,
   shopName,
   role: role0 = "mitarbeiter",
-  finance: finance0 = false,
   brands,
 }: {
   userId: string;
   shopId?: string;
   shopName?: string;
   role?: string;
-  finance?: boolean;
   brands?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const isNew = !shopId;
   const [brand, setBrand] = useState(brands?.[0]?.id ?? "");
   const [role, setRole] = useState(role0);
-  const [finance, setFinance] = useState(finance0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const high = role === "founder" || role === "admin"; // Finance nur hier aktivierbar
-  const financeChecked = high && finance;
   const target = shopId ?? brand;
 
   async function run(fn: () => Promise<void>) {
@@ -65,21 +60,13 @@ export function MembershipForm({
       )}
       <select
         value={role}
-        onChange={(e) => {
-          const v = e.target.value;
-          setRole(v);
-          if (v !== "founder" && v !== "admin") setFinance(false);
-        }}
+        onChange={(e) => setRole(e.target.value)}
       >
         {Object.entries(ROLE_LABEL).map(([k, l]) => (
           <option key={k} value={k}>{l}</option>
         ))}
       </select>
-      <label className="chk" title={high ? "" : "Nur für Founder/Admin aktivierbar"} style={{ opacity: high ? 1 : 0.5 }}>
-        <input type="checkbox" disabled={!high} checked={financeChecked} onChange={(e) => setFinance(e.target.checked)} />
-        Finance
-      </label>
-      <button className="btnlink primary" disabled={busy || !target} onClick={() => run(() => saveMembership(userId, target, role, financeChecked))}>
+      <button className="btnlink primary" disabled={busy || !target} onClick={() => run(() => saveMembership(userId, target, role))}>
         {isNew ? "Hinzufügen" : "Speichern"}
       </button>
       {!isNew && (

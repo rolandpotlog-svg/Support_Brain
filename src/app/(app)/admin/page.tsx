@@ -150,7 +150,6 @@ export default async function AdminPage() {
                             shopId={m.shopId}
                             shopName={shopName.get(m.shopId) ?? "?"}
                             role={m.role}
-                            finance={m.financeAccess}
                           />
                         ))}
                         {free.length > 0 && <MembershipForm userId={u.id} brands={free} />}

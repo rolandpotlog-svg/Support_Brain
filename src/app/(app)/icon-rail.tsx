@@ -12,7 +12,6 @@ export function IconRail({
   canReports,
   canCases,
   canReturns,
-  canFinance,
   canAdmin,
 }: {
   shops: { id: string; name: string; color: string }[];
@@ -21,7 +20,6 @@ export function IconRail({
   canReports: boolean;
   canCases: boolean;
   canReturns: boolean;
-  canFinance: boolean;
   canAdmin: boolean;
 }) {
   const path = usePathname();
@@ -32,7 +30,6 @@ export function IconRail({
   const onReturns = path.startsWith("/returns");
   const onReklamationen = path.startsWith("/reklamationen");
   const onReports = path.startsWith("/reports");
-  const onFinance = path.startsWith("/finance");
   const onAdmin = path.startsWith("/admin");
   const onRoadmap = path.startsWith("/roadmap");
 
@@ -88,14 +85,6 @@ export function IconRail({
             <line x1="18" y1="20" x2="18" y2="10" />
             <line x1="12" y1="20" x2="12" y2="4" />
             <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
-        </Link>
-      )}
-      {canFinance && (
-        <Link href="/finance/cockpit" className={onFinance ? "active" : ""} title="Finance" aria-label="Finance">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="1" x2="12" y2="23" />
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
           </svg>
         </Link>
       )}

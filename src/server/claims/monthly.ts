@@ -1,23 +1,12 @@
-// Monats-Defekt-Report: je Produkt defekte Stück eines Monats + angefragte/erhaltene
-// Gutschrift (defekte Stück × Stückkost). Grundlage für die Gutschrift-Anfrage an den Supplier.
+// Monats-Defekt-Report: je Produkt Fälle + defekte Stück eines Monats + erhaltene Gutschrift.
+// Grundlage für die Gutschrift-Anfrage an den Supplier (ohne Kostenrechnung — Support-Tool).
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { getCogsRates, getProductCostMap, shopUsesRules } from "@/server/finance/cogs-rates";
-import { productKey, type CogsRates } from "@/lib/finance/cogs";
-
-const LABEL_TO_RATE: Record<string, keyof CogsRates> = {
-  "Sonic Pulse Pro": "sonic_pulse_bundle",
-  "M-Shield": "m_shield",
-  "Protect+ / Juckreiz": "protect_plus",
-  Gartenhandschuhe: "gartenhandschuhe",
-};
 
 export type MonthlyDefectRow = {
   product: string;
   claims: number;
   units: number;
-  unitCostCents: number; // 0 = unbekannt (kein Mapping)
-  requestedCents: number; // units × Stückkost
   receivedCents: number; // tatsächlich erhaltene Gutschrift
 };
 
@@ -25,7 +14,7 @@ export type MonthlyDefectReport = {
   month: string; // YYYY-MM
   label: string; // "Juni 2026"
   rows: MonthlyDefectRow[];
-  totals: { claims: number; units: number; requestedCents: number; receivedCents: number };
+  totals: { claims: number; units: number; receivedCents: number };
   availableMonths: { key: string; label: string }[];
 };
 
@@ -43,9 +32,6 @@ export async function getMonthlyDefectReport(
   now = new Date(),
 ): Promise<MonthlyDefectReport> {
   const claims = await db.select().from(schema.supplierClaim).where(eq(schema.supplierClaim.shopId, shopId));
-  const rates = await getCogsRates(shopId);
-  // Repello: Stückkosten über feste Kategorien. Andere Shops: Einkaufspreis je Produkt (Tabelle).
-  const productCosts = (await shopUsesRules(shopId)) ? null : await getProductCostMap(shopId);
   const curMonth = viennaMonth(now);
 
   const monthsSet = new Set<string>(claims.map((c) => viennaMonth(new Date(c.createdAt))));
@@ -65,28 +51,16 @@ export async function getMonthlyDefectReport(
   }
 
   const rows: MonthlyDefectRow[] = [...byProduct.entries()]
-    .map(([product, v]) => {
-      const rateKey = LABEL_TO_RATE[product];
-      const unitCostCents = productCosts ? productCosts.get(productKey(product)) ?? 0 : rateKey ? rates[rateKey] : 0;
-      return {
-        product,
-        claims: v.claims,
-        units: v.units,
-        unitCostCents,
-        requestedCents: v.units * unitCostCents,
-        receivedCents: v.receivedCents,
-      };
-    })
-    .sort((a, b) => b.requestedCents - a.requestedCents);
+    .map(([product, v]) => ({ product, claims: v.claims, units: v.units, receivedCents: v.receivedCents }))
+    .sort((a, b) => b.units - a.units);
 
   const totals = rows.reduce(
     (t, r) => ({
       claims: t.claims + r.claims,
       units: t.units + r.units,
-      requestedCents: t.requestedCents + r.requestedCents,
       receivedCents: t.receivedCents + r.receivedCents,
     }),
-    { claims: 0, units: 0, requestedCents: 0, receivedCents: 0 },
+    { claims: 0, units: 0, receivedCents: 0 },
   );
 
   return { month: target, label: monthLabel(target), rows, totals, availableMonths };

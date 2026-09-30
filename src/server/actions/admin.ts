@@ -11,9 +11,6 @@ const ROLES = ["founder", "admin", "mitarbeiter", "gast"] as const;
 function cleanRole(r: string): (typeof ROLES)[number] {
   return (ROLES as readonly string[]).includes(r) ? (r as (typeof ROLES)[number]) : "mitarbeiter";
 }
-function financeAllowed(role: string, want: boolean): boolean {
-  return want && (role === "founder" || role === "admin");
-}
 
 /** Sicherstellen, dass nach einer Änderung noch ein aktiver Owner existiert. */
 async function assertOwnerRemains(exceptUserId: string) {
@@ -68,18 +65,17 @@ export async function resetUserPassword(formData: FormData) {
   revalidatePath("/admin");
 }
 
-/** Membership (Rolle + Finance) eines Nutzers auf einem Brand anlegen/ändern. */
-export async function saveMembership(userId: string, shopId: string, role: string, finance: boolean) {
+/** Membership (Rolle) eines Nutzers auf einem Brand anlegen/ändern. */
+export async function saveMembership(userId: string, shopId: string, role: string) {
   await requireOwner();
   if (!userId || !shopId) throw new Error("Nutzer und Brand nötig");
   const r = cleanRole(role);
-  const financeAccess = financeAllowed(r, finance); // Invariante: Finance nur founder/admin
   await db
     .insert(schema.userShops)
-    .values({ userId, shopId, role: r, financeAccess })
+    .values({ userId, shopId, role: r })
     .onConflictDoUpdate({
       target: [schema.userShops.userId, schema.userShops.shopId],
-      set: { role: r, financeAccess },
+      set: { role: r },
     });
   revalidatePath("/admin");
 }

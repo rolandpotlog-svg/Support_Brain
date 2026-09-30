@@ -6,7 +6,7 @@ import { db, schema } from "@/server/db";
 export type SessionUser = { id: string; email: string; isOwner: boolean };
 
 export type BrandRole = "founder" | "admin" | "mitarbeiter" | "gast";
-export type Cap = "support" | "returns" | "reports" | "cases" | "settings" | "manageUsers" | "finance";
+export type Cap = "support" | "returns" | "reports" | "cases" | "settings" | "manageUsers";
 
 // Effektive Rechte eines Nutzers AUF EINEM Brand.
 export type BrandCaps = {
@@ -19,22 +19,20 @@ export type BrandCaps = {
   cases: boolean;
   settings: boolean;
   manageUsers: boolean;
-  financeEligible: boolean; // darf Finance überhaupt freigeschaltet werden?
-  finance: boolean; // tatsächlicher Finance-Zugriff
 };
 
 const OWNER_CAPS: BrandCaps = {
   role: "owner", access: true, readOnly: false,
   support: true, returns: true, reports: true, cases: true,
-  settings: true, manageUsers: true, financeEligible: true, finance: true,
+  settings: true, manageUsers: true,
 };
 const NO_CAPS: BrandCaps = {
   role: "none", access: false, readOnly: true,
   support: false, returns: false, reports: false, cases: false,
-  settings: false, manageUsers: false, financeEligible: false, finance: false,
+  settings: false, manageUsers: false,
 };
 
-function capsForRole(role: BrandRole, financeAccess: boolean): BrandCaps {
+function capsForRole(role: BrandRole): BrandCaps {
   const high = role === "founder" || role === "admin";
   return {
     role,
@@ -46,8 +44,6 @@ function capsForRole(role: BrandRole, financeAccess: boolean): BrandCaps {
     cases: high,
     settings: high,
     manageUsers: high,
-    financeEligible: high,
-    finance: high && financeAccess,
   };
 }
 
@@ -72,7 +68,7 @@ export async function brandAccess(user: SessionUser, shopId: string): Promise<Br
     where: and(eq(schema.userShops.userId, user.id), eq(schema.userShops.shopId, shopId)),
   });
   if (!m) return NO_CAPS;
-  return capsForRole((m.role as BrandRole) ?? "mitarbeiter", m.financeAccess);
+  return capsForRole((m.role as BrandRole) ?? "mitarbeiter");
 }
 
 /** Wirft, wenn der Nutzer die Fähigkeit auf diesem Brand nicht hat. */
@@ -88,10 +84,6 @@ export async function requireWrite(shopId: string, cap: Cap): Promise<{ user: Se
   const r = await requireBrandCap(shopId, cap);
   if (r.caps.readOnly) throw new Error("Nur Lesezugriff (Gast)");
   return r;
-}
-
-export async function requireFinance(shopId: string): Promise<{ user: SessionUser; caps: BrandCaps }> {
-  return requireBrandCap(shopId, "finance");
 }
 
 export async function assertShopAccess(user: SessionUser, shopId: string): Promise<void> {

@@ -103,21 +103,19 @@ export default async function ReklamationenPage({
           </form>
         </div>
         <p className="muted" style={{ marginTop: 0 }}>
-          Defekte Artikel im <b>{monthly.label}</b> → <b>Gutschrift-Anfrage</b> an den Supplier (defekte Stück × Stückkost).
+          Defekte Artikel im <b>{monthly.label}</b> → Grundlage für die <b>Gutschrift-Anfrage</b> an den Supplier.
         </p>
         {monthly.rows.length === 0 ? (
           <p className="muted" style={{ margin: 0 }}>Keine Reklamationen in diesem Monat.</p>
         ) : (
           <table className="fin-table">
-            <thead><tr><th>Produkt</th><th style={{ textAlign: "right" }}>Fälle</th><th style={{ textAlign: "right" }}>Defekte Stück</th><th style={{ textAlign: "right" }}>Stückkost</th><th style={{ textAlign: "right" }}>Gutschrift angefragt</th><th style={{ textAlign: "right" }}>erhalten</th></tr></thead>
+            <thead><tr><th>Produkt</th><th style={{ textAlign: "right" }}>Fälle</th><th style={{ textAlign: "right" }}>Defekte Stück</th><th style={{ textAlign: "right" }}>Gutschrift erhalten</th></tr></thead>
             <tbody>
               {monthly.rows.map((r) => (
                 <tr key={r.product}>
                   <td>{r.product}</td>
                   <td style={{ textAlign: "right" }}>{r.claims}</td>
                   <td style={{ textAlign: "right" }}>{r.units}</td>
-                  <td style={{ textAlign: "right" }}>{r.unitCostCents > 0 ? eur(r.unitCostCents) : "—"}</td>
-                  <td style={{ textAlign: "right" }}>{eur(r.requestedCents)}</td>
                   <td style={{ textAlign: "right" }}>{eur(r.receivedCents)}</td>
                 </tr>
               ))}
@@ -125,8 +123,6 @@ export default async function ReklamationenPage({
                 <td>Summe</td>
                 <td style={{ textAlign: "right" }}>{monthly.totals.claims}</td>
                 <td style={{ textAlign: "right" }}>{monthly.totals.units}</td>
-                <td></td>
-                <td style={{ textAlign: "right" }}>{eur(monthly.totals.requestedCents)}</td>
                 <td style={{ textAlign: "right" }}>{eur(monthly.totals.receivedCents)}</td>
               </tr>
             </tbody>

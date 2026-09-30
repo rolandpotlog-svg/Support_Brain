@@ -324,7 +324,7 @@ export const userShops = pgTable(
       .notNull()
       .references(() => shops.id, { onDelete: "cascade" }),
     role: text("role").notNull().default("mitarbeiter"),
-    financeAccess: boolean("finance_access").notNull().default(false),
+    financeAccess: boolean("finance_access").notNull().default(false), // Altbestand, ungenutzt (Finanzteil entfernt)
   },
   (t) => [primaryKey({ columns: [t.userId, t.shopId] })],
 );
@@ -571,6 +571,11 @@ export const returnTasks = pgTable(
   (t) => [index("return_tasks_open_idx").on(t.shopId, t.status, t.createdAt)],
 );
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ALTBESTAND Finanzteil (30.09.2026 aus dem Tool entfernt — Support Brain ist ein reines
+// Support-Tool). Die Tabellen bleiben NUR, damit keine Migration die Daten löscht.
+// Nicht mehr verwenden. Löschen erst nach Backup + ausdrücklicher Freigabe durch Roland.
+// ─────────────────────────────────────────────────────────────────────────────
 // --- Finance / Controlling (PnL) — multi-tenant pro Brand (shop_id) ----------
 // Geldbeträge in Cent. Wochen-Key = Montag (YYYY-MM-DD). finance_access-geschützt.
 export const financeOrder = pgTable(
