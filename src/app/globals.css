@@ -650,3 +650,18 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .lesson-btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .lesson-ev summary { font-size: 12px; color: var(--text-2); cursor: pointer; }
 .lesson-ev pre { white-space: pre-wrap; font: 12px/1.45 inherit; background: var(--panel-2); padding: 8px 10px; border-radius: 8px; margin: 6px 0 0; }
+
+/* Produkt-Analyse */
+.prodtable { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.prodtable th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.prodtable td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.prodtable td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.prodname { cursor: pointer; font-weight: 600; }
+.prod-detail { margin-top: 8px; display: grid; gap: 8px; font-size: 13px; }
+.prod-issue ul { margin: 4px 0 0; padding-left: 18px; color: var(--text-2); }
+.amp { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-top: 5px; }
+.amp-rot { background: var(--tag-rose-fg); } .amp-gelb { background: var(--tag-amber-fg); } .amp-gruen { background: var(--green); }
+.trend { margin-left: 6px; font-size: 11.5px; color: var(--muted); }
+.trend.up { color: var(--tag-rose-fg); } .trend.down { color: var(--green); }
+.btnlink.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 600; }
+.btnlink.primary:hover { background: var(--primary-hover); color: var(--on-primary); }
