@@ -14,6 +14,9 @@ import { DisputeActions } from "../dispute-actions";
 import { PaypalCase } from "../paypal-case";
 import { MoveShop } from "../move-shop";
 import { paypalSiblingShops } from "@/server/paypal-disputes";
+import { allowedActions } from "@/lib/paypal/client";
+import { db, schema } from "@/server/db";
+import { eq } from "drizzle-orm";
 import { paypalAdvice, stageLabel, type CaseFacts } from "@/lib/disputes/paypal-policy";
 
 const AUDIT_LABEL: Record<string, string> = {
@@ -24,6 +27,11 @@ const AUDIT_LABEL: Record<string, string> = {
   evidence_assembled: "Beweispaket entworfen",
   synced: "Synchronisiert",
   moved_shop: "Shop geändert",
+  paypal_message: "PayPal",
+  paypal_tracking: "PayPal",
+  paypal_statement: "PayPal",
+  paypal_refund: "PayPal · Geld",
+  paypal_replacement: "PayPal",
 };
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +48,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const isPaypal = c.source === "paypal";
   const ev = (c.evidence as Record<string, string> | null) ?? {};
   const siblings = isPaypal ? await paypalSiblingShops(c.shopId) : [];
+  const ppRow = isPaypal ? await db.query.shopPaypal.findFirst({ where: eq(schema.shopPaypal.shopId, c.shopId) }) : null;
   const siblingsAllowed: { id: string; name: string }[] = [];
   for (const s of siblings) if ((await brandAccess(user, s.id)).cases) siblingsAllowed.push(s);
 
@@ -82,7 +91,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
 
       {isPaypal ? (
         <PaypalCase
-          key={`${c.shopId}-${c.updatedAt?.getTime?.() ?? 0}`}
+          key={`${c.shopId}-${ev.paypalBuyerMessage || ev.paypalResponse ? 1 : 0}`}
           caseId={c.id}
           externalUrl={c.externalUrl}
           stage={stageLabel(c.type)}
@@ -100,6 +109,10 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             evidence: ev.paypalEvidence ?? "",
           }}
           decision={(c.decision as "fight" | "accept" | null) ?? null}
+          mode={ppRow ? (ppRow.mode === "live" ? "live" : "sandbox") : null}
+          allowed={allowedActions(c.raw)}
+          amount={c.amount}
+          currency={c.currency || "EUR"}
         />
       ) : (
         <DisputeActions

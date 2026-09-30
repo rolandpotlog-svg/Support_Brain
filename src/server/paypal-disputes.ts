@@ -268,3 +268,26 @@ export async function syncAllPaypal(): Promise<number> {
   }
   return n;
 }
+
+/** Einen Fall frisch von PayPal holen und Status/Verlauf/Frist aktualisieren (nach einer Aktion). */
+export async function refreshPaypalCase(caseId: string): Promise<PaypalDisputeDetail | null> {
+  const row = await db.query.disputeCase.findFirst({ where: eq(schema.disputeCase.id, caseId) });
+  if (!row || row.source !== "paypal") return null;
+  const c = await loadPaypalCreds(row.shopId);
+  if (!c) return null;
+  const { token } = await paypalToken(c);
+  const d = await getPaypalDispute(c, token, row.providerCaseId);
+  const { status, outcome } = mapStatus(d);
+  await db
+    .update(schema.disputeCase)
+    .set({
+      status,
+      outcome,
+      type: d.dispute_life_cycle_stage ?? row.type,
+      dueBy: d.seller_response_due_date ? new Date(d.seller_response_due_date) : null,
+      raw: d.raw,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.disputeCase.id, caseId));
+  return d;
+}

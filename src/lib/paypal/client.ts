@@ -117,3 +117,99 @@ export async function getPaypalDispute(c: PaypalCreds, token: string, id: string
   const messages = (d.messages ?? []).map((m: any) => ({ postedBy: m.posted_by ?? "?", time: m.time_posted ?? "", content: m.content ?? "" }));
   return { ...d, transactions, messages, raw: d };
 }
+
+// ───────────────────────── Schreiben (Schritt 2) ─────────────────────────
+// Jede Aktion geht direkt an PayPal. Welche erlaubt ist, sagt PayPal pro Fall über `links` (rel).
+
+/** Aktionen, die PayPal für diesen Fall gerade zulässt (z. B. send_message, make_offer, accept_claim, provide_evidence). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function allowedActions(raw: any): string[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (raw?.links ?? []).map((l: any) => String(l.rel ?? "")).filter((r: string) => r && r !== "self");
+}
+
+async function ppost(c: PaypalCreds, token: string, path: string, body: unknown): Promise<unknown> {
+  const res = await fetch(`${paypalBase(c.mode)}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readResult(res);
+}
+
+/** provide-evidence u. a. verlangen multipart/form-data mit JSON-Teil „input“. */
+async function ppostMultipart(c: PaypalCreds, token: string, path: string, input: unknown): Promise<unknown> {
+  const fd = new FormData();
+  fd.append("input", new Blob([JSON.stringify(input)], { type: "application/json" }), "input.json");
+  const res = await fetch(`${paypalBase(c.mode)}${path}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd });
+  return readResult(res);
+}
+
+async function readResult(res: Response): Promise<unknown> {
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const detail = (j.details ?? []).map((d: any) => [d.field, d.issue, d.description].filter(Boolean).join(": ")).join("; ");
+    throw new Error(`PayPal: ${j.message ?? j.name ?? `HTTP ${res.status}`}${detail ? ` (${detail})` : ""}`);
+  }
+  return j;
+}
+
+const disputePath = (id: string, action: string) => `/v1/customer/disputes/${encodeURIComponent(id)}/${action}`;
+
+export function sendPaypalMessage(c: PaypalCreds, token: string, id: string, message: string) {
+  return ppost(c, token, disputePath(id, "send-message"), { message });
+}
+
+/** Angebot an den Käufer (nur Phase Anfrage): Erstattung (auch Teil), Ersatz ohne Erstattung usw. */
+export function makePaypalOffer(
+  c: PaypalCreds,
+  token: string,
+  id: string,
+  o: { note: string; type: "REFUND" | "REFUND_WITH_RETURN" | "REFUND_WITH_REPLACEMENT" | "REPLACEMENT_WITHOUT_REFUND"; amount?: PaypalMoney },
+) {
+  return ppost(c, token, disputePath(id, "make-offer"), {
+    note: o.note,
+    offer_type: o.type,
+    ...(o.amount ? { offer_amount: o.amount } : {}),
+  });
+}
+
+/** Fall annehmen = Käufer bekommt den Betrag zurück, Fall ist erledigt. */
+export function acceptPaypalClaim(c: PaypalCreds, token: string, id: string, o: { note: string; amount?: PaypalMoney }) {
+  return ppost(c, token, disputePath(id, "accept-claim"), {
+    note: o.note,
+    accept_claim_type: "REFUND",
+    ...(o.amount ? { refund_amount: o.amount } : {}),
+  });
+}
+
+/** Shopify-Versanddienst -> PayPal-Carrier. Unsichere Namen als OTHER + Klartext (PayPal akzeptiert das). */
+export function paypalCarrier(company: string | null): { carrier_name: string; carrier_name_other?: string } {
+  const c = (company ?? "").toLowerCase();
+  if (/dhl express/.test(c)) return { carrier_name: "DHL" };
+  if (/dhl|deutsche post/.test(c)) return { carrier_name: "DHL_DEUTSCHE_POST" };
+  if (/\bdpd\b/.test(c)) return { carrier_name: "DPD" };
+  if (/\bups\b/.test(c)) return { carrier_name: "UPS" };
+  if (/\bgls\b/.test(c)) return { carrier_name: "GLS" };
+  return { carrier_name: "OTHER", carrier_name_other: company?.trim() || "Paketdienst" };
+}
+
+/** Nachweise einreichen: Tracking (Liefernachweis) und/oder Stellungnahme als Notiz. */
+export function providePaypalEvidence(
+  c: PaypalCreds,
+  token: string,
+  id: string,
+  o: { notes: string; tracking?: { company: string | null; number: string }[] },
+) {
+  const evidences = o.tracking?.length
+    ? [
+        {
+          evidence_type: "PROOF_OF_FULFILLMENT",
+          evidence_info: { tracking_info: o.tracking.map((t) => ({ ...paypalCarrier(t.company), tracking_number: t.number })) },
+          notes: o.notes,
+        },
+      ]
+    : [{ evidence_type: "OTHER", notes: o.notes }];
+  return ppostMultipart(c, token, disputePath(id, "provide-evidence"), { evidences });
+}

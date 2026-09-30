@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { draftPaypalResponse, savePaypalResponse } from "@/server/actions/paypal";
 import { setDecision } from "@/server/actions/disputes";
 import type { Advice, CaseFacts } from "@/lib/disputes/paypal-policy";
+import { PaypalActions } from "./paypal-actions";
 
 function CopyBox({ id, label, hint, value, onChange }: { id: string; label: string; hint: string; value: string; onChange: (v: string) => void }) {
   const [copied, setCopied] = useState(false);
@@ -45,6 +46,10 @@ export function PaypalCase({
   messages,
   initial,
   decision,
+  mode,
+  allowed,
+  amount,
+  currency,
 }: {
   caseId: string;
   externalUrl: string | null;
@@ -57,6 +62,10 @@ export function PaypalCase({
   messages: { postedBy: string; time: string; content: string }[];
   initial: { advice: string; buyerMessage: string; statement: string; evidence: string };
   decision: "fight" | "accept" | null;
+  mode: "sandbox" | "live" | null;
+  allowed: string[];
+  amount: string | null;
+  currency: string;
 }) {
   const router = useRouter();
   const [aiAdvice, setAiAdvice] = useState(initial.advice);
@@ -180,10 +189,10 @@ export function PaypalCase({
         {hasDraft && (
           <div style={{ display: "grid", gap: 16 }}>
             {buyer && (
-              <CopyBox id="pp-buyer" label="1 · Nachricht an den Käufer" hint="In PayPal im Fall als Nachricht an den Käufer senden." value={buyer} onChange={setBuyer} />
+              <CopyBox id="pp-buyer" label="1 · Nachricht an den Käufer" hint="Prüfen und anpassen, dann unten „Senden“ (oder kopieren)." value={buyer} onChange={setBuyer} />
             )}
             {statement && (
-              <CopyBox id="pp-statement" label="2 · Stellungnahme an PayPal" hint="Nur wenn ihr verteidigt: in PayPal bei „Antworten/Nachweise einreichen“ einfügen." value={statement} onChange={setStatement} />
+              <CopyBox id="pp-statement" label="2 · Stellungnahme an PayPal" hint="Nur wenn ihr verteidigt: unten „Einreichen“." value={statement} onChange={setStatement} />
             )}
             {evidence && (
               <div>
@@ -199,6 +208,16 @@ export function PaypalCase({
           <button className={decision === "fight" ? "primary" : ""} onClick={async () => { await setDecision(caseId, "fight"); router.refresh(); }}>Verteidigt</button>
         </div>
       </section>
+      <PaypalActions
+        caseId={caseId}
+        mode={mode}
+        allowed={allowed}
+        amount={amount}
+        currency={currency}
+        tracking={(facts?.tracking ?? []).filter((t) => t.number).map((t) => ({ company: t.company, number: t.number ?? "" }))}
+        buyerMessage={buyer}
+        statement={statement}
+      />
     </>
   );
 }
