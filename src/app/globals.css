@@ -728,3 +728,8 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .ppact { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); }
 .ppconfirm { padding: 10px; border-radius: 8px; background: var(--tag-rose-bg); color: var(--tag-rose-fg); font-size: 13px; }
 button.danger { background: var(--tag-rose-fg); border-color: var(--tag-rose-fg); color: #fff; font-weight: 600; }
+
+/* Team: Tagesverlauf 0–24 Uhr */
+.tl { position: relative; height: 14px; margin-top: 14px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); }
+.tl-b { position: absolute; top: 0; bottom: 0; background: var(--green); border-radius: 3px; }
+.tl-h { position: absolute; top: 16px; transform: translateX(-50%); font-size: 11px; color: var(--muted); }

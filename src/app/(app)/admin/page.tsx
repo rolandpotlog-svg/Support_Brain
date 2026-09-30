@@ -55,7 +55,10 @@ export default async function AdminPage() {
 
   return (
     <div className="adminwrap">
-      <h1 style={{ marginTop: 0 }}>Admin</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <h1 style={{ marginTop: 0 }}>Admin</h1>
+        {user.isOwner && <Link href="/admin/team" className="btnlink">Team-Aktivität →</Link>}
+      </div>
 
       {user.isOwner && (
         <section className="card">

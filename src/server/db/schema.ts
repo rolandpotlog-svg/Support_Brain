@@ -925,3 +925,26 @@ export const feedback = pgTable("feedback", {
   status: text("status").notNull().default("neu"), // neu | erledigt
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Team-Aktivität (nur Owner sieht sie unter /admin/team): Logins + aktive Minuten.
+// Aktiv = Tab sichtbar UND Maus/Tastatur in den letzten 2 Minuten (offener Tab im Hintergrund zählt nicht).
+export const userLogin = pgTable(
+  "user_login",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    device: text("device"), // grob aus dem User-Agent: „Mac · Chrome“
+  },
+  (t) => [index("user_login_user_at_idx").on(t.userId, t.at)],
+);
+
+export const userActiveMinute = pgTable(
+  "user_active_minute",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    minute: timestamp("minute", { withTimezone: true }).notNull(), // auf die Minute abgerundet
+    shopId: uuid("shop_id").references(() => shops.id, { onDelete: "set null" }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.minute] })],
+);

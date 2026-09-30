@@ -6,6 +6,7 @@ import { getActiveShopId } from "@/server/active-shop";
 import { shopColor } from "@/lib/shop-color";
 import { IconRail } from "./icon-rail";
 import { FeedbackWidget } from "./feedback-widget";
+import { ActivityPing } from "./activity-ping";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user: SessionUser;
@@ -53,6 +54,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="workspace">{children}</div>
       </div>
       <FeedbackWidget />
+      <ActivityPing />
     </div>
   );
 }

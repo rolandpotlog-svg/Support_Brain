@@ -52,6 +52,7 @@ export default function LoginPage() {
         <button className="primary" disabled={busy} type="submit">
           {busy ? "…" : "Anmelden"}
         </button>
+        <p className="muted" style={{ fontSize: 11, margin: 0 }}>Anmeldungen und Arbeitszeit im Tool werden für die Teamauswertung protokolliert.</p>
       </form>
     </div>
   );
