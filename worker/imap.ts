@@ -505,9 +505,12 @@ export async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: 
         // Anhänge (Fotos, PDFs …) mit abspeichern — max. 10 Stück à 8 MB.
         const newMsgDbId = insertedMsg[0]?.id ?? null;
         if (newMsgDbId) {
+          // Kundenfotos (z. B. 20 Schadensfotos) vollständig übernehmen: bis 30 Anhänge à 15 MB.
+          // Winzige Bilder (Signatur-Logos, Tracking-Pixel) auslassen.
           const atts = (parsed.attachments ?? [])
-            .filter((a) => a.content && a.content.length > 0 && a.content.length <= 5 * 1024 * 1024)
-            .slice(0, 5);
+            .filter((a) => a.content && a.content.length > 0 && a.content.length <= 15 * 1024 * 1024)
+            .filter((a) => !(String(a.contentType ?? "").startsWith("image/") && a.content.length < 8 * 1024))
+            .slice(0, 30);
           for (const a of atts) {
             await tx.insert(schema.messageAttachment).values({
               messageId: newMsgDbId,

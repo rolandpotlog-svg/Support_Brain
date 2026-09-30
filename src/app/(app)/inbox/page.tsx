@@ -195,6 +195,20 @@ export default async function InboxPage({
   }
   const qHref = (key: string) => `/inbox?folder=${folder}${key ? `&a=${key}` : ""}`;
 
+  // Wer arbeitet gerade an welchem Ticket? (Kollisionsschutz schon in der Liste)
+  const busy = new Map<string, string[]>();
+  if (tickets.length) {
+    const pres = await db
+      .select({ threadId: schema.ticketPresence.threadId, name: schema.users.name, email: schema.users.email, userId: schema.ticketPresence.userId })
+      .from(schema.ticketPresence)
+      .innerJoin(schema.users, eq(schema.users.id, schema.ticketPresence.userId))
+      .where(and(inArray(schema.ticketPresence.threadId, tickets.map((t) => t.id)), sql`${schema.ticketPresence.seenAt} > now() - interval '45 seconds'`));
+    for (const p of pres) {
+      if (p.userId === user.id) continue;
+      busy.set(p.threadId, [...(busy.get(p.threadId) ?? []), (p.name || p.email).split(" ")[0]]);
+    }
+  }
+
   // Namen der zugewiesenen Agents für die Badges.
   const assigneeIds = [...new Set(tickets.map((t) => t.assigneeId).filter(Boolean))] as string[];
   const assigneeMap = new Map<string, string>();
@@ -225,6 +239,13 @@ export default async function InboxPage({
             .where(inArray(schema.outbox.messageId, messages.map((m) => m.id)))
         : [];
       const obMap = new Map(outboxRows.map((o) => [o.messageId, o]));
+      // Wer hat geantwortet? (Name des Mitarbeiters je gesendeter Antwort)
+      const senderIds = [...new Set(messages.map((m) => m.sentBy).filter(Boolean))] as string[];
+      const senderMap = new Map(
+        senderIds.length
+          ? (await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email }).from(schema.users).where(inArray(schema.users.id, senderIds))).map((u) => [u.id, u.name || u.email])
+          : [],
+      );
       // Anhänge (Fotos etc.) je Nachricht — nur Metadaten, Inhalt kommt über /api/attachments/[id].
       const attRows = messages.length
         ? await db
@@ -275,6 +296,7 @@ export default async function InboxPage({
           bodyText: bestBodyText(m.bodyText, m.bodyHtml),
           createdAt: m.createdAt.toISOString(),
           sendStatus: obMap.get(m.id)?.status ?? null,
+          sentByName: m.sentBy ? senderMap.get(m.sentBy) ?? null : null,
           sendError: obMap.get(m.id)?.lastError ?? null,
           // "hängt fest": noch in Warteschlange, aber älter als die Schwelle -> nicht zugestellt.
           sendStuck:
@@ -398,6 +420,7 @@ export default async function InboxPage({
                   t.tag && <span className={`tag ${tagColor(t.tag)}`}>{t.tag}</span>
                 )}
                 {t.aiSentiment === "negativ" && <span className="dot-neg" title="Kunde verärgert" />}
+                {busy.get(t.id) && <span className="busychip" title="Arbeitet gerade an diesem Ticket">👀 {busy.get(t.id)!.join(", ")}</span>}
                 {t.hasDraft && (
                   <span className={`draftchip ${t.aiDecision === "mensch" ? "human" : ""}`} title={t.aiDecision === "mensch" ? "Entwurf da — KI empfiehlt: Mensch entscheidet" : "KI-Entwurf bereit"}>
                     {t.aiDecision === "mensch" ? "Prüfen" : "Entwurf"}
@@ -481,6 +504,7 @@ type Msg = {
   bodyText: string | null;
   createdAt: string;
   sendStatus: "pending" | "sent" | "failed" | null;
+  sentByName: string | null;
   sendError: string | null;
   sendStuck: boolean;
   attachments: { id: string; filename: string; contentType: string; sizeBytes: number }[];

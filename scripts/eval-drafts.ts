@@ -139,8 +139,11 @@ const JUDGE_SYSTEM =
   "Prüfe hart: Würde der Inhaber diese Mail OHNE jede Änderung abschicken? Prüfe insbesondere: Sie-Form; persönliche Anrede; " +
   "nichts erfunden (Tracking, Termine, Status, erledigte Aktionen, Anhänge); verbotene Wörter (Dropshipping, China-Lieferant, AliExpress, Fulfillment); " +
   "keine Haftungs-/Verantwortungsabwehr; keine Belehrung; kein 'wir melden uns'; SORRY20 nur wenn passend und nicht doppelt; " +
-  "Rabatte über SORRY20 hinaus sind verboten; Eskalationsfälle dürfen nichts zusagen; keine Grußformel/Signatur (wird angehängt); natürlicher, nicht schablonenhafter Ton. " +
-  'Antworte NUR mit JSON: {"sendefertig":true|false,"note":1-10,"verstoesse":["..."],"verbesserung":"ein Satz"}';
+  "Rabatte über SORRY20 hinaus sind verboten; Eskalationsfälle dürfen nichts zusagen; keine Grußformel/Signatur (wird angehängt). " +
+  "GENAUSO WICHTIG — MENSCHLICHER TON: Die Mail muss klingen, als hätte sie eine nette, erfahrene Support-Mitarbeiterin persönlich geschrieben. Sie fällt durch, wenn sie nach KI klingt: " +
+  "Gedankenstriche als Satzzeichen, Listen in einer normalen Antwort, „Zögern Sie nicht“, mehrere Floskeln direkt hintereinander, wörtliches Zurückspiegeln des Anliegens, aufgeblähte oder generische Sätze. " +
+  "Markenstil Lovenja (erwünscht, KEIN Fehler): eine kurze Entschuldigung, ein kurzer wertschätzender Satz, SORRY20 als Geste, freundliche Einladung sich zu melden, Standard-Lieferzeiten laut Richtlinie. " +
+  'Antworte NUR mit JSON: {"sendefertig":true|false,"note":1-10,"menschlich":1-10,"verstoesse":["..."],"verbesserung":"ein Satz"}';
 
 async function main() {
   const only = process.argv.slice(2).map(Number).filter(Boolean);
@@ -149,14 +152,14 @@ async function main() {
   const system = draftSystemPrompt(buildSystemPrompt(profile, "Lovenja"), signature, profile.closing);
 
   const rows: string[] = [];
-  let ok = 0, n = 0, sum = 0, decOk = 0;
+  let ok = 0, n = 0, sum = 0, decOk = 0, human = 0;
   for (const [i, c] of CASES.entries()) {
     if (only.length && !only.includes(i + 1)) continue;
     const userMsg = [
       `KUNDE: ${c.customer} <kunde@example.com>`, `BETREFF: ${c.subject}`, "", "TICKET-VERLAUF:", c.history, "",
       "SHOPIFY-KONTEXT:", c.shopify, "", "Verfasse jetzt die nächste Antwort an den Kunden.",
     ].join("\n");
-    const d = parseDraft(await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 8000, effort: (process.env.DRAFT_EFFORT as "low" | "medium" | "high") ?? "high", kind: `eval-${process.env.DRAFT_EFFORT ?? "high"}` }));
+    const d = parseDraft(await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 8000, effort: (process.env.DRAFT_EFFORT as "low" | "medium" | "high") ?? "high", kind: `eval-${process.env.DRAFT_MODEL ?? "standard"}-${process.env.DRAFT_EFFORT ?? "high"}`, model: (process.env.DRAFT_MODEL as "standard" | "stark" | undefined) ?? "standard" }));
     const draft = d.text;
     const decisionOk = d.decision === c.want;
     const verdictRaw = await complete({
@@ -164,15 +167,15 @@ async function main() {
       messages: [{ role: "user", content: `RICHTLINIEN:\n${buildSystemPrompt(profile, "Lovenja")}\n\nANFRAGE:\n${userMsg}\n\nERWARTUNG:\n${c.expect}\n\nKI-ENTSCHEIDUNG: ${d.decision.toUpperCase()} (${d.reason})${d.decision === "mensch" ? "\nHinweis: Das ist ein Vorschlag für das Team, der Mensch ergänzt die Entscheidung. Prüfe, ob er als Grundlage taugt und NICHTS zusagt; 'sendefertig' heißt hier: guter, sicherer Vorschlag." : ""}\n\nENTWURF:\n${draft}` }],
       maxTokens: 1500, effort: "medium",
     });
-    let v: { sendefertig: boolean; note: number; verstoesse: string[]; verbesserung: string };
+    let v: { sendefertig: boolean; note: number; menschlich?: number; verstoesse: string[]; verbesserung: string };
     try {
       v = JSON.parse(verdictRaw.replace(/^```(json)?|```$/g, "").trim());
     } catch {
       v = { sendefertig: false, note: 0, verstoesse: ["Prüfer-Antwort nicht lesbar"], verbesserung: verdictRaw.slice(0, 200) };
     }
-    n++; sum += v.note; if (v.sendefertig && decisionOk) ok++; if (decisionOk) decOk++;
+    n++; sum += v.note; human += v.menschlich ?? 0; if (v.sendefertig && decisionOk) ok++; if (decisionOk) decOk++;
     const dec = `${d.decision === "auto" ? "AUTO " : "MENSCH"}${decisionOk ? "" : " (soll " + c.want.toUpperCase() + ")"}`;
-    console.log(`${String(i + 1).padStart(2)} ${v.sendefertig && decisionOk ? "✅" : "❌"} ${v.note}/10  ${dec}  ${c.title}${v.verstoesse.length ? "  — " + v.verstoesse.join("; ") : ""}`);
+    console.log(`${String(i + 1).padStart(2)} ${v.sendefertig && decisionOk ? "✅" : "❌"} ${v.note}/10 M${v.menschlich ?? "?"}  ${dec}  ${c.title}${v.verstoesse.length ? "  — " + v.verstoesse.join("; ") : ""}`);
     rows.push(
       `## ${i + 1}. ${c.title} — ${v.sendefertig ? "✅ sendefertig" : "❌ nicht sendefertig"} (${v.note}/10)\n\n` +
         `**KI-Entscheidung:** ${dec} — ${d.reason}\n\n**Kunde:** ${c.history.replace(/\n/g, "  \n")}\n\n**Erwartung:** ${c.expect}\n\n` +
@@ -184,7 +187,7 @@ async function main() {
   const head = `# KI-Entwurf-Test Lovenja — ${new Date().toLocaleString("de-DE")}\n\n**${ok}/${n} bestanden** (Entscheidung richtig: ${decOk}/${n}), Ø Note ${(sum / Math.max(n, 1)).toFixed(1)}/10\n\n`;
   const file = `backups/eval-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.md`;
   writeFileSync(file, head + rows.join("\n---\n\n"));
-  console.log(`\n${ok}/${n} bestanden (Entscheidung richtig ${decOk}/${n}), Ø ${(sum / Math.max(n, 1)).toFixed(1)}/10 -> ${file}`);
+  console.log(`\nmenschlicher Ton Ø ${(human / Math.max(n, 1)).toFixed(1)}/10 · ${ok}/${n} bestanden (Entscheidung richtig ${decOk}/${n}), Ø ${(sum / Math.max(n, 1)).toFixed(1)}/10 -> ${file}`);
 }
 
 main().catch((e) => {

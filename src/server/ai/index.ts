@@ -22,6 +22,7 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 const MODELS = {
   standard: { id: "claude-sonnet-5-5", price: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 } },
   schnell: { id: "claude-haiku-4-5", price: { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 } },
+  stark: { id: "claude-opus-5-5", price: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 } },
 } as const;
 type ModelKey = keyof typeof MODELS;
 

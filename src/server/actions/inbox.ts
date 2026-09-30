@@ -112,11 +112,31 @@ export async function escalateThread(threadId: string, reason: string) {
 }
 
 /** Draft-First: vom Menschen freigegebene Antwort -> Outbound-Message + Outbox-Job. */
-export async function replyToThread(threadId: string, bodyText: string, filesForm?: FormData) {
+export async function replyToThread(threadId: string, bodyText: string, filesForm?: FormData, seenMessageId?: string) {
   const user = await requireUser();
   const t = await loadThread(threadId);
   await requireWrite(t.shopId, "support");
   if (!bodyText.trim()) throw new Error("Leere Antwort");
+
+  // Doppel-Schutz: Ist seit dem Öffnen etwas Neues passiert, NICHT senden.
+  if (seenMessageId) {
+    const seen = await db.query.messages.findFirst({ where: eq(schema.messages.id, seenMessageId) });
+    if (seen) {
+      const newer = await db
+        .select({ direction: schema.messages.direction, sentBy: schema.messages.sentBy, name: schema.users.name, email: schema.users.email })
+        .from(schema.messages)
+        .leftJoin(schema.users, eq(schema.users.id, schema.messages.sentBy))
+        .where(and(eq(schema.messages.threadId, threadId), eq(schema.messages.internal, false), gt(schema.messages.createdAt, seen.createdAt)));
+      const reply = newer.find((m) => m.direction === "outbound");
+      if (reply) {
+        const who = reply.sentBy === user.id ? "Du hast" : `${reply.name || reply.email || "Jemand"} hat`;
+        throw new Error(`${who} inzwischen schon geantwortet — nicht gesendet, damit der Kunde keine doppelte Antwort bekommt. Bitte Seite neu laden.`);
+      }
+      if (newer.some((m) => m.direction === "inbound")) {
+        throw new Error("Der Kunde hat inzwischen neu geschrieben — nicht gesendet. Bitte Seite neu laden und die neue Nachricht berücksichtigen.");
+      }
+    }
+  }
 
   // Antwort geht über das Postfach des Tickets raus (Fallback: erstes Postfach des Shops).
   const mailbox =

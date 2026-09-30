@@ -31,52 +31,80 @@ type Msg = {
   bodyText: string | null;
   createdAt: string;
   sendStatus?: "pending" | "sent" | "failed" | null;
+  sentByName?: string | null;
   sendError?: string | null;
   sendStuck?: boolean;
   attachments?: { id: string; filename: string; contentType: string; sizeBytes: number }[];
 };
 
+const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
 function AttachmentList({ atts }: { atts: { id: string; filename: string; contentType: string; sizeBytes: number }[] }) {
+  const [open, setOpen] = useState<number | null>(null);
   if (!atts.length) return null;
-  const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+  const imgs = atts.filter((a) => a.contentType.startsWith("image/"));
+  const files = atts.filter((a) => !a.contentType.startsWith("image/"));
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-      {atts.map((a) =>
-        a.contentType.startsWith("image/") ? (
-          <a key={a.id} href={`/api/attachments/${a.id}`} target="_blank" rel="noopener noreferrer" title={`${a.filename} (${kb(a.sizeBytes)})`}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/attachments/${a.id}`}
-              alt={a.filename}
-              style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)", display: "block" }}
-            />
-          </a>
-        ) : (
-          <a
-            key={a.id}
-            href={`/api/attachments/${a.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-              background: "var(--panel-2)",
-              color: "inherit",
-              textDecoration: "none",
-              fontSize: 13,
-            }}
-          >
-            📎 {a.filename} <span className="muted">({kb(a.sizeBytes)})</span>
-          </a>
-        ),
+    <div style={{ marginTop: 8 }}>
+      {imgs.length > 0 && (
+        <>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>📷 {imgs.length} Foto{imgs.length > 1 ? "s" : ""} — anklicken zum Vergrößern</div>
+          <div className="photo-grid">
+            {imgs.map((a, i) => (
+              <button key={a.id} type="button" className="photo-thumb" onClick={() => setOpen(i)} title={`${a.filename} (${kb(a.sizeBytes)})`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/attachments/${a.id}`} alt={a.filename} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {files.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          {files.map((a) => (
+            <a key={a.id} href={`/api/attachments/${a.id}`} target="_blank" rel="noopener noreferrer" className="file-chip">
+              📎 {a.filename} <span className="muted">({kb(a.sizeBytes)})</span>
+            </a>
+          ))}
+        </div>
+      )}
+      {open !== null && <Lightbox imgs={imgs} index={open} onIndex={setOpen} />}
+    </div>
+  );
+}
+
+/** Große Foto-Ansicht im Tool: Pfeiltasten/Buttons zum Blättern, Esc schließt. */
+function Lightbox({ imgs, index, onIndex }: { imgs: { id: string; filename: string }[]; index: number; onIndex: (i: number | null) => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onIndex(null);
+      if (e.key === "ArrowRight") onIndex((index + 1) % imgs.length);
+      if (e.key === "ArrowLeft") onIndex((index - 1 + imgs.length) % imgs.length);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [index, imgs.length, onIndex]);
+  const a = imgs[index];
+  return (
+    <div className="lightbox" onClick={() => onIndex(null)} role="dialog" aria-label="Foto-Ansicht">
+      <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
+        <span>Foto {index + 1} von {imgs.length} · {a.filename}</span>
+        <span style={{ flex: 1 }} />
+        <a href={`/api/attachments/${a.id}`} target="_blank" rel="noopener noreferrer">Original öffnen</a>
+        <button type="button" onClick={() => onIndex(null)}>Schließen ✕</button>
+      </div>
+      {imgs.length > 1 && (
+        <button type="button" className="lb-nav lb-prev" onClick={(e) => { e.stopPropagation(); onIndex((index - 1 + imgs.length) % imgs.length); }} aria-label="Vorheriges Foto">‹</button>
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`/api/attachments/${a.id}`} alt={a.filename} onClick={(e) => e.stopPropagation()} />
+      {imgs.length > 1 && (
+        <button type="button" className="lb-nav lb-next" onClick={(e) => { e.stopPropagation(); onIndex((index + 1) % imgs.length); }} aria-label="Nächstes Foto">›</button>
       )}
     </div>
   );
 }
+
 /** KI-Kopfzeile: was will der Kunde, welches Problem, welcher Artikel, welche Bestellung (+ Prüfungen). */
 function AiHeader({ thread }: { thread: Thread }) {
   const [open, setOpen] = useState(false);
@@ -351,7 +379,7 @@ export function Conversation({
               <AttachmentList atts={m.attachments ?? []} />
               {m.direction === "outbound" && m.sendStatus && (
                 <div className="sendstatus" style={{ marginTop: 6 }}>
-                  {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ gesendet</span>}
+                  {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ gesendet{m.sentByName ? ` von ${m.sentByName}` : ""}</span>}
                   {m.sendStatus === "pending" && !m.sendStuck && (
                     <span style={{ fontSize: 12, display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <span className="muted">⏳ in Warteschlange…</span>
@@ -504,7 +532,7 @@ export function Conversation({
                       fd = new FormData();
                       for (const f of files) fd.append("files", f);
                     }
-                    await replyToThread(thread.id, text, fd);
+                    await replyToThread(thread.id, text, fd, messages.filter((x) => !x.internal).at(-1)?.id);
                     setText("");
                     setAiHint(null);
                     setFiles([]);

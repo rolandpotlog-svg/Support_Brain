@@ -667,3 +667,19 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .btnlink.primary:hover { background: var(--primary-hover); color: var(--on-primary); }
 
 .note.note-bad { background: var(--tag-rose-bg); color: var(--tag-rose-fg); border-color: transparent; }
+
+.busychip { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--tag-amber-bg); color: var(--tag-amber-fg); }
+
+/* Kundenfotos: Galerie + große Ansicht */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; max-width: 640px; }
+.photo-thumb { padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; aspect-ratio: 1; background: var(--panel-2); cursor: zoom-in; }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-thumb:hover { border-color: var(--accent); }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: inherit; font-size: 13px; }
+.lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(10,10,12,.92); display: flex; align-items: center; justify-content: center; }
+.lightbox > img { max-width: 88vw; max-height: 82vh; object-fit: contain; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.lightbox-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 12px; align-items: center; padding: 12px 18px; color: #f4f4f5; font-size: 13px; }
+.lightbox-bar a { color: #f4f4f5; text-decoration: underline; }
+.lightbox-bar button { background: rgba(255,255,255,.12); color: #fff; border-color: transparent; }
+.lb-nav { position: absolute; top: 50%; transform: translateY(-50%); font-size: 34px; line-height: 1; padding: 6px 14px; background: rgba(255,255,255,.12); color: #fff; border: 0; border-radius: 10px; }
+.lb-prev { left: 16px; } .lb-next { right: 16px; }
