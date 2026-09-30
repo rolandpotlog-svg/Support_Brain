@@ -295,6 +295,13 @@
       "when": 1790794292980,
       "tag": "0041_presence",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1790794437835,
+      "tag": "0042_lessons",
+      "breakpoints": true
     }
   ]
 }

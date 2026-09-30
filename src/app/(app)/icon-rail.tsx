@@ -30,6 +30,7 @@ export function IconRail({
   const onReturns = path.startsWith("/returns");
   const onReklamationen = path.startsWith("/reklamationen");
   const onReports = path.startsWith("/reports");
+  const onBrain = path.startsWith("/gehirn");
   const onAdmin = path.startsWith("/admin");
   const onRoadmap = path.startsWith("/roadmap");
 
@@ -85,6 +86,14 @@ export function IconRail({
             <line x1="18" y1="20" x2="18" y2="10" />
             <line x1="12" y1="20" x2="12" y2="4" />
             <line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
+        </Link>
+      )}
+      {canAdmin && (
+        <Link href="/gehirn" className={onBrain ? "active" : ""} title="KI-Gehirn (Lernbuch)" aria-label="KI-Gehirn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v.5a3 3 0 0 0-3 3v1a3 3 0 0 0 0 5v1a3 3 0 0 0 3 3v.5A2.5 2.5 0 0 0 9.5 21 2.5 2.5 0 0 0 12 18.5v-14A2.5 2.5 0 0 0 9.5 2Z" />
+            <path d="M14.5 2A2.5 2.5 0 0 1 17 4.5v.5a3 3 0 0 1 3 3v1a3 3 0 0 1 0 5v1a3 3 0 0 1-3 3v.5a2.5 2.5 0 0 1-2.5 2.5A2.5 2.5 0 0 1 12 18.5" />
           </svg>
         </Link>
       )}

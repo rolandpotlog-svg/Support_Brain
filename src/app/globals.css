@@ -642,3 +642,11 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .staff-role { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
 .staff-role input { width: auto; margin-top: 3px; }
 .staff-role.on { border-color: var(--accent); background: var(--accent-weak); }
+
+/* KI-Gehirn / Lernbuch */
+.lesson { padding: 12px 0; border-top: 1px solid var(--border); display: grid; gap: 6px; }
+.lesson-meta { font-size: 12px; color: var(--muted); }
+.lesson-edit, .lesson-add { display: grid; gap: 6px; }
+.lesson-btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lesson-ev summary { font-size: 12px; color: var(--text-2); cursor: pointer; }
+.lesson-ev pre { white-space: pre-wrap; font: 12px/1.45 inherit; background: var(--panel-2); padding: 8px 10px; border-radius: 8px; margin: 6px 0 0; }

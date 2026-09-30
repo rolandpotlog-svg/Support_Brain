@@ -419,6 +419,8 @@ export const messages = pgTable(
     // Schattenbetrieb: Hätte der KI-Entwurf inhaltlich gepasst? + was abweicht (Lernsignal).
     aiShadowMatch: boolean("ai_shadow_match"),
     aiShadowNote: text("ai_shadow_note"),
+    // Wurde diese Antwort schon auf eine Lern-Regel geprüft? (Worker, einmalig)
+    lessonCheckedAt: timestamp("lesson_checked_at", { withTimezone: true }),
     sentBy: uuid("sent_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -432,6 +434,27 @@ export const messages = pgTable(
 );
 
 // Ausgangs-Warteschlange: trennt "geschrieben" von "versendet".
+// Lernbuch je Shop: Regeln, die die KI aus Korrekturen/Schattenbetrieb gelernt hat. Erst nach Freigabe
+// („aktiv“) fließen sie in jeden Entwurf ein — mit Vorrang vor dem allgemeinen Profil.
+export const shopLesson = pgTable(
+  "shop_lesson",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    intent: text("intent"), // gilt nur für dieses Anliegen (null = immer)
+    rule: text("rule").notNull(),
+    source: text("source").notNull().default("edit"), // edit | shadow | manual
+    status: text("status").notNull().default("vorschlag"), // vorschlag | aktiv | verworfen
+    evidence: text("evidence"), // Beispiel: was die KI schrieb vs. was gesendet wurde
+    threadId: uuid("thread_id").references(() => threads.id, { onDelete: "set null" }),
+    hits: integer("hits").notNull().default(1), // wie oft dieselbe Korrektur vorkam
+    decidedBy: uuid("decided_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+  },
+  (t) => [index("shop_lesson_shop_idx").on(t.shopId, t.status)],
+);
+
 // Wer hat welches Ticket gerade offen? (Kollisionsschutz im Team: „Maria bearbeitet gerade“.)
 export const ticketPresence = pgTable(
   "ticket_presence",

@@ -8,6 +8,7 @@ import { loadShopifyCreds } from "@/server/shopify-config";
 import type { Resolution } from "@/lib/shopify/order-match";
 import { checksForPrompt, linkThreadOrder } from "@/server/order-link";
 import { intentLabel } from "@/lib/support/intents";
+import { activeLessonsForPrompt } from "@/server/ai/learn";
 import { trackingUrl } from "@/lib/shopify/client";
 import { bestBodyText } from "@/lib/mailbox/html-text";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
@@ -99,7 +100,9 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
       "Geht es NICHT um eine Rückgabe/Umtausch/Erstattung, erwähne das Portal nicht.";
   }
 
-  const system = draftSystemPrompt(systemBase, signature, pdata.closing, returnsHint);
+  // Gelernte, vom Team bestätigte Regeln (Lernbuch) — Vorrang vor dem allgemeinen Profil.
+  const lessons = await activeLessonsForPrompt(thread.shopId, thread.aiIntent);
+  const system = draftSystemPrompt(systemBase, signature, pdata.closing, returnsHint) + lessons;
 
   const msgs = await db
     .select({

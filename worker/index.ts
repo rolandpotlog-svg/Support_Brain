@@ -11,6 +11,7 @@ import { runWeeklyReports } from "./reports";
 import { triageRecent } from "../src/server/ai/triage";
 import { autoDraftRecent } from "../src/server/ai/autodraft";
 import { autoLinkOrders } from "../src/server/ai/autolink";
+import { learnFromEdits } from "../src/server/ai/learn";
 
 // Anhänge (Fotos) automatisch begrenzen: alte löschen, damit die DB nicht vollläuft. Höchstens 1×/Std.
 const KEEP_DAYS = Number(process.env.ATTACHMENT_KEEP_DAYS ?? 30);
@@ -63,6 +64,12 @@ async function runCycle() {
       drafted = await autoDraftRecent();
     } catch (e) {
       console.error("[worker] Auto-Entwurf-Fehler:", e instanceof Error ? e.message : e);
+    }
+    // Lern-Loop: aus geänderten Entwürfen Regel-Vorschläge ableiten (Freigabe im KI-Gehirn).
+    try {
+      await learnFromEdits();
+    } catch (e) {
+      console.error("[worker] Lern-Fehler:", e instanceof Error ? e.message : e);
     }
     console.log(
       `[${new Date().toISOString()}] ${fetched} Mail(s) abgeholt, ${sent} gesendet, ${tagged} eingeordnet, ${drafted} Entwürfe.`,
