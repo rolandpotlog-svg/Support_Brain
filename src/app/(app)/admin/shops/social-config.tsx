@@ -23,12 +23,12 @@ function block(shopId: string, channel: string, label: string, acc: SocialAccoun
       <div className="row">
         <input
           name="accessToken"
-          type="password"
+          type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true"
           placeholder={acc?.configured ? "Access-Token (leer = behalten)" : "Page-Access-Token"}
         />
         <input
           name="appSecret"
-          type="password"
+          type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true"
           placeholder={acc?.hasAppSecret ? "App-Secret (leer = behalten)" : "App-Secret (Webhook-Signatur)"}
         />
       </div>

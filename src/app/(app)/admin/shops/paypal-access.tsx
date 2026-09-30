@@ -40,8 +40,8 @@ export function PaypalAccess({
         REST-App aus developer.paypal.com (mit dem PayPal-Geschäftskonto dieses Shops). Das Tool liest die Fälle, ordnet sie Bestellung und Ticket zu und bereitet die Antwort vor. Eingereicht wird nur nach Freigabe.
       </p>
       <div className="row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <input id="pp-client" placeholder="Client-ID" value={clientId} onChange={(e) => setClientId(e.target.value)} style={{ flex: 2, minWidth: 220 }} />
-        <input id="pp-secret" type="password" placeholder={initial?.hasSecret ? "Secret (leer = behalten)" : "Client Secret"} value={secret} onChange={(e) => setSecret(e.target.value)} style={{ flex: 2, minWidth: 220 }} />
+        <input id="pp-client" name="pp-client-id" autoComplete="off" spellCheck={false} placeholder="Client-ID" value={clientId} onChange={(e) => setClientId(e.target.value)} style={{ flex: 2, minWidth: 220 }} />
+        <input id="pp-secret" name="pp-client-secret" type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" placeholder={initial?.hasSecret ? "Secret (leer = behalten)" : "Client Secret"} value={secret} onChange={(e) => setSecret(e.target.value)} style={{ flex: 2, minWidth: 220 }} />
         <select id="pp-mode" value={mode} onChange={(e) => setMode(e.target.value as "sandbox" | "live")} style={{ maxWidth: 170 }}>
           <option value="sandbox">Sandbox (Test)</option>
           <option value="live">Live</option>

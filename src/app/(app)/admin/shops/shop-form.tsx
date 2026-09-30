@@ -203,7 +203,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
             onChange={(e) => setShopifyClientId(e.target.value)}
           />
           <input
-            type="password"
+            type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true"
             placeholder={initial?.shopify.hasClientSecret ? "Client Secret (leer = behalten)" : "Client Secret"}
             value={shopifyClientSecret}
             onChange={(e) => setShopifyClientSecret(e.target.value)}
@@ -213,7 +213,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
               Alternative: Legacy Admin-API-Token (shpat_…)
             </summary>
             <input
-              type="password"
+              type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true"
               style={{ marginTop: 8, width: "100%" }}
               placeholder={initial?.shopify.hasLegacyToken ? "Token (leer = behalten)" : "shpat_… (nur falls keine Client-ID)"}
               value={shopifyToken}
@@ -264,7 +264,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
             </div>
             <div className="row">
               <input placeholder="IMAP-Login" value={r.imapUser} onChange={(e) => patch(i, { imapUser: e.target.value })} />
-              <input type="password" placeholder={r.passwordsSet ? "Passwort (leer = behalten)" : "IMAP-Passwort"} value={r.imapPassword} onChange={(e) => patch(i, { imapPassword: e.target.value })} />
+              <input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" placeholder={r.passwordsSet ? "Passwort (leer = behalten)" : "IMAP-Passwort"} value={r.imapPassword} onChange={(e) => patch(i, { imapPassword: e.target.value })} />
             </div>
             <div className="mblabel">Ausgehend (SMTP)</div>
             <div className="row">
@@ -273,7 +273,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
             </div>
             <div className="row">
               <input placeholder="SMTP-Login" value={r.smtpUser} onChange={(e) => patch(i, { smtpUser: e.target.value })} />
-              <input type="password" placeholder={r.passwordsSet ? "Passwort (leer = behalten)" : "SMTP-Passwort"} value={r.smtpPassword} onChange={(e) => patch(i, { smtpPassword: e.target.value })} />
+              <input type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" placeholder={r.passwordsSet ? "Passwort (leer = behalten)" : "SMTP-Passwort"} value={r.smtpPassword} onChange={(e) => patch(i, { smtpPassword: e.target.value })} />
             </div>
           </div>
         ))}
