@@ -82,7 +82,7 @@ export async function syncAllDisputes(): Promise<{ count: number; shops: number;
     // PayPal-Fälle (falls Zugang hinterlegt) gleich mit abrufen.
     try {
       const pp = await syncPaypalDisputes(s.id);
-      count += pp.count;
+      count += pp.forShop;
     } catch (e) {
       errors.push(`${s.name} (PayPal): ${e instanceof Error ? e.message : String(e)}`);
     }

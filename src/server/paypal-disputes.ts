@@ -1,6 +1,6 @@
 // PayPal-Käuferschutzfälle je Shop abholen, der Shopify-Bestellung + dem Support-Ticket zuordnen und als
 // Fall (dispute_case, source 'paypal') speichern. Nur LESEN — Antworten an PayPal gibt ein Mensch frei.
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { decrypt } from "@/lib/mailbox/crypto";
 import { loadShopifyCreds } from "@/server/shopify-config";
@@ -83,38 +83,123 @@ async function matchOrder(
   return { order: null, confidence: "keine", note: "Keine passende Bestellung gefunden" };
 }
 
-/** Alle PayPal-Fälle der letzten ~170 Tage holen und speichern. */
-export async function syncPaypalDisputes(shopId: string): Promise<{ count: number }> {
-  const c = await loadPaypalCreds(shopId);
-  if (!c) return { count: 0 };
+/** Shops, die dasselbe PayPal-Konto nutzen (gleiche Client-ID + Modus) — z. B. Repello + Lovenja. */
+async function paypalGroup(shopId: string): Promise<{ creds: PaypalCreds; shopIds: string[] } | null> {
+  const row = await db.query.shopPaypal.findFirst({ where: eq(schema.shopPaypal.shopId, shopId) });
+  if (!row) return null;
+  const same = await db
+    .select({ shopId: schema.shopPaypal.shopId })
+    .from(schema.shopPaypal)
+    .where(and(eq(schema.shopPaypal.clientId, row.clientId), eq(schema.shopPaypal.mode, row.mode)))
+    .orderBy(schema.shopPaypal.shopId);
+  return {
+    creds: { clientId: row.clientId, clientSecret: decrypt(row.clientSecretEnc), mode: row.mode === "live" ? "live" : "sandbox" },
+    shopIds: same.map((r) => r.shopId),
+  };
+}
+
+/** Andere Shops mit demselben PayPal-Konto (für den Hinweis in der Shop-Verwaltung). */
+export async function paypalSiblingShops(shopId: string): Promise<{ id: string; name: string }[]> {
+  const g = await paypalGroup(shopId);
+  if (!g || g.shopIds.length < 2) return [];
+  const shops = await db.select({ id: schema.shops.id, name: schema.shops.name }).from(schema.shops);
+  return shops.filter((s) => s.id !== shopId && g.shopIds.includes(s.id));
+}
+
+async function findThread(shopId: string, orderName: string | null, email: string | null): Promise<string | null> {
+  if (!orderName && !email) return null;
+  const t = await db
+    .select({ id: schema.threads.id })
+    .from(schema.threads)
+    .where(
+      and(
+        eq(schema.threads.shopId, shopId),
+        orderName
+          ? sql`(${schema.threads.orderName} = ${orderName} or lower(${schema.threads.customerEmail}) = lower(${email ?? ""}))`
+          : sql`lower(${schema.threads.customerEmail}) = lower(${email ?? ""})`,
+      ),
+    )
+    .orderBy(desc(schema.threads.lastMessageAt))
+    .limit(1);
+  return t[0]?.id ?? null;
+}
+
+type Match = Awaited<ReturnType<typeof matchOrder>>;
+const RANK = { sicher: 2, wahrscheinlich: 1, keine: 0 } as const;
+
+/**
+ * Welcher Shop gehört zu diesem Fall? Bei einem Konto für mehrere Shops wird in jedem Shop gesucht:
+ * 1) PayPal-Transaktion in genau einer Bestellung (sicher) · 2) nur ein Shop „wahrscheinlich“ ·
+ * 3) Käufer hat nur in einem Shop ein Ticket · sonst bleibt der bisherige Shop bzw. der erste — mit Hinweis.
+ */
+async function pickShop(
+  shopIds: string[],
+  d: PaypalDisputeDetail,
+  currentShopId: string | null,
+): Promise<{ shopId: string; m: Match; threadId: string | null }> {
+  const email = d.transactions[0]?.buyerEmail ?? null;
+  const res = await Promise.all(
+    shopIds.map(async (id) => {
+      const m = await matchOrder(id, d);
+      return { shopId: id, m, threadId: await findThread(id, m.order?.name ?? null, email) };
+    }),
+  );
+  if (res.length === 1) return res[0];
+  const best = Math.max(...res.map((r) => RANK[r.m.confidence]));
+  if (best > 0) {
+    const top = res.filter((r) => RANK[r.m.confidence] === best);
+    if (top.length === 1) return top[0];
+    const withTicket = top.filter((r) => r.threadId);
+    if (withTicket.length === 1) return withTicket[0];
+    const keep = top.find((r) => r.shopId === currentShopId) ?? top[0];
+    return { ...keep, m: { order: null, confidence: "keine", note: "Passt zu Bestellungen in mehreren Shops — bitte prüfen" } };
+  }
+  const withTicket = res.filter((r) => r.threadId);
+  if (withTicket.length === 1) {
+    return { ...withTicket[0], m: { ...withTicket[0].m, note: `${withTicket[0].m.note} · Shop über Kunden-Ticket bestimmt` } };
+  }
+  const keep = res.find((r) => r.shopId === currentShopId) ?? res[0];
+  return { ...keep, m: { ...keep.m, note: `${keep.m.note} · Shop unklar (gemeinsames PayPal-Konto) — bitte prüfen` } };
+}
+
+/**
+ * PayPal-Fälle der letzten ~170 Tage für das PayPal-Konto dieses Shops holen und speichern.
+ * Teilen sich mehrere Shops ein Konto, wird einmal abgerufen und jeder Fall genau EINEM Shop zugeordnet.
+ */
+export async function syncPaypalDisputes(shopId: string): Promise<{ count: number; forShop: number }> {
+  const g = await paypalGroup(shopId);
+  if (!g) return { count: 0, forShop: 0 };
+  const { creds: c, shopIds } = g;
+  const inGroup = inArray(schema.shopPaypal.shopId, shopIds);
   try {
     const { token } = await paypalToken(c);
     const since = new Date(Date.now() - 170 * 86_400_000).toISOString();
     const list = await listPaypalDisputes(c, token, since);
+    let forShop = 0;
     for (const s of list) {
+      const existing = await db
+        .select({ id: schema.disputeCase.id, shopId: schema.disputeCase.shopId, raw: schema.disputeCase.raw, conf: schema.disputeCase.matchConfidence })
+        .from(schema.disputeCase)
+        .where(and(eq(schema.disputeCase.source, "paypal"), eq(schema.disputeCase.providerCaseId, s.dispute_id), inArray(schema.disputeCase.shopId, shopIds)))
+        .limit(1)
+        .then((r) => r[0] ?? null);
+      // Unverändert seit dem letzten Abruf und sicher zugeordnet -> nichts zu tun (spart PayPal- + Shopify-Aufrufe)
+      if (existing && existing.raw?.update_time === s.update_time && existing.conf === "sicher") {
+        if (existing.shopId === shopId) forShop++;
+        continue;
+      }
       const d = await getPaypalDispute(c, token, s.dispute_id);
       const tx = d.transactions[0];
       const { status, outcome } = mapStatus(d);
-      const m = await matchOrder(shopId, d);
-      // Ticket: gleiche Bestellnummer (sicher zugeordnet) oder gleiche Käufer-E-Mail im selben Shop
-      let threadId: string | null = null;
-      if (m.order || tx?.buyerEmail) {
-        const t = await db
-          .select({ id: schema.threads.id })
-          .from(schema.threads)
-          .where(
-            and(
-              eq(schema.threads.shopId, shopId),
-              m.order
-                ? sql`(${schema.threads.orderName} = ${m.order.name} or lower(${schema.threads.customerEmail}) = lower(${tx?.buyerEmail ?? ""}))`
-                : sql`lower(${schema.threads.customerEmail}) = lower(${tx?.buyerEmail ?? ""})`,
-            ),
-          )
-          .orderBy(desc(schema.threads.lastMessageAt))
-          .limit(1);
-        threadId = t[0]?.id ?? null;
-      }
+      const pick = await pickShop(shopIds, d, existing?.shopId ?? null);
+      // Nie eine bessere alte Zuordnung durch eine schwächere ersetzen
+      const target =
+        existing && pick.shopId !== existing.shopId && pick.m.confidence === "keine" ? existing.shopId : pick.shopId;
+      const m = target === pick.shopId ? pick.m : await matchOrder(target, d);
+      const threadId = target === pick.shopId ? pick.threadId : await findThread(target, m.order?.name ?? null, tx?.buyerEmail ?? null);
+      if (target === shopId) forShop++;
       const vals = {
+        shopId: target,
         orderId: m.order?.id ?? null,
         orderName: m.order?.name ?? null,
         threadId,
@@ -138,29 +223,31 @@ export async function syncPaypalDisputes(shopId: string): Promise<{ count: numbe
         raw: d.raw,
         updatedAt: new Date(),
       };
-      await db
-        .insert(schema.disputeCase)
-        .values({ shopId, source: "paypal", providerCaseId: d.dispute_id, ...vals })
-        .onConflictDoUpdate({
-          target: [schema.disputeCase.shopId, schema.disputeCase.source, schema.disputeCase.providerCaseId],
-          set: vals,
-        });
+      // Bestehenden Fall aktualisieren (auch Shop-Wechsel) — Entwurf, Entscheidung und Audit bleiben erhalten
+      if (existing) await db.update(schema.disputeCase).set(vals).where(eq(schema.disputeCase.id, existing.id));
+      else await db.insert(schema.disputeCase).values({ source: "paypal", providerCaseId: d.dispute_id, ...vals });
     }
-    await db.update(schema.shopPaypal).set({ lastSyncAt: new Date(), lastError: null }).where(eq(schema.shopPaypal.shopId, shopId));
-    return { count: list.length };
+    await db.update(schema.shopPaypal).set({ lastSyncAt: new Date(), lastError: null }).where(inGroup);
+    return { count: list.length, forShop };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     // Auch bei Fehler den Zeitpunkt merken -> kein Dauer-Anklopfen bei falschen Zugangsdaten (nächster Versuch in 30 Min.)
-    await db.update(schema.shopPaypal).set({ lastError: msg.slice(0, 300), lastSyncAt: new Date() }).where(eq(schema.shopPaypal.shopId, shopId));
+    await db.update(schema.shopPaypal).set({ lastError: msg.slice(0, 300), lastSyncAt: new Date() }).where(inGroup);
     throw e;
   }
 }
 
-/** Worker: alle Shops mit PayPal-Zugang (höchstens alle 30 Minuten). */
+/** Worker: jedes PayPal-Konto höchstens alle 30 Minuten (gemeinsame Konten nur einmal). */
 export async function syncAllPaypal(): Promise<number> {
-  const rows = await db.select({ shopId: schema.shopPaypal.shopId, last: schema.shopPaypal.lastSyncAt }).from(schema.shopPaypal);
+  const rows = await db
+    .select({ shopId: schema.shopPaypal.shopId, clientId: schema.shopPaypal.clientId, mode: schema.shopPaypal.mode, last: schema.shopPaypal.lastSyncAt })
+    .from(schema.shopPaypal);
+  const seen = new Set<string>();
   let n = 0;
   for (const r of rows) {
+    const key = `${r.mode}:${r.clientId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     if (r.last && Date.now() - r.last.getTime() < 30 * 60_000) continue;
     try {
       n += (await syncPaypalDisputes(r.shopId)).count;

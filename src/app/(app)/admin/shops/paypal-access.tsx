@@ -6,9 +6,11 @@ import { savePaypalAccess, testPaypalAccess } from "@/server/actions/paypal";
 export function PaypalAccess({
   shopId,
   initial,
+  sharedWith = [],
 }: {
   shopId: string;
   initial: { clientId: string; mode: string; hasSecret: boolean; lastSyncAt: string | null; lastError: string | null } | null;
+  sharedWith?: string[];
 }) {
   const [clientId, setClientId] = useState(initial?.clientId ?? "");
   const [secret, setSecret] = useState("");
@@ -39,6 +41,11 @@ export function PaypalAccess({
       <p className="muted" style={{ marginTop: 0 }}>
         REST-App aus developer.paypal.com (mit dem PayPal-Geschäftskonto dieses Shops). Das Tool liest die Fälle, ordnet sie Bestellung und Ticket zu und bereitet die Antwort vor. Eingereicht wird nur nach Freigabe.
       </p>
+      {sharedWith.length > 0 && (
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Gemeinsames PayPal-Konto mit <b>{sharedWith.join(", ")}</b> — Fälle werden einmal abgerufen und über die Bestellung dem richtigen Shop zugeordnet.
+        </p>
+      )}
       <div className="row" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <input id="pp-client" name="pp-client-id" autoComplete="off" spellCheck={false} placeholder="Client-ID" value={clientId} onChange={(e) => setClientId(e.target.value)} style={{ flex: 2, minWidth: 220 }} />
         <input id="pp-secret" name="pp-client-secret" type="password" autoComplete="new-password" data-1p-ignore data-lpignore="true" placeholder={initial?.hasSecret ? "Secret (leer = behalten)" : "Client Secret"} value={secret} onChange={(e) => setSecret(e.target.value)} style={{ flex: 2, minWidth: 220 }} />

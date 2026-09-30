@@ -9,6 +9,7 @@ import { ProfileForm } from "../profile-form";
 import { SocialConfig } from "../social-config";
 import { LoadDefaults } from "../load-defaults";
 import { PaypalAccess } from "../paypal-access";
+import { paypalSiblingShops } from "@/server/paypal-disputes";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 
@@ -30,6 +31,7 @@ export default async function EditShopPage({
   const profile = activeTab === "profil" ? await loadProfile(id) : null;
   const social = activeTab === "social" ? await loadSocialAccounts(id) : null;
   const pp = activeTab === "zugang" ? await db.query.shopPaypal.findFirst({ where: eq(schema.shopPaypal.shopId, id) }) : null;
+  const ppSiblings = pp ? await paypalSiblingShops(id) : [];
 
   return (
     <div className="adminwrap">
@@ -62,6 +64,7 @@ export default async function EditShopPage({
         <PaypalAccess
           shopId={id}
           initial={pp ? { clientId: pp.clientId, mode: pp.mode, hasSecret: true, lastSyncAt: pp.lastSyncAt?.toISOString() ?? null, lastError: pp.lastError } : null}
+          sharedWith={ppSiblings.map((s) => s.name)}
         />
       )}
       {activeTab === "profil" && <LoadDefaults shopId={id} />}
