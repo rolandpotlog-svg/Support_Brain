@@ -563,7 +563,8 @@ export function Conversation({
                       fd = new FormData();
                       for (const f of files) fd.append("files", f);
                     }
-                    await replyToThread(thread.id, text, fd, messages.filter((x) => !x.internal).at(-1)?.id);
+                    const r = await replyToThread(thread.id, text, fd, messages.filter((x) => !x.internal).at(-1)?.id);
+                    if (!r.ok) throw new Error(r.error);
                     setText("");
                     setAiHint(null);
                     setFiles([]);

@@ -112,7 +112,25 @@ export async function escalateThread(threadId: string, reason: string) {
 }
 
 /** Draft-First: vom Menschen freigegebene Antwort -> Outbound-Message + Outbox-Job. */
-export async function replyToThread(threadId: string, bodyText: string, filesForm?: FormData, seenMessageId?: string) {
+/** Antwort senden. Gibt Fehler als Text zurück (statt zu werfen), damit der Mitarbeiter die echte
+ *  Meldung sieht — Next.js blendet geworfene Fehlertexte im Live-Betrieb aus. */
+export async function replyToThread(
+  threadId: string,
+  bodyText: string,
+  filesForm?: FormData,
+  seenMessageId?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await replyToThreadInner(threadId, bodyText, filesForm, seenMessageId);
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[reply]", threadId, msg);
+    return { ok: false, error: msg };
+  }
+}
+
+async function replyToThreadInner(threadId: string, bodyText: string, filesForm?: FormData, seenMessageId?: string) {
   const user = await requireUser();
   const t = await loadThread(threadId);
   await requireWrite(t.shopId, "support");
