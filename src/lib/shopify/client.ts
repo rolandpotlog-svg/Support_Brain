@@ -548,3 +548,18 @@ export function trackingUrl(t: Tracking): string | null {
   if (c.includes("post")) return `https://www.deutschepost.de/sendung/simpleQuery.html?form.sendungsnummer=${n}`;
   return `https://www.google.com/search?q=${encodeURIComponent((t.company ?? "") + " " + t.number)}`;
 }
+
+/** Zahlungs-Transaktionen einer Bestellung (für den PayPal-Abgleich: steckt die PayPal-Transaktions-ID drin?). */
+export async function getOrderPaymentRefs(creds: ShopifyCreds, orderGid: string): Promise<string[]> {
+  const data = await gql<{ order: { transactions: { gateway: string | null; authorizationCode: string | null; receiptJson: string | null }[] } | null }>(
+    creds,
+    `query($id: ID!) { order(id: $id) { transactions(first: 20) { gateway authorizationCode receiptJson } } }`,
+    { id: orderGid },
+  );
+  const refs: string[] = [];
+  for (const t of data.order?.transactions ?? []) {
+    if (t.authorizationCode) refs.push(t.authorizationCode);
+    if (t.receiptJson) refs.push(t.receiptJson);
+  }
+  return refs;
+}

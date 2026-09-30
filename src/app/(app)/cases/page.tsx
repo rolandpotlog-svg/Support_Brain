@@ -5,6 +5,9 @@ import { listCases, reportFrom, type CaseRow } from "@/server/disputes";
 import { euro } from "@/lib/format";
 import { countdownLabel, reasonInfo, statusLabel, urgency } from "@/lib/disputes/reasons";
 import { SyncDisputesButton } from "./sync-disputes-button";
+import { and, eq, inArray } from "drizzle-orm";
+import { db, schema } from "@/server/db";
+import { getActiveShopId } from "@/server/active-shop";
 
 const URGENCY_CLASS: Record<string, string> = {
   overdue: "rose",
@@ -19,9 +22,11 @@ const OPEN_STATUS = new Set(["NEEDS_RESPONSE", "UNDER_REVIEW"]);
 export default async function CasesPage() {
   const user = await requireUser();
   const accessible = await accessibleShopIds(user);
-  const shopIds: string[] = [];
-  for (const sid of accessible) if ((await brandAccess(user, sid)).cases) shopIds.push(sid);
-  if (shopIds.length === 0) redirect("/inbox");
+  // Trennung: nur der aktive Shop (wie überall sonst im Tool).
+  const active = (await db.select({ id: schema.shops.id }).from(schema.shops).where(and(inArray(schema.shops.id, accessible.length ? accessible : ["00000000-0000-0000-0000-000000000000"]), eq(schema.shops.active, true)))).map((s) => s.id);
+  const activeShopId = await getActiveShopId(active);
+  if (!activeShopId || !(await brandAccess(user, activeShopId)).cases) redirect("/inbox");
+  const shopIds = [activeShopId];
 
   const rows = await listCases(shopIds);
   const report = reportFrom(rows);

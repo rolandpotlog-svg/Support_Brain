@@ -13,6 +13,7 @@ import { autoDraftRecent } from "../src/server/ai/autodraft";
 import { autoLinkOrders } from "../src/server/ai/autolink";
 import { learnFromEdits } from "../src/server/ai/learn";
 import { autoCloseAnswered } from "../src/server/auto-close";
+import { syncAllPaypal } from "../src/server/paypal-disputes";
 
 // Anhänge (Fotos) automatisch begrenzen: alte löschen, damit die DB nicht vollläuft. Höchstens 1×/Std.
 const KEEP_DAYS = Number(process.env.ATTACHMENT_KEEP_DAYS ?? 30);
@@ -65,6 +66,12 @@ async function runCycle() {
       drafted = await autoDraftRecent();
     } catch (e) {
       console.error("[worker] Auto-Entwurf-Fehler:", e instanceof Error ? e.message : e);
+    }
+    // PayPal-Käuferschutzfälle abrufen (je Shop höchstens alle 30 Min.)
+    try {
+      await syncAllPaypal();
+    } catch (e) {
+      console.error("[worker] PayPal-Fehler:", e instanceof Error ? e.message : e);
     }
     // Beantwortete Tickets nach 5 Tagen ohne Kundenantwort automatisch abhaken.
     try {

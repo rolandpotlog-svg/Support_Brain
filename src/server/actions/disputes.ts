@@ -11,6 +11,7 @@ import {
   type DisputeEvidenceInput,
 } from "@/lib/shopify/client";
 import { evidenceTemplate } from "@/lib/disputes/reasons";
+import { syncPaypalDisputes } from "@/server/paypal-disputes";
 
 async function audit(caseId: string, userId: string, action: string, detail?: string) {
   await db.insert(schema.disputeAudit).values({ caseId, userId, action, detail: detail ?? null });
@@ -78,6 +79,13 @@ export async function syncAllDisputes(): Promise<{ count: number; shops: number;
   let synced = 0;
   const errors: string[] = [];
   for (const s of shops) {
+    // PayPal-Fälle (falls Zugang hinterlegt) gleich mit abrufen.
+    try {
+      const pp = await syncPaypalDisputes(s.id);
+      count += pp.count;
+    } catch (e) {
+      errors.push(`${s.name} (PayPal): ${e instanceof Error ? e.message : String(e)}`);
+    }
     const creds = await loadShopifyCreds(s.id);
     if (!creds) continue;
     try {

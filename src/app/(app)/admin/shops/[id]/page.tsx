@@ -8,6 +8,9 @@ import { ShopForm } from "../shop-form";
 import { ProfileForm } from "../profile-form";
 import { SocialConfig } from "../social-config";
 import { LoadDefaults } from "../load-defaults";
+import { PaypalAccess } from "../paypal-access";
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/server/db";
 
 export default async function EditShopPage({
   params,
@@ -26,6 +29,7 @@ export default async function EditShopPage({
   const activeTab = tab === "profil" ? "profil" : tab === "social" ? "social" : "zugang";
   const profile = activeTab === "profil" ? await loadProfile(id) : null;
   const social = activeTab === "social" ? await loadSocialAccounts(id) : null;
+  const pp = activeTab === "zugang" ? await db.query.shopPaypal.findFirst({ where: eq(schema.shopPaypal.shopId, id) }) : null;
 
   return (
     <div className="adminwrap">
@@ -54,6 +58,12 @@ export default async function EditShopPage({
       </div>
 
       {activeTab === "zugang" && <ShopForm initial={shop} hideHead />}
+      {activeTab === "zugang" && (
+        <PaypalAccess
+          shopId={id}
+          initial={pp ? { clientId: pp.clientId, mode: pp.mode, hasSecret: true, lastSyncAt: pp.lastSyncAt?.toISOString() ?? null, lastError: pp.lastError } : null}
+        />
+      )}
       {activeTab === "profil" && <LoadDefaults shopId={id} />}
       {activeTab === "profil" && (
         <ProfileForm

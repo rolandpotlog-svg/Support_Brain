@@ -11,6 +11,7 @@ import {
   urgency,
 } from "@/lib/disputes/reasons";
 import { DisputeActions } from "../dispute-actions";
+import { PaypalCase } from "../paypal-case";
 
 const AUDIT_LABEL: Record<string, string> = {
   submitted: "Eingereicht",
@@ -69,13 +70,16 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       </section>
 
       {isPaypal ? (
-        <section className="card">
-          <h2>PayPal-Fall</h2>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Read-only — die Bearbeitung passiert in PayPal.
-          </p>
-          {c.externalUrl && <a className="btnlink" href={c.externalUrl} target="_blank" rel="noopener noreferrer">In PayPal öffnen</a>}
-        </section>
+        <PaypalCase
+          caseId={c.id}
+          externalUrl={c.externalUrl}
+          matchConfidence={c.matchConfidence}
+          matchNote={c.matchNote}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          messages={((c.raw as any)?.messages ?? []).map((m: any) => ({ postedBy: m.posted_by ?? "?", time: m.time_posted ?? "", content: m.content ?? "" }))}
+          initialText={(c.evidence as Record<string, string> | null)?.paypalResponse ?? ""}
+          decision={(c.decision as "fight" | "accept" | null) ?? null}
+        />
       ) : (
         <DisputeActions
           caseId={c.id}

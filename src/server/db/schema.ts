@@ -163,6 +163,9 @@ export const disputeCase = pgTable(
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     outcome: text("outcome"), // 'won' | 'lost' | null
     externalUrl: text("external_url"), // PayPal-Link
+    // Zuordnung zur Shopify-Bestellung: sicher (Transaktions-ID) | wahrscheinlich (E-Mail+Betrag) | keine
+    matchConfidence: text("match_confidence"),
+    matchNote: text("match_note"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     raw: jsonb("raw").$type<any>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -173,6 +176,17 @@ export const disputeCase = pgTable(
     index("dispute_case_due_idx").on(t.status, t.dueBy),
   ],
 );
+
+// PayPal-Zugang je Shop (REST-App: Client-ID + Secret, AES-verschlüsselt). Modus sandbox|live.
+export const shopPaypal = pgTable("shop_paypal", {
+  shopId: uuid("shop_id").primaryKey().references(() => shops.id, { onDelete: "cascade" }),
+  clientId: text("client_id").notNull(),
+  clientSecretEnc: text("client_secret_enc").notNull(),
+  mode: text("mode").notNull().default("sandbox"),
+  lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Audit-Log: jede Einreichung/Entscheidung protokollieren (wer/wann/was).
 export const disputeAudit = pgTable("dispute_audit", {
