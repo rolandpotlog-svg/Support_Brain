@@ -131,6 +131,9 @@ export async function refundOrder(args: {
   amountCents: number;
 }): Promise<{ refundedAmount: string; currency: string }> {
   const { user } = await requireWrite(args.shopId, "support");
+  // Trennung: Ticket muss zum selben Shop gehören — VOR der Erstattung prüfen (echtes Geld).
+  const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, args.threadId) });
+  if (!thread || thread.shopId !== args.shopId) throw new Error("Ticket gehört nicht zu diesem Shop.");
   if (!Number.isFinite(args.amountCents) || args.amountCents <= 0) {
     throw new Error("Ungültiger Betrag.");
   }

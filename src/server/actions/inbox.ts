@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireUser, requireWrite } from "@/server/access";
+import { assertShopAccess, assignableUsers, requireUser, requireWrite } from "@/server/access";
 import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
 import { sendOutboxMessage } from "@/server/send";
 import { emailFromBody, isRelayAddress } from "@/lib/mailbox/extract";
@@ -38,6 +38,10 @@ async function loadThread(threadId: string) {
 export async function assignThread(threadId: string, assigneeId: string | null) {
   const t = await loadThread(threadId);
   await requireWrite(t.shopId, "support");
+  // Nur Personen zuweisen, die zu DIESEM Shop gehören.
+  if (assigneeId && !(await assignableUsers(t.shopId)).some((u) => u.id === assigneeId)) {
+    throw new Error("Diese Person gehört nicht zu diesem Shop.");
+  }
   await db
     .update(schema.threads)
     .set({ assigneeId })

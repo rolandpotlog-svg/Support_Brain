@@ -119,7 +119,18 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .rail a.active { background: var(--panel); color: var(--accent); box-shadow: var(--shadow-sm); }
 .rail .spacer { flex: 1; }
 
-.workspace { flex: 1; display: flex; min-width: 0; }
+.workspace-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.workspace { flex: 1; display: flex; min-width: 0; min-height: 0; }
+/* Shop-Leiste oben: Farbe + Name des aktiven Shops (Trennung der Shops auf einen Blick). */
+.shopstrip {
+  flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  padding: 5px 14px; font-size: 13px; color: var(--text);
+  background: color-mix(in srgb, var(--shop) 12%, var(--panel));
+  border-bottom: 2px solid var(--shop);
+}
+.shopstrip-dot, .railshop-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--shop); display: inline-block; flex-shrink: 0; }
+.railshop-dot { margin-right: 8px; vertical-align: middle; }
+.shopstrip-hint { color: var(--muted); font-size: 12px; }
 
 /* ── Spalte: Ordner ────────────────────────────────────────────────────── */
 .folders {

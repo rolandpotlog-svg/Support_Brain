@@ -14,10 +14,9 @@ export async function createCannedReply(shopId: string, title: string, body: str
 }
 
 export async function deleteCannedReply(id: string) {
-  const user = await requireUser();
   const row = await db.query.cannedReply.findFirst({ where: eq(schema.cannedReply.id, id) });
   if (!row) return;
-  await assertShopAccess(user, row.shopId);
+  await requireWrite(row.shopId, "support"); // Gäste (nur lesen) dürfen nicht löschen
   await db.delete(schema.cannedReply).where(eq(schema.cannedReply.id, id));
   revalidatePath("/textbausteine");
 }

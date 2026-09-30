@@ -15,7 +15,7 @@ export function IconRail({
   canFinance,
   canAdmin,
 }: {
-  shops: { id: string; name: string }[];
+  shops: { id: string; name: string; color: string }[];
   activeShopId: string | null;
   isOwner: boolean;
   canReports: boolean;

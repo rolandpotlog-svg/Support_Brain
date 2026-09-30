@@ -2,7 +2,8 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
-import { requireUser, requireOwner } from "@/server/access";
+import { accessibleShopIds, requireUser, requireOwner } from "@/server/access";
+import { getActiveShopId } from "@/server/active-shop";
 
 /** Notiz/Feedback von einem Mitarbeiter (jeder eingeloggte Nutzer). gut=läuft, bug=Problem, idee=Vorschlag. */
 export async function submitFeedback(kind: "gut" | "bug" | "idee", text: string) {
@@ -10,7 +11,10 @@ export async function submitFeedback(kind: "gut" | "bug" | "idee", text: string)
   const t = text.trim();
   if (!t) throw new Error("Bitte etwas eintragen");
   const k = kind === "gut" || kind === "bug" ? kind : "idee";
+  // Notiz dem aktiven Shop zuordnen -> Mitarbeiter anderer Shops sehen sie nicht.
+  const shopId = await getActiveShopId(await accessibleShopIds(user));
   await db.insert(schema.feedback).values({
+    shopId,
     userId: user.id,
     userEmail: user.email,
     kind: k,

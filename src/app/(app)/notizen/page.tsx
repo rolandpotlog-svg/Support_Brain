@@ -1,5 +1,5 @@
-import { desc } from "drizzle-orm";
-import { requireUser } from "@/server/access";
+import { desc, eq, inArray, or } from "drizzle-orm";
+import { accessibleShopIds, requireUser } from "@/server/access";
 import { db, schema } from "@/server/db";
 import { timeAgo } from "@/lib/format";
 import { NotesComposer } from "./composer";
@@ -11,7 +11,10 @@ const KIND_META: Record<string, { label: string; cls: string }> = {
 };
 
 export default async function NotizenPage() {
-  await requireUser();
+  const user = await requireUser();
+  // Trennung: Owner sieht alles; alle anderen nur Notizen ihrer Shops (+ eigene).
+  const shopIds = user.isOwner ? null : await accessibleShopIds(user);
+  const shopNames = new Map((await db.select({ id: schema.shops.id, name: schema.shops.name }).from(schema.shops)).map((s) => [s.id, s.name]));
   const notes = await db
     .select({
       id: schema.feedback.id,
@@ -20,8 +23,14 @@ export default async function NotizenPage() {
       status: schema.feedback.status,
       userEmail: schema.feedback.userEmail,
       createdAt: schema.feedback.createdAt,
+      shopId: schema.feedback.shopId,
     })
     .from(schema.feedback)
+    .where(
+      shopIds
+        ? or(eq(schema.feedback.userId, user.id), shopIds.length ? inArray(schema.feedback.shopId, shopIds) : undefined)
+        : undefined,
+    )
     .orderBy(desc(schema.feedback.createdAt))
     .limit(50);
 
@@ -29,7 +38,7 @@ export default async function NotizenPage() {
     <div className="adminwrap">
       <h1 style={{ marginTop: 0 }}>📝 Team-Notizen</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        Halt fest, was gut läuft, was hakt und was noch sinnvoll wäre zu bauen. Der Owner sieht alle Notizen.
+        Halt fest, was gut läuft, was hakt und was noch sinnvoll wäre zu bauen. Notizen gehören zum aktiven Shop; Mitarbeiter sehen nur die ihrer Shops, der Owner sieht alle.
       </p>
 
       <NotesComposer />
@@ -49,7 +58,7 @@ export default async function NotizenPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
                   <span className={`fbadge ${m.cls}`}>{m.label}</span>
                   <span className="muted" style={{ fontSize: 12 }}>
-                    {n.userEmail ?? "?"} · {timeAgo(new Date(n.createdAt))}
+                    {n.shopId ? `${shopNames.get(n.shopId) ?? "?"} · ` : ""}{n.userEmail ?? "?"} · {timeAgo(new Date(n.createdAt))}
                     {n.status === "erledigt" ? " · erledigt ✓" : ""}
                   </span>
                 </div>

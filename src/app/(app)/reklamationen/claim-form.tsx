@@ -3,11 +3,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClaim } from "@/server/actions/claims";
 
-const PRODUCT_SUGGESTIONS = ["Sonic Pulse Pro", "M-Shield", "Protect+ / Juckreiz", "Gartenhandschuhe"];
-
 type Initial = { product?: string; orderName?: string; quantity?: string; source?: "manuell" | "wareneingang" };
 
-export function ClaimForm({ shopId, initial }: { shopId: string; initial?: Initial }) {
+// Produktvorschläge kommen je Shop aus dessen bisherigen Reklamationen (keine festen Repello-Namen mehr).
+export function ClaimForm({ shopId, initial, suggestions = [] }: { shopId: string; initial?: Initial; suggestions?: string[] }) {
   const router = useRouter();
   const [product, setProduct] = useState(initial?.product ?? "");
   const [orderName, setOrderName] = useState(initial?.orderName ?? "");
@@ -45,7 +44,7 @@ export function ClaimForm({ shopId, initial }: { shopId: string; initial?: Initi
         <label>
           Artikel *
           <input list="claim-products" value={product} onChange={(e) => setProduct(e.target.value)} placeholder="z. B. Sonic Pulse Pro" required />
-          <datalist id="claim-products">{PRODUCT_SUGGESTIONS.map((p) => <option key={p} value={p} />)}</datalist>
+          <datalist id="claim-products">{suggestions.map((p) => <option key={p} value={p} />)}</datalist>
         </label>
         <label>
           Menge *

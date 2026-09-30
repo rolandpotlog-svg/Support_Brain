@@ -585,9 +585,11 @@ export async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: 
   return processed;
 }
 
-export async function ingestAll(): Promise<number> {
+export async function ingestAll(onlyShopIds?: string[]): Promise<number> {
   let total = 0;
-  const shops = await db.select().from(schema.shops).where(eq(schema.shops.active, true));
+  const shops = (await db.select().from(schema.shops).where(eq(schema.shops.active, true))).filter(
+    (s) => !onlyShopIds || onlyShopIds.includes(s.id),
+  );
   for (const shop of shops) {
     const mailboxes = await db
       .select()

@@ -6,6 +6,7 @@ import { getActiveShopId } from "@/server/active-shop";
 import { initials, tagColor, timeAgo } from "@/lib/format";
 import { bestBodyText } from "@/lib/mailbox/html-text";
 import { Conversation } from "./conversation";
+import { SwitchShopButton } from "./switch-shop-button";
 import { listCannedReplies } from "@/server/canned";
 import { ShopifyPanel } from "./shopify-panel";
 import { SyncButton } from "./sync-button";
@@ -66,6 +67,7 @@ export default async function InboxPage({
   // Aktiver Shop = genau einer im Fokus. Ein geöffnetes Ticket "zieht" den aktiven
   // Shop auf seinen eigenen (damit z. B. Eskalations-Links funktionieren).
   let activeShopId = await getActiveShopId(activeIds);
+  const cookieShopId = activeShopId; // der oben in der Shop-Leiste gewählte Shop
   let selectedThread: typeof schema.threads.$inferSelect | null = null;
   if (ticket) {
     const t = await db.query.threads.findFirst({ where: eq(schema.threads.id, ticket) });
@@ -75,6 +77,11 @@ export default async function InboxPage({
     }
   }
   const hasShops = activeShopId !== null;
+  // Ticket aus einem ANDEREN Shop geöffnet (z. B. über einen Link) -> deutlich darauf hinweisen.
+  const foreignTicketShop =
+    selectedThread && cookieShopId && selectedThread.shopId !== cookieShopId
+      ? shopList.find((s) => s.id === selectedThread!.shopId) ?? null
+      : null;
 
   // Ordnerzähler (nur aktiver Shop)
   const counts: Record<string, number> = {};
@@ -253,6 +260,16 @@ export default async function InboxPage({
   const activeFolder = FOLDERS.find((f) => f.key === folder) ?? FOLDERS[0];
 
   return (
+    <>
+    {foreignTicketShop && (
+      <div className="alertbar warn" style={{ position: "fixed", top: 44, right: 16, zIndex: 50, display: "flex", gap: 10, alignItems: "center", maxWidth: 520 }}>
+        <span>
+          ⚠️ Dieses Ticket gehört zu <b>{foreignTicketShop.name}</b>, aktiv ist aber{" "}
+          <b>{shopList.find((s) => s.id === cookieShopId)?.name}</b>.
+        </span>
+        <SwitchShopButton shopId={foreignTicketShop.id} name={foreignTicketShop.name} />
+      </div>
+    )}
     <div className="inbox-root" data-selected={selected ? "1" : "0"}>
       {/* Spalte: Ordner */}
       <aside className="folders">
@@ -379,6 +396,7 @@ export default async function InboxPage({
         )}
       </aside>
     </div>
+    </>
   );
 }
 

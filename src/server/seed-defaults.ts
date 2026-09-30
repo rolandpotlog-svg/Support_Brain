@@ -100,6 +100,12 @@ export async function applyBrandDefaults(shopId: string): Promise<{ brand: strin
   const shop = await db.query.shops.findFirst({ where: eq(schema.shops.id, shopId) });
   if (!shop) throw new Error("Brand nicht gefunden");
   const isLovenja = shop.slug.includes("lovenja");
+  const isRepello = /rep+ello/.test(shop.slug);
+  // Trennung: Nur Shops MIT eigener Vorlage bekommen Standards. Ein neuer Shop bekommt NIE die
+  // Repello-Werte (Signatur, Adresse, Geräte-Leiter) — dessen Profil wird manuell befüllt.
+  if (!isLovenja && !isRepello) {
+    throw new Error(`Für „${shop.name}“ gibt es noch keine Standard-Vorlage. Bitte das Profil manuell befüllen.`);
+  }
   const data = isLovenja ? LOVENJA_PROFILE : REPELLO_PROFILE;
   // Lovenja hat einen eigenen, vollständigen Satz (aus Rolands Vorlagen) — Repello: gemeinsam + Extras.
   const replies = isLovenja ? lovenjaReplies() : [...sharedSie(shop.name), ...repelloExtras(shop.name)];

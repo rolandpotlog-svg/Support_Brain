@@ -1,0 +1,2 @@
+ALTER TABLE "feedback" ADD COLUMN "shop_id" uuid;--> statement-breakpoint
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_shop_id_shops_id_fk" FOREIGN KEY ("shop_id") REFERENCES "public"."shops"("id") ON DELETE set null ON UPDATE no action;

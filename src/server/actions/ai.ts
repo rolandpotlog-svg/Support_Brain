@@ -1,7 +1,7 @@
 "use server";
 import { and, desc, eq, gte } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { assertShopAccess, requireBrandCap, requireUser } from "@/server/access";
+import { assertShopAccess, requireBrandCap, requireUser, requireWrite } from "@/server/access";
 import { complete } from "@/server/ai";
 import { classifyShopTickets } from "@/server/ai/classify";
 import { sendWeeklyReport } from "@/server/reports-send";
@@ -14,10 +14,9 @@ import type { DraftDecision } from "@/server/ai/draft-prompt";
  * `intent` = optionale, vom Mitarbeiter gewählte Schnellantwort/Absicht, die die Antwort steuert.
  */
 export async function draftReply(threadId: string, intent?: string): Promise<DraftDecision> {
-  const user = await requireUser();
   const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
   if (!thread) throw new Error("Thread nicht gefunden");
-  await assertShopAccess(user, thread.shopId);
+  await requireWrite(thread.shopId, "support"); // Entwurf überschreibt den gespeicherten Entwurf -> Schreibrecht
   return generateDraft(threadId, intent);
 }
 

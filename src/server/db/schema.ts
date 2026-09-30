@@ -811,6 +811,8 @@ export const feedback = pgTable("feedback", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
   userEmail: text("user_email"),
+  // Zu welchem Shop die Notiz gehört (aktiver Shop beim Schreiben). null = Altbestand (nur Owner/Autor sehen sie).
+  shopId: uuid("shop_id").references(() => shops.id, { onDelete: "set null" }),
   kind: text("kind").notNull().default("idee"), // idee | bug
   text: text("text").notNull(),
   status: text("status").notNull().default("neu"), // neu | erledigt

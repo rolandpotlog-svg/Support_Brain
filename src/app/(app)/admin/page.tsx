@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
@@ -15,7 +15,13 @@ export default async function AdminPage() {
   const caps = activeShopId ? await brandAccess(user, activeShopId) : null;
   if (!user.isOwner && !(caps?.settings || caps?.manageUsers)) redirect("/inbox");
 
-  const shops = await db.select().from(schema.shops).orderBy(schema.shops.name);
+  // Trennung: Nicht-Owner sehen nur ihre eigenen Shops (auch in der Eskalations-Liste unten).
+  const visibleShopIds = user.isOwner ? null : accessible;
+  const shops = await db
+    .select()
+    .from(schema.shops)
+    .where(visibleShopIds ? inArray(schema.shops.id, visibleShopIds.length ? visibleShopIds : ["00000000-0000-0000-0000-000000000000"]) : undefined)
+    .orderBy(schema.shops.name);
   const shopName = new Map(shops.map((s) => [s.id, s.name]));
   const users = user.isOwner ? await db.select().from(schema.users).orderBy(schema.users.createdAt) : [];
   const memberships = user.isOwner ? await db.select().from(schema.userShops) : [];
@@ -38,7 +44,12 @@ export default async function AdminPage() {
     .from(schema.escalations)
     .innerJoin(schema.threads, eq(schema.threads.id, schema.escalations.threadId))
     .innerJoin(schema.shops, eq(schema.shops.id, schema.threads.shopId))
-    .where(eq(schema.escalations.status, "open"))
+    .where(
+      and(
+        eq(schema.escalations.status, "open"),
+        visibleShopIds ? inArray(schema.threads.shopId, visibleShopIds.length ? visibleShopIds : ["00000000-0000-0000-0000-000000000000"]) : undefined,
+      ),
+    )
     .orderBy(desc(schema.escalations.createdAt));
 
   return (

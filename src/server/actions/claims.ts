@@ -45,10 +45,9 @@ export async function createClaim(input: {
 
 export async function updateClaimStatus(claimId: string, status: string, creditEuros?: number) {
   if (!CLAIM_STATUSES.includes(status as (typeof CLAIM_STATUSES)[number])) throw new Error("Ungültiger Status");
-  const user = await requireUser();
   const claim = await db.query.supplierClaim.findFirst({ where: eq(schema.supplierClaim.id, claimId) });
   if (!claim) throw new Error("Reklamation nicht gefunden");
-  await assertShopAccess(user, claim.shopId);
+  const { user } = await requireWrite(claim.shopId, "returns"); // Gäste (nur lesen) dürfen nicht ändern
 
   const terminal = status === "gutschrift" || status === "ersetzt" || status === "abgelehnt";
   await db
@@ -64,10 +63,9 @@ export async function updateClaimStatus(claimId: string, status: string, creditE
 }
 
 export async function deleteClaim(claimId: string) {
-  const user = await requireUser();
   const claim = await db.query.supplierClaim.findFirst({ where: eq(schema.supplierClaim.id, claimId) });
   if (!claim) return;
-  await assertShopAccess(user, claim.shopId);
+  await requireWrite(claim.shopId, "returns");
   await db.delete(schema.supplierClaim).where(eq(schema.supplierClaim.id, claimId));
   revalidatePath("/reklamationen");
 }

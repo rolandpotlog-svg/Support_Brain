@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { selectActiveShop } from "@/server/actions/inbox";
 
-type Shop = { id: string; name: string };
+type Shop = { id: string; name: string; color: string };
 
 /** Globaler Shop-Umschalter in der linken Rail. Einmal wählen → gilt überall. */
 export function SidebarShop({ shops, activeId }: { shops: Shop[]; activeId: string | null }) {
@@ -41,6 +41,7 @@ export function SidebarShop({ shops, activeId }: { shops: Shop[]; activeId: stri
       <button
         type="button"
         className="railshop-btn"
+        style={active ? { background: active.color, borderColor: active.color, color: "#fff" } : undefined}
         title={active ? `Shop: ${active.name}` : "Shop wählen"}
         aria-label={active ? `Aktiver Shop: ${active.name}. Umschalten` : "Shop wählen"}
         onClick={() => !single && setOpen((o) => !o)}
@@ -60,6 +61,7 @@ export function SidebarShop({ shops, activeId }: { shops: Shop[]; activeId: stri
               className={s.id === activeId ? "active" : ""}
               onClick={() => pick(s.id)}
             >
+              <span className="railshop-dot" style={{ background: s.color }} />
               {s.name}
             </button>
           ))}

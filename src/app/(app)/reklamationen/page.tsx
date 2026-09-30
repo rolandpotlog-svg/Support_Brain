@@ -39,6 +39,15 @@ export default async function ReklamationenPage({
   const ov = await getClaimsOverview(activeShopId);
   const monthly = await getMonthlyDefectReport(activeShopId, sp.month);
 
+  // Vorschläge nur aus DIESEM Shop.
+  const productSuggestions = (
+    await db
+      .selectDistinct({ p: schema.supplierClaim.productLabel })
+      .from(schema.supplierClaim)
+      .where(eq(schema.supplierClaim.shopId, activeShopId))
+      .limit(30)
+  ).map((r) => r.p);
+
   return (
     <div className="adminwrap">
       <div className="formhead"><h1 style={{ margin: 0 }}>Reklamationen · Supplier</h1></div>
@@ -136,7 +145,7 @@ export default async function ReklamationenPage({
             ↩ Vorausgefüllt aus dem <b>Wareneingang</b>{prefill.orderName ? ` (${prefill.orderName})` : ""} — Defekt-Grund ergänzen &amp; anlegen.
           </p>
         )}
-        <ClaimForm shopId={activeShopId} initial={prefill} />
+        <ClaimForm shopId={activeShopId} initial={prefill} suggestions={productSuggestions} />
       </section>
 
       {/* Liste */}
