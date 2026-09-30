@@ -24,8 +24,12 @@ function prompt(opts: {
   history: string;
   items: OrderItem[];
   knownIssues: string[];
+  past: string[];
 }): string {
   return [
+    opts.past.length
+      ? "FRÜHERE TICKETS DIESES KUNDEN (z. B. schon zur Lieferung gefragt -> „nachfrage“):\n" + opts.past.join("\n") + "\n"
+      : "",
     "ANLIEGEN (genau einen key wählen):",
     ...INTENTS.map((i) => `- ${i.key}: ${i.label}`),
     "",
@@ -79,6 +83,20 @@ export async function triageThread(threadId: string): Promise<void> {
     .orderBy(desc(sql`count(*)`))
     .limit(40);
 
+  const pastRows = await db
+    .select({ summary: schema.threads.aiSummary, intent: schema.threads.aiIntent, createdAt: schema.threads.createdAt })
+    .from(schema.threads)
+    .where(
+      and(
+        eq(schema.threads.shopId, t.shopId),
+        sql`${schema.threads.id} <> ${t.id}`,
+        sql`lower(${schema.threads.customerEmail}) = lower(${t.customerEmail})`,
+      ),
+    )
+    .orderBy(desc(schema.threads.createdAt))
+    .limit(3);
+  const past = pastRows.map((p) => `- ${p.createdAt.toLocaleDateString("de-DE")}: ${p.intent ?? "?"} · ${p.summary ?? ""}`);
+
   const raw = await complete({
     system: SYSTEM,
     messages: [
@@ -89,6 +107,7 @@ export async function triageThread(threadId: string): Promise<void> {
           history: history || "(kein Text)",
           items: (t.orderItems as OrderItem[] | null) ?? [],
           knownIssues: known.map((k) => k.issue!).filter(Boolean),
+          past,
         }),
       },
     ],

@@ -1,6 +1,6 @@
 // KI-Antwortentwurf erzeugen (ohne Login-Prüfung) — genutzt von der Server-Action (Knopf „KI-Entwurf")
 // und vom Worker (Auto-Entwurf zu jeder neuen Kundenmail). Die Zugriffsprüfung macht der Aufrufer.
-import { eq } from "drizzle-orm";
+import { eq, and, desc, ne, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { complete } from "@/server/ai";
 import { getSettings } from "@/server/returns";
@@ -153,6 +153,33 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
 
   // Frisch laden: Anliegen-Erkennung/Abgleich können gerade erst gelaufen sein.
   const freshThread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
+
+  // Kundenhistorie: frühere Tickets desselben Kunden (gleicher Shop) — worum ging es, was haben wir geantwortet?
+  // Damit geht die KI auf Vorgeschichte ein und sagt nichts doppelt zu (z. B. zweiter SORRY20-Code).
+  const pastThreads = await db
+    .select({ id: schema.threads.id, subject: schema.threads.subject, summary: schema.threads.aiSummary, createdAt: schema.threads.createdAt })
+    .from(schema.threads)
+    .where(
+      and(
+        eq(schema.threads.shopId, thread.shopId),
+        ne(schema.threads.id, threadId),
+        isNull(schema.threads.deletedAt),
+        sql`lower(${schema.threads.customerEmail}) = lower(${thread.customerEmail})`,
+      ),
+    )
+    .orderBy(desc(schema.threads.createdAt))
+    .limit(3);
+  const history2: string[] = [];
+  for (const p of pastThreads) {
+    const lastOut = await db.query.messages.findFirst({
+      where: and(eq(schema.messages.threadId, p.id), eq(schema.messages.direction, "outbound"), eq(schema.messages.internal, false)),
+      orderBy: desc(schema.messages.createdAt),
+    });
+    const ans = lastOut?.bodyText ? (stripQuoted(lastOut.bodyText) || lastOut.bodyText).replace(/\s+/g, " ").slice(0, 500) : "(keine Antwort gesendet)";
+    history2.push(
+      `- ${p.createdAt.toLocaleDateString("de-DE")} · ${p.subject ?? "(ohne Betreff)"}${p.summary ? ` · Anliegen: ${p.summary}` : ""}\n  Unsere letzte Antwort: ${ans}`,
+    );
+  }
   const wish = (intent ?? "").trim();
   const userMsg = [
     `KUNDE: ${thread.customerName || ""} <${thread.customerEmail}>`,
@@ -163,6 +190,10 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
     "",
     "SHOPIFY-KONTEXT:",
     orderContext,
+    "",
+    history2.length
+      ? "FRÜHERE TICKETS DIESES KUNDEN (Vorgeschichte — darauf eingehen, wenn es passt; Zusagen/Codes nicht doppelt geben):\n" + history2.join("\n")
+      : "FRÜHERE TICKETS DIESES KUNDEN: keine",
     "",
     // Anliegen-Erkennung (aktuelles Anliegen der letzten Kundennachricht) — bestimmt den Ablauf.
     freshThread?.aiIntent
