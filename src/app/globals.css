@@ -231,7 +231,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .convo .chead { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .convo .chead h2 { font-size: 17px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .convo .chead .icon-btn { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-2); }
-.convo .body { flex: 1; overflow-y: auto; padding: 20px; }
+.convo .body { flex: 1 1 auto; min-height: 200px; overflow-y: auto; overflow-x: hidden; padding: 18px 20px; }
 
 .mail {
   border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
@@ -242,17 +242,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .mail .mavatar { width: 38px; height: 38px; border-radius: 9px; background: var(--green); color: #fff; display: grid; place-items: center; font-weight: 700; }
 .mail .mfrom { font-weight: 700; }
 .mail .mtime { margin-left: auto; font-size: 12px; color: var(--muted); }
-.mail .mbody { margin: 0; white-space: pre-wrap; font-family: inherit; color: var(--text); line-height: 1.6; }
+.mail .mbody { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; color: var(--text); line-height: 1.6; font-size: 14.5px; }
 .mail .mmeta { font-size: 13px; color: var(--text-2); margin-bottom: 10px; }
 .mail .mmeta b { color: var(--text); font-weight: 600; }
 
 /* Antwort-Editor */
-.editor { border-top: 1px solid var(--border); padding: 14px 20px 18px; background: var(--panel); }
-.editor .fields { display: grid; gap: 6px; margin-bottom: 10px; }
+.editor { border-top: 1px solid var(--border); padding: 10px 20px 12px; background: var(--panel); flex-shrink: 0; max-height: 58%; overflow-y: auto; }
+.editor .fields { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-bottom: 4px; }
 .editor .frow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2); }
 .editor .frow .lbl { width: 38px; color: var(--muted); }
 .editor .frow .val { color: var(--text); }
-.editor .tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--border); margin: 6px 0 12px; }
+.editor .tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--border); margin: 2px 0 8px; }
 .editor .tabs .t { padding: 8px 2px; color: var(--muted); cursor: pointer; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .editor .tabs .t.active { color: var(--accent); border-color: var(--accent); }
 .editor textarea { min-height: 120px; resize: vertical; }
@@ -683,3 +683,38 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .lightbox-bar button { background: rgba(255,255,255,.12); color: #fff; border-color: transparent; }
 .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); font-size: 34px; line-height: 1; padding: 6px 14px; background: rgba(255,255,255,.12); color: #fff; border: 0; border-radius: 10px; }
 .lb-prev { left: 16px; } .lb-next { right: 16px; }
+
+/* Zitierter Altverlauf eingeklappt */
+.quoted { margin-top: 8px; }
+.quoted summary { font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+.quoted .mbody { margin-top: 6px; padding-left: 10px; border-left: 3px solid var(--border-strong); color: var(--text-2); font-size: 13px; }
+
+/* Ordner-Chips nur im Kompakt-Modus */
+.folderchips { display: none; }
+
+/* Mittlere Bildschirme: Seitenspalten schmaler */
+@media (max-width: 1680px) {
+  .folders { width: 196px; }
+  .tickets { width: 300px; }
+  .panel { width: 300px; }
+}
+/* MacBook / kleinere Bildschirme: Ordnerspalte -> Chips, Gespräch bekommt den Platz */
+@media (max-width: 1440px) and (min-width: 761px) {
+  .folders { display: none; }
+  .folderchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px 0; }
+  .tickets { width: 290px; }
+  .panel { width: 280px; }
+  .convo .chead { padding: 10px 16px; }
+  .convo .body { padding: 14px 16px; }
+  .editor { padding: 8px 16px 10px; }
+}
+
+/* Große Bildschirme (z. B. 27 Zoll): größere Schrift, angenehme Zeilenlänge im Verlauf */
+.mail .mbody, .quoted .mbody { max-width: 88ch; }
+@media (min-width: 1900px) {
+  body { font-size: 15.5px; }
+  .mail .mbody { font-size: 16px; }
+  .editor textarea { font-size: 15.5px; }
+  .tcard .subj { font-size: 14.5px; }
+  .aihead-sum { font-size: 15px; }
+}

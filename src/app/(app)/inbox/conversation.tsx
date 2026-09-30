@@ -37,6 +37,36 @@ type Msg = {
   attachments?: { id: string; filename: string; contentType: string; sizeBytes: number }[];
 };
 
+/** Mail-Text: aktueller Teil sichtbar, zitierter Altverlauf („> …“, „Am … schrieb“) eingeklappt. */
+function splitQuoted(text: string): [string, string] {
+  const lines = text.split(/\r?\n/);
+  const i = lines.findIndex(
+    (l) =>
+      /^\s*>/.test(l) ||
+      /^\s*Am .{4,160}(schrieb|wrote)/i.test(l) ||
+      /^\s*On .{4,160}wrote/i.test(l) ||
+      /^\s*-{2,}\s*(Original|Ursprüngliche Nachricht|Weitergeleitete)/i.test(l) ||
+      /^\s*(Von|From):\s.+/.test(l),
+  );
+  if (i <= 0) return [text, ""];
+  return [lines.slice(0, i).join("\n").trimEnd(), lines.slice(i).join("\n")];
+}
+
+function MailBody({ text }: { text: string | null }) {
+  const [main, quoted] = splitQuoted(text || "");
+  return (
+    <>
+      <pre className="mbody">{main || "(kein Text)"}</pre>
+      {quoted && (
+        <details className="quoted">
+          <summary>Zitierten Verlauf anzeigen</summary>
+          <pre className="mbody">{quoted}</pre>
+        </details>
+      )}
+    </>
+  );
+}
+
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
 function AttachmentList({ atts }: { atts: { id: string; filename: string; contentType: string; sizeBytes: number }[] }) {
@@ -375,7 +405,7 @@ export function Conversation({
                 </div>
                 <div className="mtime">{timeAgo(new Date(m.createdAt))}</div>
               </div>
-              <pre className="mbody">{m.bodyText || "(kein Text)"}</pre>
+              <MailBody text={m.bodyText} />
               <AttachmentList atts={m.attachments ?? []} />
               {m.direction === "outbound" && m.sendStatus && (
                 <div className="sendstatus" style={{ marginTop: 6 }}>
@@ -427,7 +457,8 @@ export function Conversation({
               placeholder="Antwort verfassen… (wird erst nach Freigabe gesendet)"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              style={{ minHeight: 240, resize: "vertical" }}
+              // Wächst mit dem Text, max. ~1/3 Bildschirmhöhe — der Verlauf behält immer genug Platz.
+              style={{ minHeight: 110, maxHeight: "34vh", resize: "vertical", fieldSizing: "content" } as React.CSSProperties}
             />
             {files.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 0" }}>

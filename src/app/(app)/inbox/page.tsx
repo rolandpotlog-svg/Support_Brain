@@ -390,6 +390,16 @@ export default async function InboxPage({
             {search && <Link href={`/inbox?folder=${folder}`} className="clear" title="Suche löschen">✕</Link>}
           </form>
         )}
+        {/* Kompakt-Modus (MacBook): Ordner als Chips, weil die Ordnerspalte ausgeblendet ist. */}
+        {hasShops && (
+          <div className="folderchips">
+            {FOLDERS.map((f) => (
+              <Link key={f.key} href={`/inbox?folder=${f.key}`} className={`qchip ${folder === f.key ? "on" : ""}`}>
+                {f.label} <span>{counts[f.key] ?? 0}</span>
+              </Link>
+            ))}
+          </div>
+        )}
         {hasShops && !search && (
           <div className="queues">
             {QUEUES.map((qq) => (
