@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveMetaAds, pullMetaSpend } from "@/server/actions/finance";
-import { CHANNEL_LABEL, type Channel } from "@/lib/finance/channels";
+import { channelLabel, type Channel } from "@/lib/finance/channels";
 
 type AccView = { channel: string; accountId: string; configured: boolean };
 
@@ -11,7 +11,7 @@ const inp: React.CSSProperties = {
   background: "var(--panel-2)", color: "var(--text)", fontSize: 13,
 };
 
-function ChannelRow({ shopId, acc, since, until }: { shopId: string; acc: AccView; since: string; until: string }) {
+function ChannelRow({ shopId, acc, since, until, ruleShop }: { shopId: string; acc: AccView; since: string; until: string; ruleShop: boolean }) {
   const router = useRouter();
   const [accountId, setAccountId] = useState(acc.accountId);
   const [token, setToken] = useState("");
@@ -40,7 +40,7 @@ function ChannelRow({ shopId, acc, since, until }: { shopId: string; acc: AccVie
   return (
     <div style={{ padding: "10px 0", borderTop: "1px solid var(--border)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <strong style={{ minWidth: 150 }}>{CHANNEL_LABEL[acc.channel as Channel]}</strong>
+        <strong style={{ minWidth: 150 }}>{channelLabel(acc.channel as Channel, ruleShop)}</strong>
         <span className={acc.configured ? "ok-text" : "muted"} style={{ fontSize: 12 }}>
           {acc.configured ? "✓ verbunden" : "nicht verbunden"}
         </span>
@@ -57,7 +57,7 @@ function ChannelRow({ shopId, acc, since, until }: { shopId: string; acc: AccVie
   );
 }
 
-export function MetaAdsConnector({ shopId, accounts, since, until }: { shopId: string; accounts: AccView[]; since: string; until: string }) {
+export function MetaAdsConnector({ shopId, accounts, since, until, ruleShop = false }: { shopId: string; accounts: AccView[]; since: string; until: string; ruleShop?: boolean }) {
   const [s, setS] = useState(since);
   const [u, setU] = useState(until);
   return (
@@ -68,7 +68,7 @@ export function MetaAdsConnector({ shopId, accounts, since, until }: { shopId: s
         <span className="muted">bis</span>
         <input style={inp} type="date" value={u} onChange={(e) => setU(e.target.value)} />
       </div>
-      {accounts.map((a) => <ChannelRow key={a.channel} shopId={shopId} acc={a} since={s} until={u} />)}
+      {accounts.map((a) => <ChannelRow key={a.channel} shopId={shopId} acc={a} since={s} until={u} ruleShop={ruleShop} />)}
     </div>
   );
 }

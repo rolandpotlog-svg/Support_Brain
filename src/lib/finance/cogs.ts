@@ -28,6 +28,32 @@ export const COGS_RATE_DEFS: { key: keyof CogsRates; label: string; hint: string
 /** @deprecated nur für Altskripte — Default-Bundle. */
 export const COGS_BUNDLE_CENTS = COGS_RATE_DEFAULTS.sonic_pulse_bundle;
 
+/** Repello (und Garten Expert) rechnen mit der festen Regel-Engine unten (Bundles etc.).
+ *  Alle anderen Shops: Einkaufspreis je Produkt aus der Tabelle finance_product_cost. */
+export function usesRuleEngine(shopSlug: string | null | undefined): boolean {
+  return /rep+ello/.test((shopSlug ?? "").toLowerCase());
+}
+
+/** Schlüssel für die Produkt-Kostentabelle: Titel normalisiert (Groß/Klein, Leerzeichen egal). */
+export function productKey(title: string): string {
+  return (title ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Upsells ohne Wareneinsatz (Umsatz zählt, COGS = 0) — für alle Shops gleich. */
+export function isZeroCostUpsell(title: string): boolean {
+  const n = (title ?? "").toLowerCase();
+  return ["paketschutz", "bestellung vorziehen", "ebook", "e-book", "garten-guide", "garten guide", "versandschutz"].some((s) => n.includes(s));
+}
+
+/** COGS eines Line-Items für Shops mit Produkt-Kostentabelle. Unbekannt -> geflaggt, nie still 0. */
+export function cogsFromProductTable(title: string, quantity: number, costs: Map<string, number>): LineCogs {
+  const qty = Number(quantity) || 0;
+  if (isZeroCostUpsell(title)) return { unitCents: 0, lineCents: 0, mapped: true };
+  const unit = costs.get(productKey(title));
+  if (unit == null) return { unitCents: 0, lineCents: 0, mapped: false };
+  return { unitCents: unit, lineCents: unit * qty, mapped: true };
+}
+
 export type LineCogs = {
   unitCents: number; // COGS pro Line-Einheit (× quantity = lineCents)
   lineCents: number;

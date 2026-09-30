@@ -14,7 +14,8 @@ const MANUAL = [
 ];
 const eur0 = (n: number) => (n || 0).toLocaleString("de-DE", { maximumFractionDigits: 0 });
 
-export function WeekCostGrid({ shopId, weeks }: { shopId: string; weeks: WeekVals[] }) {
+// meta2Label = Spaltenname fürs 2. Meta-Konto (Repello: „Garten“); null = Spalte ausblenden.
+export function WeekCostGrid({ shopId, weeks, meta2Label = null }: { shopId: string; weeks: WeekVals[]; meta2Label?: string | null }) {
   const router = useRouter();
   const [rows, setRows] = useState(() => weeks.map((w) => ({ ...w, values: { ...w.values } })));
   const [savingWk, setSavingWk] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function WeekCostGrid({ shopId, weeks }: { shopId: string; weeks: WeekVal
   return (
     <div>
       <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-        <b>Meta / Garten</b> kommen automatisch aus der API (read-only). <b>Google · Taboola · TikTok · Fix · Variabel</b> hier eintragen, bis die jeweilige API verbunden ist. Pro Zeile speichern.
+        <b>Meta{meta2Label ? ` / ${meta2Label}` : ""}</b> kommen automatisch aus der API (read-only). <b>Google · Taboola · TikTok · Fix · Variabel</b> hier eintragen, bis die jeweilige API verbunden ist. Pro Zeile speichern.
       </p>
       <div style={{ overflowX: "auto" }}>
         <table className="fin-table">
@@ -64,7 +65,7 @@ export function WeekCostGrid({ shopId, weeks }: { shopId: string; weeks: WeekVal
             <tr>
               <th>KW</th>
               <th style={{ textAlign: "right" }}>Meta</th>
-              <th style={{ textAlign: "right" }}>Garten</th>
+              {meta2Label && <th style={{ textAlign: "right" }}>{meta2Label}</th>}
               {MANUAL.map((m) => <th key={m.key} style={{ textAlign: "right" }}>{m.label} ✎</th>)}
               <th style={{ textAlign: "right" }}>Fix ✎</th>
               <th style={{ textAlign: "right" }}>Variabel ✎</th>
@@ -76,7 +77,7 @@ export function WeekCostGrid({ shopId, weeks }: { shopId: string; weeks: WeekVal
               <tr key={r.weekStart}>
                 <td><b>{r.label}</b></td>
                 <td style={{ textAlign: "right" }} className="muted">{eur0(r.values.meta ?? 0)} €</td>
-                <td style={{ textAlign: "right" }} className="muted">{eur0(r.values.meta_garten ?? 0)} €</td>
+                {meta2Label && <td style={{ textAlign: "right" }} className="muted">{eur0(r.values.meta_garten ?? 0)} €</td>}
                 {MANUAL.map((m) => <td key={m.key} style={{ textAlign: "right" }}>{inp(r.weekStart, m.key)}</td>)}
                 <td style={{ textAlign: "right" }}>{inp(r.weekStart, "fix")}</td>
                 <td style={{ textAlign: "right" }}>{inp(r.weekStart, "var")}</td>

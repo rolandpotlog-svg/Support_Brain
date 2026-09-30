@@ -696,6 +696,21 @@ export const financeCogsRate = pgTable(
   (t) => [primaryKey({ columns: [t.shopId, t.key] })],
 );
 
+// Einkaufspreis je Produkt (für Shops OHNE feste Regel-Engine, z. B. Lovenja mit vielen Varianten).
+// Schlüssel = normalisierter Produkttitel aus Shopify (Line-Item-Titel).
+export const financeProductCost = pgTable(
+  "finance_product_cost",
+  {
+    shopId: uuid("shop_id").notNull().references(() => shops.id, { onDelete: "cascade" }),
+    productKey: text("product_key").notNull(),
+    label: text("label").notNull(),
+    unitCents: integer("unit_cents").notNull().default(0),
+    source: text("source").notNull().default("manuell"), // manuell | shopify
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.shopId, t.productKey] })],
+);
+
 // Supplier-Reklamationen: defekte Artikel, die wir beim Supplier reklamieren
 // (aus Wareneingang/Retoure oder manuell). Jede Reklamation -> Trello-Karte für
 // den Supplier; monatlicher Defekt-Report für Gutschrift-Anfrage.

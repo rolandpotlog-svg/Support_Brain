@@ -2,8 +2,8 @@
 // Gutschrift (defekte Stück × Stückkost). Grundlage für die Gutschrift-Anfrage an den Supplier.
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { getCogsRates } from "@/server/finance/cogs-rates";
-import type { CogsRates } from "@/lib/finance/cogs";
+import { getCogsRates, getProductCostMap, shopUsesRules } from "@/server/finance/cogs-rates";
+import { productKey, type CogsRates } from "@/lib/finance/cogs";
 
 const LABEL_TO_RATE: Record<string, keyof CogsRates> = {
   "Sonic Pulse Pro": "sonic_pulse_bundle",
@@ -44,6 +44,8 @@ export async function getMonthlyDefectReport(
 ): Promise<MonthlyDefectReport> {
   const claims = await db.select().from(schema.supplierClaim).where(eq(schema.supplierClaim.shopId, shopId));
   const rates = await getCogsRates(shopId);
+  // Repello: Stückkosten über feste Kategorien. Andere Shops: Einkaufspreis je Produkt (Tabelle).
+  const productCosts = (await shopUsesRules(shopId)) ? null : await getProductCostMap(shopId);
   const curMonth = viennaMonth(now);
 
   const monthsSet = new Set<string>(claims.map((c) => viennaMonth(new Date(c.createdAt))));
@@ -65,7 +67,7 @@ export async function getMonthlyDefectReport(
   const rows: MonthlyDefectRow[] = [...byProduct.entries()]
     .map(([product, v]) => {
       const rateKey = LABEL_TO_RATE[product];
-      const unitCostCents = rateKey ? rates[rateKey] : 0;
+      const unitCostCents = productCosts ? productCosts.get(productKey(product)) ?? 0 : rateKey ? rates[rateKey] : 0;
       return {
         product,
         claims: v.claims,

@@ -4,8 +4,8 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { getOrdersInRange, getRefundsInRange } from "@/lib/shopify/client";
-import { cogsForLineItem } from "@/lib/finance/cogs";
-import { getCogsRates } from "@/server/finance/cogs-rates";
+import { cogsForLineItem, cogsFromProductTable } from "@/lib/finance/cogs";
+import { getCogsRates, getProductCostMap, shopUsesRules } from "@/server/finance/cogs-rates";
 import { weekOf } from "@/lib/finance/week";
 
 export async function ingestShopifyOrders(
@@ -17,6 +17,9 @@ export async function ingestShopifyOrders(
   if (!creds) throw new Error("Shopify für diesen Brand nicht verbunden");
   const orders = await getOrdersInRange(creds, sinceDate, untilDate);
   const rates = await getCogsRates(shopId);
+  // Repello: feste Regel-Engine. Andere Shops (z. B. Lovenja): Einkaufspreis je Produkt aus der Tabelle.
+  const rules = await shopUsesRules(shopId);
+  const productCosts = rules ? null : await getProductCostMap(shopId);
 
   let unmapped = 0;
   for (const o of orders) {
@@ -25,7 +28,7 @@ export async function ingestShopifyOrders(
     let cogs = 0;
     let unknownOrder = false;
     const items = o.lineItems.map((li) => {
-      const c = cogsForLineItem(li.title, li.quantity, rates);
+      const c = productCosts ? cogsFromProductTable(li.title, li.quantity, productCosts) : cogsForLineItem(li.title, li.quantity, rates);
       cogs += c.lineCents;
       if (!c.mapped) unknownOrder = true;
       return { li, c };

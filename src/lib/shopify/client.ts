@@ -675,3 +675,38 @@ export function trackingUrl(t: Tracking): string | null {
   if (c.includes("post")) return `https://www.deutschepost.de/sendung/simpleQuery.html?form.sendungsnummer=${n}`;
   return `https://www.google.com/search?q=${encodeURIComponent((t.company ?? "") + " " + t.number)}`;
 }
+
+/** Einkaufspreise (Shopify „Kosten pro Artikel“) je Produkttitel — erste Variante mit Preis.
+ *  Braucht den Scope read_inventory; ohne ihn wirft Shopify einen Zugriffsfehler (Aufrufer fängt ab). */
+export async function getProductUnitCosts(
+  creds: ShopifyCreds,
+  max = 2000,
+): Promise<{ title: string; unitCents: number; currency: string }[]> {
+  const out: { title: string; unitCents: number; currency: string }[] = [];
+  let after: string | null = null;
+  for (let guard = 0; guard < 100 && out.length < max; guard++) {
+    const data: { products: { edges: any[]; pageInfo: { hasNextPage: boolean } } } = await gql(
+      creds,
+      `query($after: String) {
+         products(first: 100, after: $after) {
+           edges { cursor node {
+             title
+             variants(first: 20) { nodes { inventoryItem { unitCost { amount currencyCode } } } }
+           } }
+           pageInfo { hasNextPage }
+         }
+       }`,
+      { after },
+    );
+    const edges = data.products?.edges ?? [];
+    for (const e of edges) {
+      const cost = (e.node.variants?.nodes ?? [])
+        .map((v: any) => v.inventoryItem?.unitCost)
+        .find((c: any) => c && parseFloat(c.amount) > 0);
+      if (cost) out.push({ title: e.node.title, unitCents: Math.round(parseFloat(cost.amount) * 100), currency: cost.currencyCode });
+    }
+    if (!data.products?.pageInfo?.hasNextPage || edges.length === 0) break;
+    after = edges[edges.length - 1].cursor;
+  }
+  return out;
+}

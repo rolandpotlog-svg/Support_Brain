@@ -7,12 +7,14 @@ import { ingestShopifyOrders, ingestRefunds } from "@/server/finance/ingest";
 import { extractPdfText } from "@/server/finance/pickoship-pdf";
 import { parsePickoshipText, type PickoshipOrder, type PickoshipResult } from "@/lib/finance/pickoship";
 import { parseBlueprint } from "@/server/finance/blueprint";
-import { getCogsRates } from "@/server/finance/cogs-rates";
+import { getCogsRates, recomputeProductCogs, shopUsesRules } from "@/server/finance/cogs-rates";
+import { loadShopifyCreds } from "@/server/shopify-config";
+import { getProductUnitCosts } from "@/lib/shopify/client";
 import { buildAssistantContext } from "@/server/finance/assistant-context";
 import { complete, type ChatMessage } from "@/server/ai";
 import { saveAdsAccount, ingestMetaSpend } from "@/server/finance/meta-ads";
 import { saveGoogleAds as saveGoogleAdsCfg, ingestGoogleSpend, type GoogleAdsInput } from "@/server/finance/google-ads";
-import { COGS_RATE_DEFS } from "@/lib/finance/cogs";
+import { COGS_RATE_DEFS, productKey } from "@/lib/finance/cogs";
 
 const euros = (n: unknown) => Math.round((Number(n) || 0) * 100);
 
@@ -153,6 +155,73 @@ export async function saveCogsRates(shopId: string, valuesEuros: Record<string, 
       });
   }
   revalidatePath("/finance");
+}
+
+/** Einkaufspreise je Produkt speichern (Shops ohne Regel-Engine, z. B. Lovenja) + alle Bestellungen neu rechnen.
+ *  euros = null -> Preis entfernen (Produkt gilt wieder als „ohne Preis“). */
+export async function saveProductCosts(shopId: string, items: { key: string; label: string; euros: number | null }[]) {
+  await requireFinance(shopId);
+  if (await shopUsesRules(shopId)) throw new Error("Dieser Shop rechnet mit festen Stückkosten (oben).");
+  for (const it of items) {
+    const key = productKey(it.key || it.label);
+    if (!key) continue;
+    if (it.euros == null || !Number.isFinite(it.euros)) {
+      await db.delete(schema.financeProductCost).where(and(eq(schema.financeProductCost.shopId, shopId), eq(schema.financeProductCost.productKey, key)));
+      continue;
+    }
+    const unitCents = euros(it.euros);
+    await db
+      .insert(schema.financeProductCost)
+      .values({ shopId, productKey: key, label: it.label, unitCents, source: "manuell" })
+      .onConflictDoUpdate({
+        target: [schema.financeProductCost.shopId, schema.financeProductCost.productKey],
+        set: { unitCents, label: it.label, source: "manuell", updatedAt: new Date() },
+      });
+  }
+  const r = await recomputeProductCogs(shopId);
+  revalidatePath("/finance");
+  return r;
+}
+
+/** Einkaufspreise aus Shopify („Kosten pro Artikel“) übernehmen — überschreibt KEINE manuell gepflegten Preise. */
+export async function importShopifyUnitCosts(shopId: string): Promise<{ imported: number; skipped: number; message?: string }> {
+  await requireFinance(shopId);
+  if (await shopUsesRules(shopId)) throw new Error("Dieser Shop rechnet mit festen Stückkosten (oben).");
+  const creds = await loadShopifyCreds(shopId);
+  if (!creds) throw new Error("Shopify ist für diesen Shop nicht verbunden.");
+  let costs: Awaited<ReturnType<typeof getProductUnitCosts>>;
+  try {
+    costs = await getProductUnitCosts(creds);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { imported: 0, skipped: 0, message: /access|scope|denied/i.test(msg) ? "Die Shopify-App braucht zusätzlich das Recht „read_inventory“ (Kosten pro Artikel)." : msg };
+  }
+  const manual = new Set(
+    (await db
+      .select({ k: schema.financeProductCost.productKey })
+      .from(schema.financeProductCost)
+      .where(and(eq(schema.financeProductCost.shopId, shopId), eq(schema.financeProductCost.source, "manuell")))).map((r) => r.k),
+  );
+  let imported = 0, skipped = 0;
+  for (const c of costs) {
+    const key = productKey(c.title);
+    if (manual.has(key)) { skipped++; continue; }
+    await db
+      .insert(schema.financeProductCost)
+      .values({ shopId, productKey: key, label: c.title, unitCents: c.unitCents, source: "shopify" })
+      .onConflictDoUpdate({
+        target: [schema.financeProductCost.shopId, schema.financeProductCost.productKey],
+        set: { unitCents: c.unitCents, label: c.title, source: "shopify", updatedAt: new Date() },
+      });
+    imported++;
+  }
+  await recomputeProductCogs(shopId);
+  revalidatePath("/finance");
+  return {
+    imported,
+    skipped,
+    message: costs.length === 0 ? "In Shopify sind keine „Kosten pro Artikel“ hinterlegt — Preise bitte hier eintragen." : undefined,
+  };
 }
 
 /** Finance-Assistent: beantwortet Fragen NUR aus den echten Engine-Daten (Grounding). */

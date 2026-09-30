@@ -260,6 +260,13 @@
       "when": 1790779783797,
       "tag": "0036_feedback_shop",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790780191244,
+      "tag": "0037_product_cost",
+      "breakpoints": true
     }
   ]
 }

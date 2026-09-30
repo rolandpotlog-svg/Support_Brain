@@ -7,7 +7,7 @@ import { db, schema } from "@/server/db";
 import { accessibleShopIds, brandAccess, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { buildFinanceReport } from "@/server/finance/report";
-import { getCogsRateRows, getUnmappedTitles, getProductBreakdown } from "@/server/finance/cogs-rates";
+import { getCogsRateRows, getUnmappedTitles, getProductBreakdown, getProductCostRows, shopUsesRules } from "@/server/finance/cogs-rates";
 import { loadAdsAccounts } from "@/server/finance/meta-ads";
 import { loadGoogleAds } from "@/server/finance/google-ads";
 import { CHANNELS } from "@/lib/finance/channels";
@@ -17,6 +17,7 @@ import { WeekCostGrid } from "./week-cost-grid";
 import { PickoshipUpload } from "./pickoship-upload";
 import { BlueprintUpload } from "./blueprint-upload";
 import { CogsEditor } from "./cogs-editor";
+import { ProductCostEditor } from "./product-cost-editor";
 import { MetaAdsConnector } from "./meta-ads";
 import { GoogleAdsConnector } from "./google-ads";
 
@@ -61,7 +62,10 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   }));
 
   // Nur für die aktiven Tabs laden.
-  const cogsRows = tab === "cogs" ? (await getCogsRateRows(activeShopId)).map((r) => ({ ...r, updatedAtISO: r.updatedAt ? r.updatedAt.toISOString() : null })) : [];
+  // Repello: feste Stückkosten-Regeln. Andere Shops: Einkaufspreis je Produkt.
+  const ruleShop = await shopUsesRules(activeShopId);
+  const productCostRows = tab === "cogs" && !ruleShop ? await getProductCostRows(activeShopId) : [];
+  const cogsRows = tab === "cogs" && ruleShop ? (await getCogsRateRows(activeShopId)).map((r) => ({ ...r, updatedAtISO: r.updatedAt ? r.updatedAt.toISOString() : null })) : [];
   const unmappedTitles = tab === "cogs" ? await getUnmappedTitles(activeShopId) : [];
   const sollBreakdown = tab === "cogs" ? await getProductBreakdown(activeShopId, cw) : [];
   const sollWeekLabel = kwLabel(kwOfWeekStart(cw));
@@ -110,7 +114,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           <section className="card">
             <h2 style={{ marginTop: 0 }}>Marketing automatisch (Meta Ads)</h2>
             <p className="muted" style={{ marginTop: 0 }}>Werbeausgaben direkt aus Meta in die PnL — je Konto <b>Werbekonto-ID</b> (act_…) + <b>Access-Token</b> (<code>ads_read</code>).</p>
-            <MetaAdsConnector shopId={activeShopId} accounts={adsAccounts} since={adsSince} until={today} />
+            <MetaAdsConnector shopId={activeShopId} accounts={adsAccounts} since={adsSince} until={today} ruleShop={ruleShop} />
           </section>
 
           <section className="card">
@@ -134,11 +138,17 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       {tab === "cogs" && (
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Produktkosten / Stückkosten (COGS)</h2>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Basis-Stückkosten vom Supplier. Ändern sich die Preise → hier eintragen; <b>neue &amp; laufende</b> Wochen rechnen automatisch nach.
-            Historische Wochen (aus der Excel) bleiben unverändert. Bundle-/Mengen-Logik bleibt automatisch.
-          </p>
-          <CogsEditor shopId={activeShopId} rows={cogsRows} />
+          {ruleShop ? (
+            <>
+              <p className="muted" style={{ marginTop: 0 }}>
+                Basis-Stückkosten vom Supplier. Ändern sich die Preise → hier eintragen; <b>neue &amp; laufende</b> Wochen rechnen automatisch nach.
+                Historische Wochen (aus der Excel) bleiben unverändert. Bundle-/Mengen-Logik bleibt automatisch.
+              </p>
+              <CogsEditor shopId={activeShopId} rows={cogsRows} />
+            </>
+          ) : (
+            <ProductCostEditor shopId={activeShopId} rows={productCostRows} />
+          )}
 
           <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
             <h3 style={{ margin: "0 0 4px" }}>Bestellt laut Shopify · {sollWeekLabel} (Soll)</h3>
@@ -175,7 +185,11 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       {tab === "eingaben" && (
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Marketing &amp; Kosten erfassen</h2>
-          <WeekCostGrid shopId={activeShopId} weeks={inputWeeks} />
+          <WeekCostGrid
+            shopId={activeShopId}
+            weeks={inputWeeks}
+            meta2Label={ruleShop ? "Garten" : inputWeeks.some((w) => (w.values.meta_garten ?? 0) > 0) ? "Meta 2" : null}
+          />
         </section>
       )}
     </div>

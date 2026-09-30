@@ -441,14 +441,22 @@ export async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: 
       }
       try {
         const parsed = await simpleParser(msg.source);
-        const messageId = parsed.messageId ?? null;
+        let messageId = parsed.messageId ?? null;
         if (messageId) {
-          const dup = await db.query.messages.findFirst({ where: eq(schema.messages.messageId, messageId) });
-          if (dup) {
+          // Dedup nur INNERHALB des Shops: dieselbe Mail per CC an zwei Shops soll in BEIDEN ankommen.
+          const dup = await db
+            .select({ shopId: schema.threads.shopId })
+            .from(schema.messages)
+            .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+            .where(eq(schema.messages.messageId, messageId));
+          if (dup.some((d) => d.shopId === shop.id)) {
             maxUid = Math.max(maxUid, uid);
             newUids.push(uid);
             continue;
           }
+          // Schon in einem ANDEREN Shop gespeichert -> hier ohne Message-ID speichern (die ist global eindeutig).
+          // Doppelt abgeholt wird trotzdem nicht: die IMAP-Position (lastSeenUid) schützt davor.
+          if (dup.length) messageId = null;
         }
 
         const fromAddr = parsed.from?.value?.[0];
