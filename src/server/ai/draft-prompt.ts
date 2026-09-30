@@ -29,7 +29,7 @@ function closingRules(closing: string | undefined): string {
 }
 
 // Klingt wie eine nette, erfahrene Support-Mitarbeiterin — nicht wie KI.
-const HUMAN_VOICE =
+export const HUMAN_VOICE =
   "\n\n--- SCHREIBSTIL: WIE EIN MENSCH, NICHT WIE KI ---\n" +
   "Schreib so, wie eine freundliche, erfahrene Support-Mitarbeiterin eine E-Mail an genau diesen einen Kunden schreibt: natürlich, warm, konkret, auf den Punkt. " +
   "Kurze bis mittellange Sätze, normaler E-Mail-Fluss in Absätzen. " +

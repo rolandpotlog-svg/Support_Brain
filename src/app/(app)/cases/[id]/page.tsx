@@ -12,6 +12,9 @@ import {
 } from "@/lib/disputes/reasons";
 import { DisputeActions } from "../dispute-actions";
 import { PaypalCase } from "../paypal-case";
+import { MoveShop } from "../move-shop";
+import { paypalSiblingShops } from "@/server/paypal-disputes";
+import { paypalAdvice, stageLabel, type CaseFacts } from "@/lib/disputes/paypal-policy";
 
 const AUDIT_LABEL: Record<string, string> = {
   submitted: "Eingereicht",
@@ -20,6 +23,7 @@ const AUDIT_LABEL: Record<string, string> = {
   evidence_saved: "Beweis gespeichert",
   evidence_assembled: "Beweispaket entworfen",
   synced: "Synchronisiert",
+  moved_shop: "Shop geändert",
 };
 
 export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,11 +38,15 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
   const u = urgency(c.dueBy, Date.now());
   const suggest = suggestDecision(parseFloat(c.amount || "0") || 0, c.reason);
   const isPaypal = c.source === "paypal";
+  const ev = (c.evidence as Record<string, string> | null) ?? {};
+  const siblings = isPaypal ? await paypalSiblingShops(c.shopId) : [];
+  const siblingsAllowed: { id: string; name: string }[] = [];
+  for (const s of siblings) if ((await brandAccess(user, s.id)).cases) siblingsAllowed.push(s);
 
   return (
     <div className="adminwrap">
       <div className="formhead">
-        <Link href="/cases" className="back">← Fälle</Link>
+        <Link href={isPaypal ? "/cases?quelle=paypal" : "/cases"} className="back">← Fälle</Link>
         <h1>{c.amount ? euro(c.amount, c.currency || "EUR") : "Dispute"} · {info.label}</h1>
       </div>
 
@@ -47,7 +55,9 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           <div className="rstat"><div className="k">Quelle</div><div className="v">{isPaypal ? "PayPal" : "Shopify Payments"}</div></div>
           <div className="rstat"><div className="k">Status</div><div className="v">{statusLabel(c.status)}</div></div>
           <div className="rstat"><div className="k">Frist</div><div className="v">{countdownLabel(u.hoursLeft)}</div></div>
-          <div className="rstat"><div className="k">Gewinnchance</div><div className="v">{info.chance}</div></div>
+          {isPaypal
+            ? <div className="rstat"><div className="k">Phase</div><div className="v">{stageLabel(c.type)}</div></div>
+            : <div className="rstat"><div className="k">Gewinnchance</div><div className="v">{info.chance}</div></div>}
         </div>
         <div className="muted" style={{ marginTop: 10, fontSize: 13 }}>
           {c.orderName && <>Bestellung <strong>{c.orderName}</strong> · </>}
@@ -58,26 +68,37 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
             <> · <Link href={`/inbox?ticket=${data.thread.id}`}>🎫 Ticket #{data.thread.number}</Link></>
           )}
         </div>
-        <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Schwerpunkt: {info.focus}</p>
+        {!isPaypal && <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Schwerpunkt: {info.focus}</p>}
+        {isPaypal && <MoveShop caseId={c.id} current={data.shopName ?? ""} others={siblingsAllowed} />}
       </section>
 
-      <section className="card">
+      {!isPaypal && <section className="card">
         <h2>Kämpfen vs. akzeptieren</h2>
         <p style={{ marginTop: 0 }}>
           Empfehlung: <strong>{suggest.suggest === "accept" ? "akzeptieren" : "kämpfen"}</strong> — {suggest.why}
           {c.decision && <span className="muted"> · gewählt: {c.decision === "accept" ? "akzeptieren" : "kämpfen"}</span>}
         </p>
-      </section>
+      </section>}
 
       {isPaypal ? (
         <PaypalCase
+          key={`${c.shopId}-${c.updatedAt?.getTime?.() ?? 0}`}
           caseId={c.id}
           externalUrl={c.externalUrl}
+          stage={stageLabel(c.type)}
+          orderName={c.orderName}
           matchConfidence={c.matchConfidence}
           matchNote={c.matchNote}
+          facts={(c.facts as CaseFacts | null) ?? null}
+          advice={paypalAdvice({ amount: c.amount, reason: c.reason, stage: c.type, matchConfidence: c.matchConfidence, facts: (c.facts as CaseFacts | null) ?? null })}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           messages={((c.raw as any)?.messages ?? []).map((m: any) => ({ postedBy: m.posted_by ?? "?", time: m.time_posted ?? "", content: m.content ?? "" }))}
-          initialText={(c.evidence as Record<string, string> | null)?.paypalResponse ?? ""}
+          initial={{
+            advice: ev.paypalAdvice ?? "",
+            buyerMessage: ev.paypalBuyerMessage ?? "",
+            statement: ev.paypalResponse ?? "",
+            evidence: ev.paypalEvidence ?? "",
+          }}
           decision={(c.decision as "fight" | "accept" | null) ?? null}
         />
       ) : (

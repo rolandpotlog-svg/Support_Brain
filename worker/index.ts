@@ -14,6 +14,7 @@ import { autoLinkOrders } from "../src/server/ai/autolink";
 import { learnFromEdits } from "../src/server/ai/learn";
 import { autoCloseAnswered } from "../src/server/auto-close";
 import { syncAllPaypal } from "../src/server/paypal-disputes";
+import { autoDraftPaypal } from "../src/server/paypal-draft";
 
 // Anhänge (Fotos) automatisch begrenzen: alte löschen, damit die DB nicht vollläuft. Höchstens 1×/Std.
 const KEEP_DAYS = Number(process.env.ATTACHMENT_KEEP_DAYS ?? 30);
@@ -70,6 +71,8 @@ async function runCycle() {
     // PayPal-Käuferschutzfälle abrufen (je Shop höchstens alle 30 Min.)
     try {
       await syncAllPaypal();
+      const ppDrafts = await autoDraftPaypal();
+      if (ppDrafts) console.log(`[worker] ${ppDrafts} PayPal-Entwurf/Entwürfe vorbereitet.`);
     } catch (e) {
       console.error("[worker] PayPal-Fehler:", e instanceof Error ? e.message : e);
     }

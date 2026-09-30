@@ -166,6 +166,8 @@ export const disputeCase = pgTable(
     // Zuordnung zur Shopify-Bestellung: sicher (Transaktions-ID) | wahrscheinlich (E-Mail+Betrag) | keine
     matchConfidence: text("match_confidence"),
     matchNote: text("match_note"),
+    // Abgleich mit der Shopify-Bestellung (Artikel, Versand, Zustellung, Tracking) — src/lib/disputes/paypal-policy.ts
+    facts: jsonb("facts").$type<import("@/lib/disputes/paypal-policy").CaseFacts>(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     raw: jsonb("raw").$type<any>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -1,0 +1,1 @@
+ALTER TABLE "dispute_case" ADD COLUMN "facts" jsonb;

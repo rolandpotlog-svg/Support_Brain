@@ -1,5 +1,5 @@
 // Lese-Helfer fürs Dispute-Dashboard. Schreibende Logik: actions/disputes.ts.
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 
 export type CaseRow = {
@@ -22,6 +22,11 @@ export type CaseRow = {
   submittedAt: Date | null;
   outcome: string | null;
   externalUrl: string | null;
+  stage: string | null;
+  matchConfidence: string | null;
+  facts: import("@/lib/disputes/paypal-policy").CaseFacts | null;
+  hasDraft: boolean;
+  initiatedAt: Date | null;
 };
 
 const OPEN_STATUS = new Set(["NEEDS_RESPONSE", "UNDER_REVIEW"]);
@@ -49,6 +54,11 @@ export async function listCases(shopIds: string[]): Promise<CaseRow[]> {
       submittedAt: schema.disputeCase.submittedAt,
       outcome: schema.disputeCase.outcome,
       externalUrl: schema.disputeCase.externalUrl,
+      stage: schema.disputeCase.type,
+      matchConfidence: schema.disputeCase.matchConfidence,
+      facts: schema.disputeCase.facts,
+      hasDraft: sql<boolean>`coalesce(${schema.disputeCase.evidence}->>'paypalBuyerMessage', ${schema.disputeCase.evidence}->>'paypalResponse', '') <> ''`,
+      initiatedAt: schema.disputeCase.initiatedAt,
     })
     .from(schema.disputeCase)
     .innerJoin(schema.shops, eq(schema.shops.id, schema.disputeCase.shopId))

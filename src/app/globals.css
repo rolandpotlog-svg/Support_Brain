@@ -718,3 +718,8 @@ details.kpi > summary::-webkit-details-marker { display: none; }
   .tcard .subj { font-size: 14.5px; }
   .aihead-sum { font-size: 15px; }
 }
+
+/* Filter-Chips (z. B. Fälle: PayPal / Shopify, dieser Shop / alle) */
+.fchip { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--panel); color: var(--text-2); font-size: 13px; text-decoration: none; }
+.fchip:hover { background: var(--panel-2); color: var(--text); }
+.fchip.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }

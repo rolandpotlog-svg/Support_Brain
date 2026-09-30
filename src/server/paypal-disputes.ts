@@ -5,6 +5,7 @@ import { db, schema } from "@/server/db";
 import { decrypt } from "@/lib/mailbox/crypto";
 import { loadShopifyCreds } from "@/server/shopify-config";
 import { findOrdersByEmail, getOrderByName, getOrderPaymentRefs, type ShopifyOrder } from "@/lib/shopify/client";
+import { factsFromOrder } from "@/lib/disputes/paypal-policy";
 import { getPaypalDispute, listPaypalDisputes, paypalToken, type PaypalCreds, type PaypalDisputeDetail } from "@/lib/paypal/client";
 
 /** PayPal-Grund -> interne Kategorie (Texte/Empfehlungen in src/lib/disputes/reasons.ts). */
@@ -178,20 +179,29 @@ export async function syncPaypalDisputes(shopId: string): Promise<{ count: numbe
     let forShop = 0;
     for (const s of list) {
       const existing = await db
-        .select({ id: schema.disputeCase.id, shopId: schema.disputeCase.shopId, raw: schema.disputeCase.raw, conf: schema.disputeCase.matchConfidence })
+        .select({ id: schema.disputeCase.id, shopId: schema.disputeCase.shopId, raw: schema.disputeCase.raw, conf: schema.disputeCase.matchConfidence, evidence: schema.disputeCase.evidence })
         .from(schema.disputeCase)
         .where(and(eq(schema.disputeCase.source, "paypal"), eq(schema.disputeCase.providerCaseId, s.dispute_id), inArray(schema.disputeCase.shopId, shopIds)))
         .limit(1)
         .then((r) => r[0] ?? null);
       // Unverändert seit dem letzten Abruf und sicher zugeordnet -> nichts zu tun (spart PayPal- + Shopify-Aufrufe)
-      if (existing && existing.raw?.update_time === s.update_time && existing.conf === "sicher") {
+      // (offene Fälle trotzdem neu abgleichen, damit der Zustellstatus aktuell bleibt)
+      const open = ["OPEN", "WAITING_FOR_SELLER_RESPONSE", "WAITING_FOR_BUYER_RESPONSE", "UNDER_REVIEW"].includes(s.status);
+      if (existing && existing.raw?.update_time === s.update_time && existing.conf === "sicher" && !open) {
         if (existing.shopId === shopId) forShop++;
         continue;
       }
       const d = await getPaypalDispute(c, token, s.dispute_id);
       const tx = d.transactions[0];
       const { status, outcome } = mapStatus(d);
-      const pick = await pickShop(shopIds, d, existing?.shopId ?? null);
+      // Manuell verschobene Fälle bleiben im gewählten Shop (nur dort neu abgleichen)
+      const manual = existing?.evidence?.manualShop === "1";
+      const pick = manual
+        ? await (async () => {
+            const mm = await matchOrder(existing!.shopId, d);
+            return { shopId: existing!.shopId, m: { ...mm, note: `${mm.note} · Shop manuell gewählt` }, threadId: await findThread(existing!.shopId, mm.order?.name ?? null, d.transactions[0]?.buyerEmail ?? null) };
+          })()
+        : await pickShop(shopIds, d, existing?.shopId ?? null);
       // Nie eine bessere alte Zuordnung durch eine schwächere ersetzen
       const target =
         existing && pick.shopId !== existing.shopId && pick.m.confidence === "keine" ? existing.shopId : pick.shopId;
@@ -220,6 +230,7 @@ export async function syncPaypalDisputes(shopId: string): Promise<{ count: numbe
             : `https://www.sandbox.paypal.com/resolutioncenter/view/${d.dispute_id}`,
         matchConfidence: m.confidence,
         matchNote: m.note,
+        facts: m.order ? factsFromOrder(m.order) : null,
         raw: d.raw,
         updatedAt: new Date(),
       };
