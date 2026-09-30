@@ -1,7 +1,7 @@
 // Gemeinsames SMTP-Sende-Modul — nutzbar aus dem Worker UND direkt aus der Server-Action
 // (damit eine freigegebene Antwort SOFORT rausgeht statt bis zu 60 s in der Warteschlange zu warten).
 import nodemailer from "nodemailer";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { decrypt } from "@/lib/mailbox/crypto";
 
@@ -65,9 +65,24 @@ export async function sendOutboxMessage(messageId: string): Promise<{ ok: boolea
   if (!box) return { ok: false, error: "Keine Outbox-Zeile" };
   if (box.status === "sent") return { ok: true };
 
+  // Atomar „beanspruchen“: nur EIN Aufrufer (Senden-Knopf oder Worker) darf diese Zeile senden.
+  // Eine hängengebliebene Sperre verfällt nach 5 Minuten (z. B. Prozess abgestürzt).
+  const claimed = await db
+    .update(schema.outbox)
+    .set({ claimedAt: new Date() })
+    .where(
+      and(
+        eq(schema.outbox.id, box.id),
+        eq(schema.outbox.status, "pending"),
+        or(isNull(schema.outbox.claimedAt), lt(schema.outbox.claimedAt, new Date(Date.now() - 5 * 60_000))),
+      ),
+    )
+    .returning({ id: schema.outbox.id });
+  if (!claimed.length) return { ok: false, error: "wird bereits gesendet" };
+
   try {
     await deliver(messageId);
-    await db.update(schema.outbox).set({ status: "sent", sentAt: new Date() }).where(eq(schema.outbox.id, box.id));
+    await db.update(schema.outbox).set({ status: "sent", sentAt: new Date(), claimedAt: null }).where(eq(schema.outbox.id, box.id));
     return { ok: true };
   } catch (err) {
     const attempts = box.attempts + 1;
@@ -75,7 +90,7 @@ export async function sendOutboxMessage(messageId: string): Promise<{ ok: boolea
     const failed = attempts >= MAX_ATTEMPTS;
     await db
       .update(schema.outbox)
-      .set({ attempts, lastError: errMsg, status: failed ? "failed" : "pending" })
+      .set({ attempts, lastError: errMsg, status: failed ? "failed" : "pending", claimedAt: null })
       .where(eq(schema.outbox.id, box.id));
     console.error(`[send] Outbox ${box.id} Fehler (Versuch ${attempts}):`, errMsg);
     if (failed) await onFinalFailure(messageId, attempts, errMsg);

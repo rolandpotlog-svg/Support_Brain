@@ -38,7 +38,7 @@ export function draftSystemPrompt(
   return (
     systemBase +
     "\n\n--- AUSGABE-REGELN ---\n" +
-    "Verfasse NUR die nächste E-Mail-Antwort an den Kunden, auf Deutsch. " +
+    "Verfasse NUR die nächste E-Mail-Antwort an den Kunden — in der Sprache, in der der Kunde geschrieben hat (Standard: Deutsch), mit der vorgegebenen Anrede-Form. " +
     "Keine Betreffzeile, keine Vorrede, keine Erklärungen, keine Meta-Kommentare, keine Platzhalter. " +
     (signature
       ? "Schreibe KEINE Grußformel und KEINE Signatur am Ende (auch kein Viele-Gruesse-Abschluss) — die feste Signatur wird automatisch angehängt. Ende mit dem letzten inhaltlichen Satz. "

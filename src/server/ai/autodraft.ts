@@ -12,6 +12,14 @@ const MAX_AGE_HOURS = Number(process.env.AUTODRAFT_MAX_AGE_HOURS ?? 72);
 
 let running = false;
 
+/** Automatisch erzeugte Mails erkennen (keine echte Kundenanfrage). */
+export function isAutomatedMail(from: string | null, subject: string | null): boolean {
+  const f = (from ?? "").toLowerCase();
+  const sub = (subject ?? "").toLowerCase().trim();
+  if (/(^|[._-])(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounce)/.test(f)) return true;
+  return /^(automatische antwort|abwesenheit|out of office|auto(matic)?[ -]?reply|autoreply|undeliverable|unzustellbar|delivery status notification|mail delivery (failed|subsystem)|returned mail)/.test(sub);
+}
+
 export async function autoDraftRecent(): Promise<number> {
   if (!aiConfigured() || running) return 0;
   running = true;
@@ -46,12 +54,20 @@ export async function autoDraftRecent(): Promise<number> {
       if (n >= MAX_PER_CYCLE) break;
       // Nur wenn die letzte (nicht-interne) Nachricht vom Kunden kommt — sonst ist nichts zu beantworten.
       const last = await db
-        .select({ direction: schema.messages.direction })
+        .select({ direction: schema.messages.direction, fromEmail: schema.messages.fromEmail, subject: schema.messages.subject })
         .from(schema.messages)
         .where(and(eq(schema.messages.threadId, t.id), eq(schema.messages.internal, false)))
         .orderBy(desc(schema.messages.createdAt))
         .limit(1);
       if (last[0]?.direction !== "inbound") continue;
+      // Abwesenheitsnotizen, Zustellfehler, No-Reply-Absender: keinen Entwurf verschwenden.
+      if (isAutomatedMail(last[0].fromEmail, last[0].subject)) {
+        await db
+          .update(schema.threads)
+          .set({ aiDraftAt: sql`now()`, aiDecision: "mensch", aiReason: "Automatische Mail (Abwesenheit/Zustellfehler) — kein Entwurf" })
+          .where(eq(schema.threads.id, t.id));
+        continue;
+      }
       try {
         await generateDraft(t.id);
         n++;

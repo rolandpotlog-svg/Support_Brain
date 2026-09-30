@@ -28,7 +28,16 @@ async function pruneOldAttachments() {
   }
 }
 
+// Überlappungs-Schutz: dauert ein Zyklus länger als das Intervall (viele Mails, KI-Entwürfe),
+// startet der nächste NICHT parallel — sonst drohen doppelte Tickets/Entwürfe.
+let cycleRunning = false;
+
 async function runCycle() {
+  if (cycleRunning) {
+    console.log("[worker] Vorheriger Zyklus läuft noch — übersprungen.");
+    return;
+  }
+  cycleRunning = true;
   try {
     // Erst senden (Ausgang hat Vorrang) — dann abholen + Ordner spiegeln (kann bei vielen Mails dauern).
     const sent = await processOutbox();
@@ -52,6 +61,8 @@ async function runCycle() {
     );
   } catch (err) {
     console.error("[worker] Zyklus-Fehler:", err);
+  } finally {
+    cycleRunning = false;
   }
 }
 

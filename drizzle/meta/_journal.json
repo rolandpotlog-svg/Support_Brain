@@ -267,6 +267,13 @@
       "when": 1790780191244,
       "tag": "0037_product_cost",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790792760933,
+      "tag": "0038_outbox_claim",
+      "breakpoints": true
     }
   ]
 }

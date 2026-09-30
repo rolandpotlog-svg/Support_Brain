@@ -425,6 +425,8 @@ export const outbox = pgTable(
       .notNull()
       .references(() => messages.id, { onDelete: "cascade" }),
     status: outboxStatus("status").notNull().default("pending"),
+    // Sende-Sperre: wer gerade sendet (Knopf ODER Worker), setzt claimedAt — verhindert Doppel-Versand.
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

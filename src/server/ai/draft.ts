@@ -10,6 +10,7 @@ import { trackingUrl } from "@/lib/shopify/client";
 import { bestBodyText } from "@/lib/mailbox/html-text";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
 import { draftSystemPrompt, parseDraft, type DraftDecision } from "@/server/ai/draft-prompt";
+import { stripQuoted } from "@/server/ai/shadow-compare";
 import { euro } from "@/lib/format";
 
 function money(m: { amount: string; currencyCode: string } | null): string {
@@ -33,6 +34,17 @@ function orderLines(o: import("@/lib/shopify/client").ShopifyOrder): string {
     tracking ? `Tracking: ${tracking}` : "Tracking: keins hinterlegt",
     items ? `Artikel: ${items}` : "",
   ].filter(Boolean).join("\n");
+}
+
+/** Gehört das Abgleich-Ergebnis sicher zum Absender? (E-Mail der Bestellung/des Kunden = Absender,
+ *  oder die Bestellung wurde von einem Mitarbeiter manuell am Ticket gesetzt.) */
+function belongsToSender(r: Resolution, senderEmail: string, manuallySet: boolean): boolean {
+  const me = (senderEmail ?? "").trim().toLowerCase();
+  const same = (e: string | null | undefined) => Boolean(e && me && e.trim().toLowerCase() === me);
+  if (r.mode === "order") return manuallySet || same(r.order.email) || same(r.customer?.email);
+  if (r.mode === "customer") return same(r.customer.email) || r.orders.some((o) => same(o.email));
+  if (r.mode === "orders") return r.orders.every((o) => same(o.email));
+  return true; // none / candidates / error / unconfigured: enthalten ohnehin keine Bestelldetails
 }
 
 function formatResolution(r: Resolution): string {
@@ -103,7 +115,8 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
     .orderBy(schema.messages.createdAt);
   const history =
     msgs
-      .map((m) => ({ ...m, text: bestBodyText(m.bodyText, m.bodyHtml) }))
+      // Zitierten Altverlauf („Am … schrieb …“) entfernen — sonst doppelt im Prompt und verwirrend.
+      .map((m) => ({ ...m, text: stripQuoted(bestBodyText(m.bodyText, m.bodyHtml) ?? "") || bestBodyText(m.bodyText, m.bodyHtml) }))
       .filter((m) => !m.internal && m.text)
       .map((m) => `${m.direction === "inbound" ? thread.customerName || "Kunde" : "Support"}: ${m.text!.trim()}`)
       .join("\n\n") || "(kein Text)";
@@ -122,7 +135,12 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
         name: thread.customerName,
         manualOrderName: thread.manualOrderName,
       });
-      orderContext = formatResolution(r);
+      // Sicherheit: Bestelldaten nur verwenden, wenn sie nachweislich zu DIESEM Absender gehören.
+      // Sonst könnte die KI Tracking/Adresse/Artikel eines fremden Kunden in die Antwort schreiben.
+      orderContext = belongsToSender(r, thread.customerEmail, Boolean(thread.manualOrderName))
+        ? formatResolution(r)
+        : "ACHTUNG: Eine Bestellung wurde gefunden, gehört aber NICHT nachweislich zu diesem Absender (E-Mail weicht ab). " +
+          "Nenne KEINE Bestelldetails (keine Artikel, Adresse, Trackingnummer, Beträge). Entscheidung: MENSCH.";
     } catch {
       orderContext = "Shopify-Abgleich fehlgeschlagen.";
     }
@@ -148,9 +166,11 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
   ].join("\n");
 
   // Hoher Denk-Aufwand: der Entwurf ist das Kernprodukt — Qualität vor Sparsamkeit.
-  const raw = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 4000, effort: "high" });
+  const raw = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 8000, effort: "high" });
   // Denken: Entscheidung (AUTO/MENSCH) + Grund von der eigentlichen Mail trennen.
   const parsed = parseDraft(raw);
+  // Leerer Entwurf (z. B. Denk-Budget aufgebraucht) -> NICHT speichern; sonst stünde nur die Signatur im Feld.
+  if (parsed.text.trim().length < 20) throw new Error("KI lieferte keinen verwertbaren Entwurf");
   // Feste Signatur deterministisch anhängen (immer exakt gleich; die KI weicht nie ab).
   const full = signature ? `${parsed.text.trimEnd()}\n\n${signature}` : parsed.text;
   // Entwurf merken, um beim Senden zu erkennen, ob er 1:1 übernommen oder bearbeitet wurde.
