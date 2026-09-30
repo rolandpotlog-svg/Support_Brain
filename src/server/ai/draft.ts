@@ -16,6 +16,9 @@ import { draftSystemPrompt, parseDraft, type DraftDecision } from "@/server/ai/d
 import { stripQuoted } from "@/server/ai/shadow-compare";
 import { euro } from "@/lib/format";
 
+// Denk-Stufe für Entwürfe (per Qualitätstest festgelegt; über ENV umstellbar ohne Code-Änderung).
+const DRAFT_EFFORT = (process.env.DRAFT_EFFORT as "low" | "medium" | "high" | undefined) ?? "medium";
+
 function money(m: { amount: string; currencyCode: string } | null): string {
   return m ? euro(m.amount, m.currencyCode) : "—";
 }
@@ -179,7 +182,7 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
   ].join("\n");
 
   // Hoher Denk-Aufwand: der Entwurf ist das Kernprodukt — Qualität vor Sparsamkeit.
-  const raw = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 8000, effort: "high" });
+  const raw = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 8000, effort: DRAFT_EFFORT, kind: "entwurf", shopId: thread.shopId });
   // Denken: Entscheidung (AUTO/MENSCH) + Grund von der eigentlichen Mail trennen.
   const parsed = parseDraft(raw);
   // Leerer Entwurf (z. B. Denk-Budget aufgebraucht) -> NICHT speichern; sonst stünde nur die Signatur im Feld.

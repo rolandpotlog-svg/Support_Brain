@@ -38,6 +38,30 @@ export default async function GehirnPage() {
   const shadowAll = q.filter((r) => r.outcome === "shadow" && r.match != null).reduce((s, r) => s + r.n, 0);
   const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : null);
 
+  // KI-Kosten + Tempo (letzte 30 Tage, dieser Shop). Kosten in USD protokolliert, hier ca. in € (Kurs 0,90).
+  const usage = await db
+    .select({
+      kind: schema.aiUsage.kind,
+      n: sql<number>`count(*)::int`,
+      micro: sql<number>`coalesce(sum(${schema.aiUsage.costMicroUsd}),0)::bigint`,
+      ms: sql<number>`coalesce(avg(${schema.aiUsage.durationMs}),0)::int`,
+      cacheRead: sql<number>`coalesce(sum(${schema.aiUsage.cacheReadTokens}),0)::bigint`,
+      input: sql<number>`coalesce(sum(${schema.aiUsage.inputTokens}),0)::bigint`,
+    })
+    .from(schema.aiUsage)
+    .where(and(eq(schema.aiUsage.shopId, shopId), gte(schema.aiUsage.createdAt, since)))
+    .groupBy(schema.aiUsage.kind);
+  const EUR = 0.9;
+  const totalEur = (usage.reduce((s, u) => s + Number(u.micro), 0) / 1_000_000) * EUR;
+  const drafts = usage.find((u) => u.kind === "entwurf");
+  const mails = usage.find((u) => u.kind === "einordnung")?.n ?? drafts?.n ?? 0;
+  const perMailCt = mails ? (totalEur / mails) * 100 : null;
+  const cacheShare = (() => {
+    const cr = usage.reduce((s, u) => s + Number(u.cacheRead), 0);
+    const inp = usage.reduce((s, u) => s + Number(u.input), 0);
+    return cr + inp ? Math.round((cr / (cr + inp)) * 100) : null;
+  })();
+
   return (
     <div className="adminwrap">
       <h1 style={{ marginTop: 0 }}>KI-Gehirn</h1>
@@ -48,6 +72,8 @@ export default async function GehirnPage() {
       <div className="report">
         <div className="rstat"><div className="k">Unverändert gesendet (30 T.)</div><div className="v">{pct(verbatim, verbatim + edited) ?? "—"}{verbatim + edited ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{verbatim} von {verbatim + edited} Entwürfen</div></div>
         <div className="rstat"><div className="k">Schattenbetrieb: hätte gepasst</div><div className="v">{pct(shadowOk, shadowAll) ?? "—"}{shadowAll ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{shadowOk} von {shadowAll}</div></div>
+        <div className="rstat"><div className="k">KI-Kosten (30 T.)</div><div className="v">{totalEur.toFixed(2).replace(".", ",")} €</div><div className="muted" style={{ fontSize: 12 }}>{perMailCt != null ? `ca. ${perMailCt.toFixed(1).replace(".", ",")} ct pro Mail` : "noch keine Daten"}{cacheShare != null ? ` · ${cacheShare} % aus Cache` : ""}</div></div>
+        <div className="rstat"><div className="k">Ø Dauer Entwurf</div><div className="v">{drafts ? `${(drafts.ms / 1000).toFixed(0)} s` : "—"}</div><div className="muted" style={{ fontSize: 12 }}>läuft im Hintergrund vor dem Öffnen</div></div>
         <div className="rstat"><div className="k">Aktive Regeln</div><div className="v">{active.length}</div></div>
         <div className="rstat"><div className="k">Offene Vorschläge</div><div className="v">{proposals.length}</div></div>
       </div>

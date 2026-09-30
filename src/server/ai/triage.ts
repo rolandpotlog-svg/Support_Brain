@@ -8,9 +8,10 @@ import { bestBodyText } from "@/lib/mailbox/html-text";
 import { stripQuoted } from "@/server/ai/shadow-compare";
 import { INTENTS, intentCategory, normalizeIntent } from "@/lib/support/intents";
 import type { OrderItem } from "@/server/order-link";
+import { runPool } from "@/server/ai/pool";
 
 const SENTIMENTS = new Set(["positiv", "neutral", "negativ"]);
-const MAX_PER_CYCLE = 20;
+const MAX_PER_CYCLE = 60;
 let running = false;
 
 const SYSTEM =
@@ -30,7 +31,7 @@ function prompt(opts: {
     "",
     "Felder:",
     '- intent: key von oben',
-    '- issue: genaues Problem in 2–4 Wörtern auf Deutsch (z. B. „Verschluss defekt“, „Box beschädigt“, „Kette gerissen“, „Gravur fehlt“, „Paket hängt im Zoll“), sonst null. ' +
+    '- issue: die PROBLEMART allgemein in 2–3 Wörtern auf Deutsch, ohne Details (z. B. „Box beschädigt“ statt „Box eingedrückt, Rose lose“; „Verschluss defekt“ statt „Verschluss nach 3 Tagen abgerissen“) — Beispiele: „Verschluss defekt“, „Box beschädigt“, „Kette gerissen“, „Gravur fehlt“, „Farbe falsch“; sonst null. ' +
       "Wenn eines dieser bereits bekannten Probleme gemeint ist, EXAKT denselben Wortlaut verwenden: " +
       (opts.knownIssues.length ? opts.knownIssues.map((k) => `„${k}“`).join(", ") : "(noch keine)"),
     "- item: betroffener Artikel. Wenn Bestellartikel unten stehen, EXAKT einen dieser Titel wählen (der gemeint ist); sonst kurz der vom Kunden genannte Artikel oder null",
@@ -93,6 +94,9 @@ export async function triageThread(threadId: string): Promise<void> {
     ],
     maxTokens: 1500,
     effort: "low",
+    kind: "einordnung",
+    shopId: t.shopId,
+    model: "schnell",
   });
 
   let j: Record<string, unknown> = {};
@@ -158,7 +162,8 @@ export async function triageRecent(): Promise<number> {
       .orderBy(desc(schema.threads.lastMessageAt))
       .limit(MAX_PER_CYCLE);
     let n = 0;
-    for (const t of todo) {
+    // Parallel (5 gleichzeitig) — auch bei 50 Mails am Stück schnell eingeordnet.
+    await runPool(todo, Number(process.env.AI_CONCURRENCY ?? 5), async (t) => {
       // Nur wenn die letzte (nicht-interne) Nachricht vom Kunden kommt — eigene Antworten nicht neu einordnen.
       const last = await db
         .select({ direction: schema.messages.direction })
@@ -168,7 +173,7 @@ export async function triageRecent(): Promise<number> {
         .limit(1);
       if (last[0]?.direction !== "inbound") {
         await db.update(schema.threads).set({ aiTriagedAt: new Date() }).where(eq(schema.threads.id, t.id));
-        continue;
+        return;
       }
       try {
         await triageThread(t.id);
@@ -178,7 +183,7 @@ export async function triageRecent(): Promise<number> {
         // Nicht in jedem Zyklus erneut versuchen (Kosten) — erst wieder bei neuer Kundenmail.
         await db.update(schema.threads).set({ aiTriagedAt: new Date() }).where(eq(schema.threads.id, t.id));
       }
-    }
+        });
     return n;
   } finally {
     running = false;

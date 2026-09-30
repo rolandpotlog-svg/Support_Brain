@@ -55,6 +55,8 @@ async function propose(opts: {
     ],
     maxTokens: 1200,
     effort: "low",
+    kind: "lernen",
+    shopId: opts.shopId,
   });
   let j: { rule?: string | null; same_as?: number | null; intent_only?: boolean } = {};
   try {

@@ -5,8 +5,10 @@ import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { aiConfigured } from "@/server/ai";
 import { generateDraft } from "@/server/ai/draft";
+import { runPool } from "@/server/ai/pool";
 
-const MAX_PER_CYCLE = Number(process.env.AUTODRAFT_MAX_PER_CYCLE ?? 10);
+const MAX_PER_CYCLE = Number(process.env.AUTODRAFT_MAX_PER_CYCLE ?? 40);
+const CONCURRENCY = Number(process.env.AI_CONCURRENCY ?? 5);
 // Nur frische Tickets — kein teures Nachziehen des ganzen Altbestands.
 const MAX_AGE_HOURS = Number(process.env.AUTODRAFT_MAX_AGE_HOURS ?? 72);
 
@@ -49,9 +51,11 @@ export async function autoDraftRecent(): Promise<number> {
       .orderBy(desc(schema.threads.lastMessageAt))
       .limit(MAX_PER_CYCLE * 3);
 
+    // Parallel (5 gleichzeitig): Entwürfe liegen auch bei vielen Mails schnell bereit.
     let n = 0;
-    for (const t of candidates) {
-      if (n >= MAX_PER_CYCLE) break;
+    const todo = candidates.slice(0, MAX_PER_CYCLE * 3);
+    await runPool(todo, CONCURRENCY, async (t) => {
+      if (n >= MAX_PER_CYCLE) return;
       // Nur wenn die letzte (nicht-interne) Nachricht vom Kunden kommt — sonst ist nichts zu beantworten.
       const last = await db
         .select({ direction: schema.messages.direction, fromEmail: schema.messages.fromEmail, subject: schema.messages.subject })
@@ -59,14 +63,14 @@ export async function autoDraftRecent(): Promise<number> {
         .where(and(eq(schema.messages.threadId, t.id), eq(schema.messages.internal, false)))
         .orderBy(desc(schema.messages.createdAt))
         .limit(1);
-      if (last[0]?.direction !== "inbound") continue;
+      if (last[0]?.direction !== "inbound") return;
       // Abwesenheitsnotizen, Zustellfehler, No-Reply-Absender: keinen Entwurf verschwenden.
       if (isAutomatedMail(last[0].fromEmail, last[0].subject)) {
         await db
           .update(schema.threads)
           .set({ aiDraftAt: sql`now()`, aiDecision: "mensch", aiReason: "Automatische Mail (Abwesenheit/Zustellfehler) — kein Entwurf" })
           .where(eq(schema.threads.id, t.id));
-        continue;
+        return;
       }
       try {
         await generateDraft(t.id);
@@ -80,7 +84,7 @@ export async function autoDraftRecent(): Promise<number> {
           .set({ aiDraftAt: sql`now()`, aiDecision: "mensch", aiReason: `Auto-Entwurf fehlgeschlagen: ${msg.slice(0, 200)}` })
           .where(eq(schema.threads.id, t.id));
       }
-    }
+        });
     return n;
   } finally {
     running = false;

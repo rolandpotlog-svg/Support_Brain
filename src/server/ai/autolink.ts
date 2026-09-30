@@ -3,8 +3,9 @@
 import { and, desc, eq, gte, inArray, isNull, lt, or } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { linkThreadOrder } from "@/server/order-link";
+import { runPool } from "@/server/ai/pool";
 
-const MAX_PER_CYCLE = 20;
+const MAX_PER_CYCLE = 60;
 let running = false;
 
 export async function autoLinkOrders(): Promise<number> {
@@ -32,14 +33,14 @@ export async function autoLinkOrders(): Promise<number> {
       .orderBy(desc(schema.threads.lastMessageAt))
       .limit(MAX_PER_CYCLE);
     let n = 0;
-    for (const t of todo) {
+    await runPool(todo, 5, async (t) => {
       try {
         await linkThreadOrder(t.id);
         n++;
       } catch (e) {
         console.error(`[autolink] ${t.id}:`, e instanceof Error ? e.message : e);
       }
-    }
+    });
     return n;
   } finally {
     running = false;

@@ -302,6 +302,13 @@
       "when": 1790794437835,
       "tag": "0042_lessons",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1790796606633,
+      "tag": "0043_ai_usage",
+      "breakpoints": true
     }
   ]
 }

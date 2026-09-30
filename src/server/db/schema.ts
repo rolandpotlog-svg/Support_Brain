@@ -455,6 +455,25 @@ export const shopLesson = pgTable(
   (t) => [index("shop_lesson_shop_idx").on(t.shopId, t.status)],
 );
 
+// KI-Verbrauch je Aufruf (Kosten-Transparenz: „was kostet eine Antwort?“). Kosten in Mikro-Dollar.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    shopId: uuid("shop_id").references(() => shops.id, { onDelete: "set null" }),
+    kind: text("kind").notNull(), // entwurf | einordnung | lernen | vergleich | sonstiges
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+    costMicroUsd: integer("cost_micro_usd").notNull().default(0),
+    durationMs: integer("duration_ms").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ai_usage_shop_idx").on(t.shopId, t.createdAt)],
+);
+
 // Wer hat welches Ticket gerade offen? (Kollisionsschutz im Team: „Maria bearbeitet gerade“.)
 export const ticketPresence = pgTable(
   "ticket_presence",

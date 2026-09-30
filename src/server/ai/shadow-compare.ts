@@ -25,6 +25,7 @@ export async function compareShadow(opts: {
     ],
     maxTokens: 1500,
     effort: "low",
+    kind: "vergleich",
   });
   try {
     const j = JSON.parse(raw.replace(/^```(json)?|```$/g, "").trim());

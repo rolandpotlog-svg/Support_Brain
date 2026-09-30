@@ -118,6 +118,19 @@ const CASES: Case[] = [
     want: "auto",
     expect: "Weißgold ist silbrig, Silver-Custom interne Farbbezeichnung, Verständnis",
   },
+  {
+    title: "Langer Verlauf: WISMO -> Nachfrage -> beschädigt angekommen",
+    customer: "Petra Lang", subject: "Re: Re: Re: Bestellung #4711",
+    history:
+      "Petra Lang: Hallo, ich habe vor 8 Tagen eine Lovebox bestellt, wann kommt sie?\n\n" +
+      "Support: Hallo Frau Lang, vielen Dank für Ihre Nachricht. Ihre Tracking-Nummer lautet 00340434161094011111 ... Liebe Grüße Roland & das Lovenja Team\n\n" +
+      "Petra Lang: Das Tracking bewegt sich seit 4 Tagen nicht. Weihnachten ist bald!\n\nAm 12.12. schrieb Lovenja: > Hallo Frau Lang, vielen Dank für Ihre Nachricht. Ihre Tracking-Nummer lautet ...\n\n" +
+      "Support: Hallo Frau Lang, es tut uns sehr leid ... Als kleine Entschuldigung möchten wir Ihnen gerne den Rabattcode SORRY20 anbieten. ...\n\n" +
+      "Petra Lang: Jetzt ist das Paket endlich da, aber die Box ist total eingedrückt und die Rose ist abgebrochen. So kann ich das nicht verschenken.\n\nAm 15.12. schrieb Lovenja: > Hallo Frau Lang, es tut uns sehr leid ... > SORRY20 ...",
+    shopify: ORDER({ tracking: "00340434161094011111", ageDays: 14, items: "1× Lovebox Deluxe ewige Rose mit Herzschmuck" }),
+    want: "auto",
+    expect: "erkennt: jetzt BESCHÄDIGT (nicht mehr WISMO); Foto erbitten + kostenlosen Ersatz zusagen; KEIN zweites SORRY20; bezieht sich auf den Verlauf; nichts erfinden",
+  },
 ];
 
 const JUDGE_SYSTEM =
@@ -143,7 +156,7 @@ async function main() {
       `KUNDE: ${c.customer} <kunde@example.com>`, `BETREFF: ${c.subject}`, "", "TICKET-VERLAUF:", c.history, "",
       "SHOPIFY-KONTEXT:", c.shopify, "", "Verfasse jetzt die nächste Antwort an den Kunden.",
     ].join("\n");
-    const d = parseDraft(await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 4000, effort: "high" }));
+    const d = parseDraft(await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 8000, effort: (process.env.DRAFT_EFFORT as "low" | "medium" | "high") ?? "high", kind: `eval-${process.env.DRAFT_EFFORT ?? "high"}` }));
     const draft = d.text;
     const decisionOk = d.decision === c.want;
     const verdictRaw = await complete({
