@@ -14,6 +14,7 @@ import {
   setThreadTag,
 } from "@/server/actions/inbox";
 import { draftReply, summarizeThread } from "@/server/actions/ai";
+import { intentLabel } from "@/lib/support/intents";
 import { initials, timeAgo } from "@/lib/format";
 import { CATEGORIES } from "@/lib/reports/categories";
 
@@ -75,6 +76,45 @@ function AttachmentList({ atts }: { atts: { id: string; filename: string; conten
     </div>
   );
 }
+/** KI-Kopfzeile: was will der Kunde, welches Problem, welcher Artikel, welche Bestellung (+ Prüfungen). */
+function AiHeader({ thread }: { thread: Thread }) {
+  const [open, setOpen] = useState(false);
+  const checks = thread.orderChecks ?? [];
+  const warn = checks.filter((c) => c.status === "warn" || c.status === "fail").length;
+  const conf = thread.orderConfidence;
+  return (
+    <div className="aihead">
+      <div className="aihead-row">
+        {thread.aiIntent && (
+          <span className={`ichip i-${thread.aiIntent}`}>
+            {intentLabel(thread.aiIntent)}
+            {thread.aiIssue ? ` · ${thread.aiIssue}` : ""}
+          </span>
+        )}
+        {thread.aiItem && <span className="aihead-item">{thread.aiItem}</span>}
+        <span className="spacer" />
+        {thread.orderName && (
+          <button type="button" className={`orderbadge ${conf === "sicher" ? "ok" : "warn"}`} onClick={() => setOpen((o) => !o)} title="Abgleich anzeigen">
+            {thread.orderName} · {conf === "sicher" ? "✓ sicher zugeordnet" : "⚠ unsicher"}
+            {warn > 0 ? ` · ${warn} Hinweis${warn > 1 ? "e" : ""}` : ""}
+          </button>
+        )}
+      </div>
+      {thread.aiSummary && <div className="aihead-sum">{thread.aiSummary}</div>}
+      {open && checks.length > 0 && (
+        <ul className="aihead-checks">
+          {checks.map((c, i) => (
+            <li key={i} className={`c-${c.status}`}>
+              {c.status === "ok" ? "✓" : c.status === "fail" ? "✕" : c.status === "warn" ? "!" : "·"} {c.label}
+              {c.detail ? <span className="muted"> — {c.detail}</span> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 type Assignee = { id: string; name: string | null; email: string };
 type Thread = {
   id: string;
@@ -88,6 +128,13 @@ type Thread = {
   aiDraft?: string | null;
   aiDecision?: string | null;
   aiReason?: string | null;
+  aiIntent?: string | null;
+  aiIssue?: string | null;
+  aiItem?: string | null;
+  aiSummary?: string | null;
+  orderName?: string | null;
+  orderConfidence?: string | null;
+  orderChecks?: { label: string; status: string; detail?: string }[];
 };
 
 export function Conversation({
@@ -247,6 +294,7 @@ export function Conversation({
         </div>
       )}
 
+      {(thread.aiIntent || thread.orderName) && <AiHeader thread={thread} />}
       <div className="body">
         {error && <p className="error">{error}</p>}
         {messages.map((m) =>

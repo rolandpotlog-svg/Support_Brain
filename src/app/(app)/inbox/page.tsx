@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, lt, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { accessibleShopIds, assignableUsers, requireUser } from "@/server/access";
 import { getActiveShopId } from "@/server/active-shop";
 import { initials, tagColor, timeAgo } from "@/lib/format";
+import { intentShort } from "@/lib/support/intents";
 import { bestBodyText } from "@/lib/mailbox/html-text";
 import { Conversation } from "./conversation";
 import { SwitchShopButton } from "./switch-shop-button";
@@ -11,7 +12,18 @@ import { listCannedReplies } from "@/server/canned";
 import { ShopifyPanel } from "./shopify-panel";
 import { SyncButton } from "./sync-button";
 
-const OPEN: ("open" | "pending" | "escalated")[] = ["open", "pending", "escalated"];
+// „Offen“ = wir sind dran. Beantwortete Tickets (pending) liegen in „Wartet auf Kunde“ und kommen
+// automatisch zurück, sobald der Kunde antwortet.
+const OPEN: ("open" | "escalated")[] = ["open", "escalated"];
+
+// Warteschlangen nach Anliegen (Filter-Chips über der Liste).
+const QUEUES = [
+  { key: "", label: "Alle", intents: null },
+  { key: "lieferung", label: "Lieferung", intents: ["wismo", "nachfrage", "nicht_erhalten", "adresse"] },
+  { key: "problem", label: "Defekt / Beschädigt", intents: ["beschaedigt", "defekt", "gravur_fehler", "falsch_fehlt"] },
+  { key: "retoure", label: "Retoure / Storno", intents: ["retoure", "storno", "nicht_wie_erwartet"] },
+  { key: "sonst", label: "Sonstiges", intents: ["gravur_angaben", "zahlung", "produktfrage", "lob", "sonstiges"] },
+] as const;
 
 // Ab wann eine noch nicht gesendete Antwort als "hängt fest" gilt (Kontrolle gegen stille Ausfälle).
 const STUCK_SEND_MS = Number(process.env.STUCK_SEND_MINUTES ?? 10) * 60_000;
@@ -20,6 +32,7 @@ const FOLDERS = [
   { key: "all-open", label: "Alle Offenen", ico: "📥" },
   { key: "mine", label: "Meine Offenen", ico: "👤" },
   { key: "unassigned", label: "Nicht zugewiesen", ico: "👥" },
+  { key: "waiting", label: "Wartet auf Kunde", ico: "⏳" },
   { key: "solved", label: "Gelöst", ico: "✓" },
   { key: "spam", label: "Spam", ico: "⊘" },
   { key: "trash", label: "Papierkorb", ico: "🗑" },
@@ -35,6 +48,8 @@ function folderConds(folder: string, userId: string, shopId: string): SQL[] {
       return [...live, eq(schema.threads.assigneeId, userId), inArray(schema.threads.status, OPEN)];
     case "unassigned":
       return [...live, isNull(schema.threads.assigneeId), inArray(schema.threads.status, OPEN)];
+    case "waiting":
+      return [...live, eq(schema.threads.status, "pending")];
     case "solved":
       return [...live, eq(schema.threads.status, "closed")];
     case "spam":
@@ -47,9 +62,10 @@ function folderConds(folder: string, userId: string, shopId: string): SQL[] {
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ folder?: string; ticket?: string; q?: string }>;
+  searchParams: Promise<{ folder?: string; ticket?: string; q?: string; a?: string }>;
 }) {
-  const { folder = "all-open", ticket, q } = await searchParams;
+  const { folder = "all-open", ticket, q, a = "" } = await searchParams;
+  const queue = QUEUES.find((x) => x.key === a) ?? QUEUES[0];
   const search = q?.trim() ?? "";
   const user = await requireUser();
   const accessible = await accessibleShopIds(user);
@@ -129,7 +145,9 @@ export default async function InboxPage({
       if (/^\d+$/.test(search)) parts.push(eq(schema.threads.number, Number(search)));
       return and(eq(schema.threads.shopId, shopId), isNull(schema.threads.deletedAt), or(...parts)!)!;
     }
-    return and(...folderConds(folder, user.id, shopId))!;
+    const conds = folderConds(folder, user.id, shopId);
+    if (queue?.intents) conds.push(inArray(schema.threads.aiIntent, [...queue.intents]));
+    return and(...conds)!;
   }
 
   const tickets = activeShopId
@@ -144,12 +162,38 @@ export default async function InboxPage({
           status: schema.threads.status,
           assigneeId: schema.threads.assigneeId,
           lastMessageAt: schema.threads.lastMessageAt,
+          aiIntent: schema.threads.aiIntent,
+          aiIssue: schema.threads.aiIssue,
+          aiSummary: schema.threads.aiSummary,
+          aiSentiment: schema.threads.aiSentiment,
+          aiDecision: schema.threads.aiDecision,
+          hasDraft: sql<boolean>`${schema.threads.lastAiDraft} is not null`,
+          orderName: schema.threads.orderName,
         })
         .from(schema.threads)
         .where(listWhere(activeShopId))
         .orderBy(desc(schema.threads.lastMessageAt))
         .limit(100)
     : [];
+
+  // Anzahl je Warteschlange (im aktuellen Ordner) für die Filter-Chips.
+  const queueCounts = new Map<string, number>();
+  if (activeShopId && !search) {
+    const rows = await db
+      .select({ intent: schema.threads.aiIntent, n: count() })
+      .from(schema.threads)
+      .where(and(...folderConds(folder, user.id, activeShopId)))
+      .groupBy(schema.threads.aiIntent);
+    let total = 0;
+    for (const r of rows) {
+      total += r.n;
+      const q = QUEUES.find((x) => x.intents && (x.intents as readonly string[]).includes(r.intent ?? ""));
+      const key = q?.key ?? "sonst";
+      queueCounts.set(key, (queueCounts.get(key) ?? 0) + r.n);
+    }
+    queueCounts.set("", total);
+  }
+  const qHref = (key: string) => `/inbox?folder=${folder}${key ? `&a=${key}` : ""}`;
 
   // Namen der zugewiesenen Agents für die Badges.
   const assigneeIds = [...new Set(tickets.map((t) => t.assigneeId).filter(Boolean))] as string[];
@@ -214,6 +258,13 @@ export default async function InboxPage({
         status: t.status,
         assigneeId: t.assigneeId,
         lastMessageAt: t.lastMessageAt,
+        aiIntent: t.aiIntent,
+        aiIssue: t.aiIssue,
+        aiSummary: t.aiSummary,
+        aiSentiment: t.aiSentiment,
+        aiDecision: t.aiDecision,
+        hasDraft: t.lastAiDraft != null,
+        orderName: t.orderName,
         messages: messages.map((m) => ({
           id: m.id,
           direction: m.direction,
@@ -273,12 +324,6 @@ export default async function InboxPage({
     <div className="inbox-root" data-selected={selected ? "1" : "0"}>
       {/* Spalte: Ordner */}
       <aside className="folders">
-        {hasShops && activeShopId && (
-          <div className="shopbar">
-            <span className="shoplabel">Shop</span>
-            <span className="shopcur">{shopList.find((s) => s.id === activeShopId)?.name ?? "—"}</span>
-          </div>
-        )}
         <div className="head">
           <h1>Posteingang</h1>
           <SyncButton />
@@ -323,11 +368,20 @@ export default async function InboxPage({
             {search && <Link href={`/inbox?folder=${folder}`} className="clear" title="Suche löschen">✕</Link>}
           </form>
         )}
+        {hasShops && !search && (
+          <div className="queues">
+            {QUEUES.map((qq) => (
+              <Link key={qq.key} href={qHref(qq.key)} className={`qchip ${queue.key === qq.key ? "on" : ""}`}>
+                {qq.label} <span>{queueCounts.get(qq.key) ?? 0}</span>
+              </Link>
+            ))}
+          </div>
+        )}
         <div className="list">
           {tickets.map((t) => (
             <Link
               key={t.id}
-              href={`/inbox?folder=${folder}&ticket=${t.id}`}
+              href={`/inbox?folder=${folder}${queue.key ? `&a=${queue.key}` : ""}&ticket=${t.id}`}
               className={`tcard ${t.id === ticket ? "active" : ""}`}
             >
               <div className="top">
@@ -335,9 +389,20 @@ export default async function InboxPage({
                 <span className="name">{t.customerName || t.customerEmail}</span>
                 <span className="time">{timeAgo(new Date(t.lastMessageAt))}</span>
               </div>
-              <div className="subj">{t.subject || "(kein Betreff)"}</div>
+              {/* KI-Zusammenfassung statt Betreff: man sieht sofort, was der Kunde will. */}
+              <div className="subj">{t.aiSummary || t.subject || "(kein Betreff)"}</div>
               <div className="bottom">
-                {t.tag && <span className={`tag ${tagColor(t.tag)}`}>{t.tag}</span>}
+                {t.aiIntent ? (
+                  <span className={`ichip i-${t.aiIntent}`}>{intentShort(t.aiIntent)}{t.aiIssue ? ` · ${t.aiIssue}` : ""}</span>
+                ) : (
+                  t.tag && <span className={`tag ${tagColor(t.tag)}`}>{t.tag}</span>
+                )}
+                {t.aiSentiment === "negativ" && <span className="dot-neg" title="Kunde verärgert" />}
+                {t.hasDraft && (
+                  <span className={`draftchip ${t.aiDecision === "mensch" ? "human" : ""}`} title={t.aiDecision === "mensch" ? "Entwurf da — KI empfiehlt: Mensch entscheidet" : "KI-Entwurf bereit"}>
+                    {t.aiDecision === "mensch" ? "Prüfen" : "Entwurf"}
+                  </span>
+                )}
                 {t.assigneeId && (
                   <span className="assignee" title={`Zugewiesen: ${assigneeMap.get(t.assigneeId) ?? "?"}`}>
                     {initials(assigneeMap.get(t.assigneeId) ?? null, "?")}
@@ -372,6 +437,13 @@ export default async function InboxPage({
             aiDraft: selectedThread!.lastAiDraft,
             aiDecision: selectedThread!.aiDecision,
             aiReason: selectedThread!.aiReason,
+            aiIntent: selectedThread!.aiIntent,
+            aiIssue: selectedThread!.aiIssue,
+            aiItem: selectedThread!.aiItem,
+            aiSummary: selectedThread!.aiSummary,
+            orderName: selectedThread!.orderName,
+            orderConfidence: selectedThread!.orderConfidence,
+            orderChecks: (selectedThread!.orderChecks as { label: string; status: string; detail?: string }[] | null) ?? [],
           }}
           messages={selected.messages}
           supportEmail={supportEmail}
