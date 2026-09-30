@@ -1,6 +1,6 @@
 "use server";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gt, ne } from "drizzle-orm";
+import { and, desc, eq, gt, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -144,7 +144,16 @@ async function replyToThreadInner(threadId: string, bodyText: string, filesForm?
         .select({ direction: schema.messages.direction, sentBy: schema.messages.sentBy, name: schema.users.name, email: schema.users.email })
         .from(schema.messages)
         .leftJoin(schema.users, eq(schema.users.id, schema.messages.sentBy))
-        .where(and(eq(schema.messages.threadId, threadId), eq(schema.messages.internal, false), gt(schema.messages.createdAt, seen.createdAt)));
+        // Vergleich IN der Datenbank (Mikrosekunden) — JS-Dates haben nur Millisekunden, sonst zählt die
+        // gesehene Nachricht selbst als „neuer“. Die gesehene Nachricht zusätzlich ausschließen.
+        .where(
+          and(
+            eq(schema.messages.threadId, threadId),
+            eq(schema.messages.internal, false),
+            ne(schema.messages.id, seen.id),
+            sql`${schema.messages.createdAt} > (select m2.created_at from messages m2 where m2.id = ${seen.id})`,
+          ),
+        );
       const reply = newer.find((m) => m.direction === "outbound");
       if (reply) {
         const who = reply.sentBy === user.id ? "Du hast" : `${reply.name || reply.email || "Jemand"} hat`;
