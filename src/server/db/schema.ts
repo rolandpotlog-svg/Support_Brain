@@ -432,6 +432,18 @@ export const messages = pgTable(
 );
 
 // Ausgangs-Warteschlange: trennt "geschrieben" von "versendet".
+// Wer hat welches Ticket gerade offen? (Kollisionsschutz im Team: „Maria bearbeitet gerade“.)
+export const ticketPresence = pgTable(
+  "ticket_presence",
+  {
+    threadId: uuid("thread_id").notNull().references(() => threads.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    typing: boolean("typing").notNull().default(false),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.threadId, t.userId] })],
+);
+
 export const outbox = pgTable(
   "outbox",
   {

@@ -630,3 +630,15 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .aihead-checks .c-fail { color: var(--tag-rose-fg); }
 .aihead-checks .c-warn { color: var(--tag-amber-fg); }
 .aihead-checks .c-info { color: var(--text-2); }
+
+/* Neuer Mitarbeiter */
+.staffform { display: grid; gap: 10px; }
+.staffform .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.staffform .row input { flex: 1; min-width: 200px; }
+.staff-label { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
+.staff-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.staff-chips .qchip { cursor: pointer; }
+.staff-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.staff-role { display: flex; gap: 8px; align-items: flex-start; padding: 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
+.staff-role input { width: auto; margin-top: 3px; }
+.staff-role.on { border-color: var(--accent); background: var(--accent-weak); }

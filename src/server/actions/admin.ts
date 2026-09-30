@@ -34,6 +34,41 @@ export async function createUser(formData: FormData) {
   revalidatePath("/admin");
 }
 
+/** Neuer Mitarbeiter in EINEM Schritt: Login + Shop(s) + Rolle. Ohne Passwort wird eins erzeugt
+ *  (einmalig angezeigt, zum Weitergeben). Gibt Fehler als Text zurück statt zu werfen. */
+export async function createStaff(input: {
+  email: string;
+  name: string;
+  shopIds: string[];
+  role: string;
+  password?: string;
+}): Promise<{ ok: true; password: string } | { ok: false; error: string }> {
+  await requireOwner();
+  const email = input.email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "Bitte eine gültige E-Mail angeben." };
+  if (!input.shopIds.length) return { ok: false, error: "Bitte mindestens einen Shop wählen." };
+  const exists = await db.query.users.findFirst({ where: eq(schema.users.email, email) });
+  if (exists) return { ok: false, error: "Diese E-Mail hat schon einen Login — unten beim Nutzer den Shop hinzufügen." };
+  const password = (input.password ?? "").trim() || randomPassword();
+  if (password.length < 8) return { ok: false, error: "Passwort bitte mindestens 8 Zeichen." };
+  const role = cleanRole(input.role);
+  const [u] = await db
+    .insert(schema.users)
+    .values({ email, name: input.name.trim() || null, role: "member", passwordHash: hashPassword(password) })
+    .returning({ id: schema.users.id });
+  for (const shopId of input.shopIds) {
+    await db.insert(schema.userShops).values({ userId: u.id, shopId, role }).onConflictDoNothing();
+  }
+  revalidatePath("/admin");
+  return { ok: true, password };
+}
+
+function randomPassword(): string {
+  const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
 export async function setUserActive(formData: FormData) {
   await requireOwner();
   const userId = String(formData.get("userId") ?? "");

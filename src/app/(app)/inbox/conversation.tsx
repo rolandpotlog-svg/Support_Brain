@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import {
   retrySend,
   setThreadStatus,
   setThreadTag,
+  touchPresence,
 } from "@/server/actions/inbox";
 import { draftReply, summarizeThread } from "@/server/actions/ai";
 import { intentLabel } from "@/lib/support/intents";
@@ -170,6 +171,24 @@ export function Conversation({
   );
   const [pending, start] = useTransition();
 
+  // Kollisionsschutz: alle 15 s melden „ich bin hier (tippe?)“ und anzeigen, wer sonst gerade dran ist.
+  const [others, setOthers] = useState<{ name: string; typing: boolean }[]>([]);
+  const typingRef = useRef(false);
+  typingRef.current = text.trim().length > 0 && text !== (thread.aiDraft ?? "");
+  useEffect(() => {
+    let alive = true;
+    const ping = () =>
+      touchPresence(thread.id, typingRef.current)
+        .then((o) => alive && setOthers(o))
+        .catch(() => {});
+    ping();
+    const iv = setInterval(ping, 15_000);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+    };
+  }, [thread.id]);
+
   function run(fn: () => Promise<void>) {
     setError(null);
     start(async () => {
@@ -294,6 +313,11 @@ export function Conversation({
         </div>
       )}
 
+      {others.length > 0 && (
+        <div className="alertbar warn" style={{ margin: "8px 18px 0" }}>
+          👀 {others.map((o) => `${o.name}${o.typing ? " schreibt gerade eine Antwort" : " hat dieses Ticket offen"}`).join(" · ")}
+        </div>
+      )}
       {(thread.aiIntent || thread.orderName) && <AiHeader thread={thread} />}
       <div className="body">
         {error && <p className="error">{error}</p>}

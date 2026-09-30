@@ -1,6 +1,6 @@
 "use server";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gt, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -269,4 +269,30 @@ export async function restoreThread(threadId: string) {
     .set({ deletedAt: null, status: "open" })
     .where(eq(schema.threads.id, threadId));
   revalidatePath("/inbox");
+}
+
+/** Kollisionsschutz: „ich habe dieses Ticket offen (und tippe ggf.)“ melden + wer sonst gerade dran ist. */
+export async function touchPresence(threadId: string, typing: boolean): Promise<{ name: string; typing: boolean }[]> {
+  const user = await requireUser();
+  const t = await loadThread(threadId);
+  await assertShopAccess(user, t.shopId);
+  await db
+    .insert(schema.ticketPresence)
+    .values({ threadId, userId: user.id, typing, seenAt: new Date() })
+    .onConflictDoUpdate({
+      target: [schema.ticketPresence.threadId, schema.ticketPresence.userId],
+      set: { typing, seenAt: new Date() },
+    });
+  const others = await db
+    .select({ name: schema.users.name, email: schema.users.email, typing: schema.ticketPresence.typing })
+    .from(schema.ticketPresence)
+    .innerJoin(schema.users, eq(schema.users.id, schema.ticketPresence.userId))
+    .where(
+      and(
+        eq(schema.ticketPresence.threadId, threadId),
+        ne(schema.ticketPresence.userId, user.id),
+        gt(schema.ticketPresence.seenAt, new Date(Date.now() - 45_000)),
+      ),
+    );
+  return others.map((o) => ({ name: o.name || o.email, typing: o.typing }));
 }

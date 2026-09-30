@@ -7,6 +7,7 @@ import { getActiveShopId } from "@/server/active-shop";
 import { createUser, resetUserPassword, setUserActive, setUserOwner } from "@/server/actions/admin";
 import { MembershipForm } from "./membership-form";
 import { Maintenance } from "./maintenance";
+import { NewStaffForm } from "./new-staff-form";
 
 export default async function AdminPage() {
   const user = await requireUser();
@@ -92,20 +93,9 @@ export default async function AdminPage() {
       {user.isOwner && (
         <>
           <section className="card">
-            <h2>Neuen Login anlegen</h2>
-            <form className="invite" action={createUser}>
-              <input name="email" type="email" placeholder="E-Mail" required />
-              <input name="name" placeholder="Name (optional)" />
-              <input name="password" type="text" placeholder="Start-Passwort" required />
-              <label className="chk">
-                <input type="checkbox" name="isOwner" />
-                Owner (Vollzugriff auf alle Brands)
-              </label>
-              <button className="primary" type="submit">Login anlegen</button>
-            </form>
-            <p className="muted" style={{ marginTop: 8 }}>
-              Danach unten pro Brand eine Rolle zuweisen (Founder/Admin/Mitarbeiter/Gast) und ggf. Finance freigeben.
-            </p>
+            <h2>Neuer Mitarbeiter</h2>
+            <p className="muted" style={{ marginTop: 0 }}>Login, Shop und Rolle in einem Schritt. Mitarbeiter sehen nur die gewählten Shops.</p>
+            <NewStaffForm shops={shops.map((s) => ({ id: s.id, name: s.name }))} defaultShopId={activeShopId} />
           </section>
 
           <section className="card">
@@ -140,7 +130,7 @@ export default async function AdminPage() {
                     </div>
 
                     {u.role === "owner" ? (
-                      <p className="muted" style={{ margin: 0 }}>Owner hat automatisch Vollzugriff auf alle Brands (inkl. Finance).</p>
+                      <p className="muted" style={{ margin: 0 }}>Owner hat automatisch Vollzugriff auf alle Shops.</p>
                     ) : (
                       <>
                         {mine.map((m) => (
