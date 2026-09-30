@@ -12,6 +12,7 @@ import { triageRecent } from "../src/server/ai/triage";
 import { autoDraftRecent } from "../src/server/ai/autodraft";
 import { autoLinkOrders } from "../src/server/ai/autolink";
 import { learnFromEdits } from "../src/server/ai/learn";
+import { autoCloseAnswered } from "../src/server/auto-close";
 
 // Anhänge (Fotos) automatisch begrenzen: alte löschen, damit die DB nicht vollläuft. Höchstens 1×/Std.
 const KEEP_DAYS = Number(process.env.ATTACHMENT_KEEP_DAYS ?? 30);
@@ -64,6 +65,13 @@ async function runCycle() {
       drafted = await autoDraftRecent();
     } catch (e) {
       console.error("[worker] Auto-Entwurf-Fehler:", e instanceof Error ? e.message : e);
+    }
+    // Beantwortete Tickets nach 3 Tagen ohne Kundenantwort automatisch abhaken.
+    try {
+      const closed = await autoCloseAnswered();
+      if (closed) console.log(`[worker] ${closed} beantwortete Ticket(s) automatisch gelöst.`);
+    } catch (e) {
+      console.error("[worker] Auto-Abhaken-Fehler:", e instanceof Error ? e.message : e);
     }
     // Lern-Loop: aus geänderten Entwürfen Regel-Vorschläge ableiten (Freigabe im KI-Gehirn).
     try {

@@ -12,8 +12,8 @@ import { listCannedReplies } from "@/server/canned";
 import { ShopifyPanel } from "./shopify-panel";
 import { SyncButton } from "./sync-button";
 
-// „Offen“ = wir sind dran. Beantwortete Tickets (pending) liegen in „Wartet auf Kunde“ und kommen
-// automatisch zurück, sobald der Kunde antwortet.
+// „Offen“ = wir sind dran. Beantwortete Tickets (pending) liegen in „Beantwortet“, kommen automatisch
+// zurück, sobald der Kunde antwortet, und werden nach 3 Tagen ohne Antwort automatisch „Gelöst“.
 const OPEN: ("open" | "escalated")[] = ["open", "escalated"];
 
 // Warteschlangen nach Anliegen (Filter-Chips über der Liste).
@@ -32,7 +32,7 @@ const FOLDERS = [
   { key: "all-open", label: "Alle Offenen", ico: "📥" },
   { key: "mine", label: "Meine Offenen", ico: "👤" },
   { key: "unassigned", label: "Nicht zugewiesen", ico: "👥" },
-  { key: "waiting", label: "Wartet auf Kunde", ico: "⏳" },
+  { key: "waiting", label: "Beantwortet", ico: "↩" },
   { key: "solved", label: "Gelöst", ico: "✓" },
   { key: "spam", label: "Spam", ico: "⊘" },
   { key: "trash", label: "Papierkorb", ico: "🗑" },
