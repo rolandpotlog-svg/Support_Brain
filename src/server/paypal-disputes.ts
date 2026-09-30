@@ -83,13 +83,13 @@ async function matchOrder(
   return { order: null, confidence: "keine", note: "Keine passende Bestellung gefunden" };
 }
 
-/** Alle PayPal-Fälle der letzten 180 Tage holen und speichern. */
+/** Alle PayPal-Fälle der letzten ~170 Tage holen und speichern. */
 export async function syncPaypalDisputes(shopId: string): Promise<{ count: number }> {
   const c = await loadPaypalCreds(shopId);
   if (!c) return { count: 0 };
   try {
     const { token } = await paypalToken(c);
-    const since = new Date(Date.now() - 180 * 86_400_000).toISOString();
+    const since = new Date(Date.now() - 170 * 86_400_000).toISOString();
     const list = await listPaypalDisputes(c, token, since);
     for (const s of list) {
       const d = await getPaypalDispute(c, token, s.dispute_id);

@@ -64,7 +64,9 @@ async function pget<T>(c: PaypalCreds, token: string, pathOrUrl: string): Promis
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = j.message ?? j.name ?? `HTTP ${res.status}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const detail = (j.details ?? []).map((d: any) => [d.field, d.issue, d.description].filter(Boolean).join(": ")).join("; ");
+    const msg = `${j.message ?? j.name ?? `HTTP ${res.status}`}${detail ? ` (${detail})` : ""}`;
     throw new Error(res.status === 403 ? `PayPal: keine Berechtigung für Disputes (${msg}) — in der PayPal-App „Disputes“ aktivieren` : `PayPal: ${msg}`);
   }
   return j as T;
@@ -73,7 +75,19 @@ async function pget<T>(c: PaypalCreds, token: string, pathOrUrl: string): Promis
 /** Alle Fälle seit `sinceIso` (durchpaginiert, max. 500). */
 export async function listPaypalDisputes(c: PaypalCreds, token: string, sinceIso: string): Promise<PaypalDisputeSummary[]> {
   const out: PaypalDisputeSummary[] = [];
+  // PayPal will start_time als yyyy-MM-ddTHH:mm:ss.SSSZ und max. 180 Tage zurück; lehnt es den
+  // Filter trotzdem ab (400), einmal ohne Zeitfilter holen (liefert dann die neuesten Fälle).
   let next: string | null = `/v1/customer/disputes?page_size=50&start_time=${encodeURIComponent(sinceIso)}`;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const first: any = await pget(c, token, next);
+    for (const d of first.items ?? []) out.push(d);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    next = (first.links ?? []).find((l: any) => l.rel === "next")?.href ?? null;
+  } catch (e) {
+    if (!(e instanceof Error) || !/well-formed|INVALID_REQUEST|schema/i.test(e.message)) throw e;
+    next = `/v1/customer/disputes?page_size=50`;
+  }
   for (let guard = 0; next && guard < 10; guard++) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const j: any = await pget(c, token, next);

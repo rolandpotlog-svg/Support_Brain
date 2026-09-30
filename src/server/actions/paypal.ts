@@ -39,7 +39,7 @@ export async function testPaypalAccess(shopId: string): Promise<{ ok: boolean; m
     await paypalToken(c);
     const r = await syncPaypalDisputes(shopId);
     revalidatePath("/cases");
-    return { ok: true, message: `✓ Verbunden (${c.mode === "live" ? "Live" : "Sandbox"}) — ${r.count} Fall/Fälle aus den letzten 180 Tagen abgerufen.` };
+    return { ok: true, message: `✓ Verbunden (${c.mode === "live" ? "Live" : "Sandbox"}) — ${r.count} Fall/Fälle aus den letzten ~170 Tagen abgerufen.` };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
