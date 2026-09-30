@@ -1,0 +1,135 @@
+<title>Lovenja Support-Fragen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: eine ruhige Lesespalte; Fragen durchnummeriert, damit das Team mit „zu 7: …" antworten kann. */
+:root {
+  --bg: #fbf8f9;
+  --panel: #ffffff;
+  --fg: #2a2226;
+  --muted: #6f6168;
+  --line: #eadfe4;
+  --accent: #a4506f;
+  --accent-soft: #f6e8ee;
+  --display: "Fraunces", Georgia, serif;
+  --body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c171a; --panel: #251e22; --fg: #f1e9ed; --muted: #b3a2ab; --line: #3a2f35;
+    --accent: #e08aab; --accent-soft: #3a2630; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c171a; --panel: #251e22; --fg: #f1e9ed; --muted: #b3a2ab; --line: #3a2f35;
+  --accent: #e08aab; --accent-soft: #3a2630; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 44rem; margin: 0 auto; padding-inline: 16px; padding-block: 40px 64px; }
+h1 { font-family: var(--display); font-weight: 600; font-size: 2rem; line-height: 1.15; margin: 0 0 12px; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 500; font-size: 1.3rem; margin: 40px 0 4px; text-wrap: balance; }
+.lead { color: var(--muted); margin: 0 0 20px; }
+.how { background: var(--accent-soft); border-radius: 10px; padding: 14px 16px; font-size: 15px; }
+.how b { color: var(--accent); }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
+button { font: 600 14px var(--body); background: var(--accent); color: var(--panel); border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.status { color: var(--muted); font-size: 14px; }
+.sec-note { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+ol { list-style: none; padding: 0; margin: 0; counter-reset: q var(--start, 0); }
+li { counter-increment: q; display: grid; grid-template-columns: 2.2rem 1fr; gap: 4px 8px; padding: 14px 0; border-top: 1px solid var(--line); }
+li::before { content: counter(q); font-family: var(--display); font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+li > div { min-width: 0; }
+.q { font-weight: 600; margin: 0; }
+.v { margin: 4px 0 0; color: var(--muted); font-size: 15px; }
+.v span { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-right: 6px; }
+textarea#all { position: absolute; left: -9999px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <h1>Fragen an das Lovenja-Support-Team</h1>
+  <p class="lead">Wir binden Lovenja in Support Brain ein. Die KI schreibt zu jeder Kundenmail einen Entwurf; ihr prüft und sendet. Sobald 30 Entwürfe ohne Änderung rausgehen, stellen wir auf automatisch um. Damit das klappt, braucht die KI eure Regeln, auch die, die bisher nur im Kopf stehen.</p>
+  <div class="how"><b>So antwortet ihr am einfachsten:</b> Unter jeder Frage steht, wie die KI es aktuell macht. Passt das, schreibt „<b>7: ok</b>“. Wenn nicht, schreibt „<b>7:</b>“ und eure Regel. Beispiele aus echten Fällen helfen am meisten.</div>
+  <div class="bar"><button id="copy" type="button">Alle Fragen kopieren</button><span class="status" id="status" aria-live="polite"></span></div>
+
+  <h2>Rabatte und Entgegenkommen</h2>
+  <p class="sec-note">In den Vorlagen stehen fünf verschiedene Angebote. Die KI muss wissen, wann welches gilt.</p>
+  <ol style="--start:0">
+    <li><div><p class="q">Wann bietet ihr SORRY20 an, wann 10 % Gutschrift nach Erhalt, wann die Erstattung der Gebühr „Bestellung vorziehen“, wann 20 % Nachlass beim Behalten, wann den Code xSupport_50x und wann den 25-€-Gutscheinlink?</p><p class="v"><span>Aktuell</span>Die KI bietet von sich aus nur SORRY20 an. Alles andere nur, wenn ein Mitarbeiter es auswählt.</p></div></li>
+    <li><div><p class="q">Ist SORRY20 in Shopify aktiv? Gilt der Code für alle Produkte, einmal pro Kunde, mit Mindestbestellwert?</p><p class="v"><span>Aktuell</span>Höchstens einmal pro Kunde und Gespräch.</p></div></li>
+    <li><div><p class="q">Gibt es eine Obergrenze (Euro oder Prozent), bis zu der der Support ohne Rücksprache mit Roland entgegenkommen darf?</p><p class="v"><span>Aktuell</span>Keine festgelegt.</p></div></li>
+  </ol>
+
+  <h2>Versand und Tracking</h2>
+  <ol style="--start:3">
+    <li><div><p class="q">Ab wie vielen Tagen ohne Bewegung im Tracking gilt ein Paket bei euch als verloren, sodass ihr eine kostenlose Ersatzlieferung schickt?</p><p class="v"><span>Aktuell</span>Die KI gibt solche Fälle an einen Menschen ab.</p></div></li>
+    <li><div><p class="q">Welche Versanddienstleister gibt es (DHL, Yun Express, andere)? Wie lange dauert die Lieferung realistisch nach Deutschland, Österreich und in die Schweiz?</p><p class="v"><span>Aktuell</span>1–3 Werktage bis zur Übergabe, dann 5–10 Werktage Lieferzeit.</p></div></li>
+    <li><div><p class="q">Braucht Österreich oder die Schweiz andere Hinweise als DHL, z. B. Post.at oder andere Kontaktdaten?</p><p class="v"><span>Aktuell</span>Nur DHL-Filiale und DHL-Kontakt.</p></div></li>
+    <li><div><p class="q">Was genau ist „Bestellung vorziehen“? Was kostet es, und was bekommt der Kunde dafür?</p><p class="v"><span>Aktuell</span>Wird priorisiert bearbeitet und schneller an den Versandpartner übergeben.</p></div></li>
+    <li><div><p class="q">Wie antwortet ihr, wenn ein Paket an euch zurückgeht? Wer versendet neu, und kostet das den Kunden etwas?</p><p class="v"><span>Aktuell</span>Die KI fragt die Adresse ab und sagt den erneuten Versand zu.</p></div></li>
+  </ol>
+
+  <h2>Produkte</h2>
+  <ol style="--start:8">
+    <li><div><p class="q">Bitte eine Liste der Produkte mit Material: Edelstahl vergoldet, 14K-Vergoldung, Silber 925 usw. Welche Farbvarianten gibt es, und was steht auf den Etiketten?</p><p class="v"><span>Aktuell</span>Die KI sagt allgemein „vergoldet, kein Echtgold“ und rät kein Material.</p></div></li>
+    <li><div><p class="q">Was fragen Kundinnen am häufigsten zu den Produkten, z. B. Länge, Verschluss, Pflege, Allergie oder Wasser?</p><p class="v"><span>Aktuell</span>Nur Armband-Verschluss, Rosenbox-Cover, Weißgold/Silber und Echtgold sind hinterlegt.</p></div></li>
+    <li><div><p class="q">Welche Produkte machen aus eurer Sicht die meisten Probleme, und welche Probleme sind das?</p><p class="v"><span>Aktuell</span>Keine Angabe. Das Tool zählt es künftig automatisch mit.</p></div></li>
+  </ol>
+
+  <h2>Gravur und Personalisierung</h2>
+  <ol style="--start:11">
+    <li><div><p class="q">Kann eine Gravur kurz nach der Bestellung wirklich nie mehr geändert werden, oder gibt es ein Zeitfenster, z. B. am selben Tag?</p><p class="v"><span>Aktuell</span>Nie änderbar. Nur fehlende Namen werden angenommen.</p></div></li>
+    <li><div><p class="q">Wie gebt ihr nachgereichte Namen an die Gravur weiter: per Mail, Portal oder Shopify-Notiz? An wen genau?</p><p class="v"><span>Aktuell</span>Macht der Mitarbeiter von Hand. Das ist Voraussetzung dafür, dass die KI es später selbst erledigen kann.</p></div></li>
+    <li><div><p class="q">Gravur fehlt oder ist falsch, Kette fehlt in der Box: Wie löst ihr die Ersatzlieferung konkret aus, und wer macht das?</p><p class="v"><span>Aktuell</span>Die KI bittet um ein Foto und sagt kostenlosen Ersatz zu. Den Versand löst ihr aus.</p></div></li>
+  </ol>
+
+  <h2>Reklamation und Rechtliches</h2>
+  <p class="sec-note">Ein paar Sätze aus den Vorlagen sind rechtlich riskant, wenn die KI sie automatisch an jeden Kunden schickt. Wir haben sie vorerst entschärft.</p>
+  <ol style="--start:14">
+    <li><div><p class="q">In den Vorlagen steht „Fehler müssen gleich nach Zustellung gemeldet werden“. In der EU gilt 2 Jahre Gewährleistung. Wie geht ihr mit Reklamationen nach Wochen oder Monaten um?</p><p class="v"><span>Aktuell</span>Die KI lehnt nicht selbst ab, sondern gibt an einen Menschen ab.</p></div></li>
+    <li><div><p class="q">Anlaufen oder Verfärbung nach dem Tragen: Ab welcher Tragedauer lehnt ihr ab, und wann gibt es Kulanz? Fordert ihr immer Fotos an?</p><p class="v"><span>Aktuell</span>Wird an einen Menschen abgegeben.</p></div></li>
+    <li><div><p class="q">Dürfen wir Sätze wie „Wir sind nicht haftbar für Verspätungen, die Verantwortung liegt beim Versandunternehmen“ streichen? Beim Verkauf an Privatkunden trägt ihr das Versandrisiko.</p><p class="v"><span>Aktuell</span>Gestrichen. Die KI entschuldigt sich und nennt den Versandpartner als Grund.</p></div></li>
+    <li><div><p class="q">In einer Vorlage steht „Wir sind ein deutsches Unternehmen“, die Retourenadresse liegt aber in Österreich. Dürfen wir den Satz streichen?</p><p class="v"><span>Aktuell</span>Gestrichen. Stattdessen: „Wir betreuen Sie vollständig auf Deutsch.“</p></div></li>
+    <li><div><p class="q">Wer bearbeitet PayPal-Fälle, Chargebacks und Anwaltsschreiben, und gibt es dafür eine feste Linie?</p><p class="v"><span>Aktuell</span>Immer an einen Menschen, die KI sagt nichts zu.</p></div></li>
+  </ol>
+
+  <h2>Ton und Ablauf</h2>
+  <ol style="--start:19">
+    <li><div><p class="q">Soll jede Mail mit „Liebe Grüße / Roland &amp; das Lovenja Team / Gründer von Lovenja“ enden, auch wenn ein Mitarbeiter sie schreibt?</p><p class="v"><span>Aktuell</span>Ja, diese Signatur wird immer angehängt.</p></div></li>
+    <li><div><p class="q">Emojis wie 💛 ja oder nein?</p><p class="v"><span>Aktuell</span>Sparsam erlaubt.</p></div></li>
+    <li><div><p class="q">Kommen Mails auf Englisch oder in anderen Sprachen? In welcher Sprache antwortet ihr dann?</p><p class="v"><span>Aktuell</span>Die KI antwortet immer auf Deutsch.</p></div></li>
+    <li><div><p class="q">Welche Fälle sollen immer bei Roland landen, egal was die KI denkt?</p><p class="v"><span>Aktuell</span>Rechtliche Drohungen, Presse, PayPal/Chargeback, Streit über Mängel, verlorene Pakete, Gutschrift-Wünsche, Beleidigungen, dritte Beschwerde im selben Gespräch.</p></div></li>
+    <li><div><p class="q">Was sind eure 10 häufigsten Anliegen, und welche Antwort nervt euch heute am meisten, weil ihr sie immer anpassen müsst?</p><p class="v"><span>Aktuell</span>Wird aus euren Vorlagen abgeleitet.</p></div></li>
+    <li><div><p class="q">Gibt es Kunden, Adressen oder Muster, bei denen ihr besonders aufpasst, z. B. Mehrfach-Reklamierer oder Betrugsverdacht?</p><p class="v"><span>Aktuell</span>Keine Regel hinterlegt.</p></div></li>
+  </ol>
+</div>
+
+<textarea id="all" aria-hidden="true" tabindex="-1"></textarea>
+<script>
+(function () {
+  const btn = document.getElementById("copy"), status = document.getElementById("status"), ta = document.getElementById("all");
+  function text() {
+    const out = ["Fragen an das Lovenja-Support-Team (Antwort bitte mit Nummer, z. B. „7: ok“ oder „7: …“)", ""];
+    let n = 0;
+    document.querySelectorAll("h2, li").forEach(el => {
+      if (el.tagName === "H2") { out.push("", el.textContent.toUpperCase()); return; }
+      n++;
+      out.push(n + ". " + el.querySelector(".q").textContent);
+      out.push("   (" + el.querySelector(".v").textContent.replace(/^Aktuell/, "aktuell: ") + ")");
+    });
+    return out.join("\n");
+  }
+  btn.addEventListener("click", function () {
+    const t = text();
+    const done = () => { status.textContent = "Kopiert, bereit zum Einfügen."; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(done, fallback);
+    } else fallback();
+    function fallback() {
+      ta.value = t; ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) { status.textContent = "Bitte den Text markieren und kopieren."; }
+    }
+  });
+})();
+</script>

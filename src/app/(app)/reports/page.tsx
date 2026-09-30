@@ -209,7 +209,7 @@ export default async function ReportsPage({
       <section className="card">
         <h2 style={{ marginTop: 0 }}>KI-Reife je Problem-Typ</h2>
         <p className="muted" style={{ marginTop: 0 }}>
-          Wie oft die KI-Antwort <b>unverändert</b> rausging (Support musste nichts ändern). Ab <b>20 Fällen und ≥ 90 % unverändert</b> gilt ein Thema als „reif" — dann können wir es später sicher auto-senden.
+          Wie oft die KI-Antwort <b>unverändert</b> rausging (Support musste nichts ändern). Ab <b>30 unverändert gesendeten Entwürfen und ≥ 90 % unverändert</b> gilt ein Thema als „reif" — dann stellen wir es auf automatisches Senden um. Bis dahin legt die KI zu jeder Mail nur einen Entwurf an.
         </p>
         {r.categoryQuality.length === 0 ? (
           <p className="muted">Noch keine KI-Antworten im Zeitraum.</p>
@@ -233,6 +233,48 @@ export default async function ReportsPage({
           </table>
         )}
       </section>
+
+      {/* Schattenbetrieb: hätte der KI-Entwurf die echte Webmail-Antwort ersetzen können? */}
+      {r.shadow.total > 0 && (
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Schattenbetrieb: KI vs. echte Antworten</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Das Team antwortet im Webmail, die KI schreibt still mit. Verglichen wird der Inhalt (Lösung, Zusagen, Codes, Fakten), nicht der Wortlaut.
+            <b> {Math.round((r.shadow.match / r.shadow.total) * 100)} %</b> hätten gepasst ({r.shadow.match}/{r.shadow.total}).
+          </p>
+          <table className="cat-table">
+            <tbody>
+              {r.shadow.byCategory.map((c) => {
+                const pct = Math.round((c.match / c.total) * 100);
+                return (
+                  <tr key={c.category}>
+                    <td style={{ width: 230 }}>{c.category}</td>
+                    <td style={{ width: 150 }}>
+                      <div className="catbar" style={{ width: `${pct}%` }} />
+                    </td>
+                    <td>
+                      <strong>{pct} %</strong> hätte gepasst <span className="muted" style={{ fontSize: 12 }}>({c.match}/{c.total})</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {r.shadow.lessons.length > 0 && (
+            <>
+              <h3 style={{ marginBottom: 6 }}>Was die KI noch lernen muss</h3>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {r.shadow.lessons.map((l, i) => (
+                  <li key={i} style={{ marginBottom: 6 }}>
+                    <span className="muted" style={{ fontSize: 12 }}>{l.category} · </span>
+                    <Link href={`/inbox?ticket=${l.threadId}`}>{l.note}</Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Retouren-Portal */}
       {r.returns.total > 0 && (

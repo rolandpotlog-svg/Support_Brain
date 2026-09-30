@@ -18,6 +18,7 @@ type Row = {
   smtpPassword: string;
   fromEmail: string;
   fromName: string;
+  shadowMode: boolean;
   passwordsSet: boolean;
   _deleted?: boolean;
 };
@@ -26,7 +27,7 @@ function blankRow(): Row {
   return {
     imapHost: "", imapPort: "993", imapUser: "", imapPassword: "",
     smtpHost: "", smtpPort: "465", smtpUser: "", smtpPassword: "",
-    fromEmail: "", fromName: "", passwordsSet: false,
+    fromEmail: "", fromName: "", shadowMode: true, passwordsSet: false,
   };
 }
 
@@ -36,7 +37,7 @@ function rowsFrom(initial: ShopDetail | null): Row[] {
     id: m.id,
     imapHost: m.imapHost, imapPort: String(m.imapPort), imapUser: m.imapUser, imapPassword: "",
     smtpHost: m.smtpHost, smtpPort: String(m.smtpPort), smtpUser: m.smtpUser, smtpPassword: "",
-    fromEmail: m.fromEmail, fromName: m.fromName ?? "", passwordsSet: m.passwordsSet,
+    fromEmail: m.fromEmail, fromName: m.fromName ?? "", shadowMode: m.shadowMode, passwordsSet: m.passwordsSet,
   }));
 }
 
@@ -47,6 +48,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
   const [weeklyReportEnabled, setWeeklyReportEnabled] = useState(initial?.weeklyReportEnabled ?? false);
   const [weeklyReportTo, setWeeklyReportTo] = useState(initial?.weeklyReportTo ?? "");
   const [autoTag, setAutoTag] = useState(initial?.autoTag ?? false);
+  const [autoDraft, setAutoDraft] = useState(initial?.autoDraft ?? false);
   const [shopifyDomain, setShopifyDomain] = useState(initial?.shopify.domain ?? "");
   const [shopifyClientId, setShopifyClientId] = useState(initial?.shopify.clientId ?? "");
   const [shopifyClientSecret, setShopifyClientSecret] = useState("");
@@ -81,6 +83,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
       weeklyReportEnabled,
       weeklyReportTo,
       autoTag,
+      autoDraft,
       shopifyDomain,
       shopifyClientId,
       shopifyClientSecret,
@@ -98,6 +101,7 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
         smtpPassword: r.smtpPassword,
         fromEmail: r.fromEmail,
         fromName: r.fromName,
+        shadowMode: r.shadowMode,
       })),
     };
     startTransition(async () => {
@@ -149,6 +153,10 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
           <label className="chk">
             <input type="checkbox" checked={autoTag} onChange={(e) => setAutoTag(e.target.checked)} />
             Neue Tickets automatisch taggen (KI klassifiziert beim Eingang)
+          </label>
+          <label className="chk">
+            <input type="checkbox" checked={autoDraft} onChange={(e) => setAutoDraft(e.target.checked)} />
+            KI-Entwurf zu jeder neuen Kundenmail (nur Entwurf — gesendet wird erst nach Freigabe)
           </label>
         </div>
       </section>
@@ -245,6 +253,10 @@ export function ShopForm({ initial, hideHead }: { initial: ShopDetail | null; hi
               <input placeholder="Absender-E-Mail (z. B. support@…)" value={r.fromEmail} onChange={(e) => patch(i, { fromEmail: e.target.value })} />
               <input placeholder="Absender-Name (optional)" value={r.fromName} onChange={(e) => patch(i, { fromName: e.target.value })} />
             </div>
+            <label className="row" style={{ alignItems: "center", gap: 8, fontSize: 14 }}>
+              <input type="checkbox" style={{ width: "auto" }} checked={r.shadowMode} onChange={(e) => patch(i, { shadowMode: e.target.checked })} />
+              <span><b>Schattenbetrieb (nur lesen)</b> — Postfach bleibt unverändert, Team antwortet weiter im Webmail. Die KI schreibt still Entwürfe und wird mit euren echten Antworten verglichen. Aus diesem Tool wird nichts gesendet.</span>
+            </label>
             <div className="mblabel">Eingehend (IMAP)</div>
             <div className="row">
               <input placeholder="IMAP-Server" value={r.imapHost} onChange={(e) => patch(i, { imapHost: e.target.value })} />

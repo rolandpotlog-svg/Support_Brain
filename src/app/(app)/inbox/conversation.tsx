@@ -85,6 +85,9 @@ type Thread = {
   assigneeId: string | null;
   tag: string | null;
   deleted?: boolean;
+  aiDraft?: string | null;
+  aiDecision?: string | null;
+  aiReason?: string | null;
 };
 
 export function Conversation({
@@ -106,13 +109,18 @@ export function Conversation({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
-  const [text, setText] = useState("");
+  // Vorbefüllt mit dem Auto-Entwurf der KI (falls vorhanden) — Senden bleibt eine menschliche Freigabe.
+  const [text, setText] = useState(thread.aiDraft ?? "");
   const [files, setFiles] = useState<File[]>([]);
   const [noteText, setNoteText] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // KI hat den Fall als „Mensch muss entscheiden" markiert (Grund) — Hinweis über dem Antwortfeld.
+  const [aiHint, setAiHint] = useState<string | null>(
+    thread.aiDraft && thread.aiDecision === "mensch" ? thread.aiReason || "Bitte prüfen" : null,
+  );
   const [pending, start] = useTransition();
 
   function run(fn: () => Promise<void>) {
@@ -314,6 +322,7 @@ export function Conversation({
         </div>
         {tab === "reply" ? (
           <>
+            {aiHint && <div className="alertbar warn" style={{ marginBottom: 8 }}>🧑‍💼 KI empfiehlt: Mensch entscheidet — {aiHint}</div>}
             <textarea
               placeholder="Antwort verfassen… (wird erst nach Freigabe gesendet)"
               value={text}
@@ -375,7 +384,9 @@ export function Conversation({
                     setError(null);
                     setDrafting(true);
                     try {
-                      setText(await draftReply(thread.id, c.body));
+                      const d = await draftReply(thread.id, c.body);
+                      setText(d.text);
+                      setAiHint(d.decision === "mensch" ? d.reason || "Bitte prüfen" : null);
                     } catch (err) {
                       setError(err instanceof Error ? err.message : String(err));
                     } finally {
@@ -397,7 +408,9 @@ export function Conversation({
                   setError(null);
                   setDrafting(true);
                   try {
-                    setText(await draftReply(thread.id));
+                    const d = await draftReply(thread.id);
+                    setText(d.text);
+                    setAiHint(d.decision === "mensch" ? d.reason || "Bitte prüfen" : null);
                   } catch (e) {
                     setError(e instanceof Error ? e.message : String(e));
                   } finally {
@@ -421,6 +434,7 @@ export function Conversation({
                     }
                     await replyToThread(thread.id, text, fd);
                     setText("");
+                    setAiHint(null);
                     setFiles([]);
                     // Wie im Mail-Fach: nach dem Senden direkt das nächste Ticket öffnen.
                     if (nextHref) router.push(nextHref);

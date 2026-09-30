@@ -63,6 +63,8 @@ export const shops = pgTable("shops", {
   weeklyReportEnabled: boolean("weekly_report_enabled").notNull().default(false),
   // Neue Tickets beim Eingang automatisch von der KI taggen/klassifizieren.
   autoTag: boolean("auto_tag").notNull().default(false),
+  // KI legt zu jeder neuen Kundenmail automatisch einen Entwurf an (je Shop einzeln einschaltbar).
+  autoDraft: boolean("auto_draft").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -86,6 +88,11 @@ export const shopMailboxes = pgTable(
     fromEmail: text("from_email").notNull(),
     fromName: text("from_name"),
     lastSeenUid: bigint("last_seen_uid", { mode: "number" }),
+    // Schattenbetrieb: Postfach NUR LESEN (kein Gelesen-Markieren, kein Verschieben, keine Ordner,
+    // kein Senden). Das Team arbeitet weiter im Webmail; die KI schreibt still mit und wird gegen
+    // die echten Antworten aus dem Gesendet-Ordner verglichen.
+    shadowMode: boolean("shadow_mode").notNull().default(false),
+    lastSeenSentUid: bigint("last_seen_sent_uid", { mode: "number" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("shop_mailboxes_shop_idx").on(t.shopId)],
@@ -355,6 +362,11 @@ export const threads = pgTable(
     aiClassifiedAt: timestamp("ai_classified_at", { withTimezone: true }),
     // Zuletzt erzeugter KI-Entwurf (zum Vergleich beim Senden: 1:1 / bearbeitet).
     lastAiDraft: text("last_ai_draft"),
+    // KI-Entscheidung zum aktuellen Entwurf: auto (KI kann allein) | mensch (Team entscheidet) + Grund.
+    aiDecision: text("ai_decision"),
+    aiReason: text("ai_reason"),
+    // Wann der Entwurf erzeugt wurde — neuer als die letzte Kundenmail? Sonst erzeugt der Worker neu.
+    aiDraftAt: timestamp("ai_draft_at", { withTimezone: true }),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -387,6 +399,11 @@ export const messages = pgTable(
     aiOutcome: text("ai_outcome"),
     // Der ursprüngliche KI-Entwurf (für den Lern-Loop: was hat der Mitarbeiter geändert?).
     aiDraft: text("ai_draft"),
+    // KI-Entscheidung zum Entwurf (auto | mensch) — für die Reife-Auswertung „30× unverändert“.
+    aiDecision: text("ai_decision"),
+    // Schattenbetrieb: Hätte der KI-Entwurf inhaltlich gepasst? + was abweicht (Lernsignal).
+    aiShadowMatch: boolean("ai_shadow_match"),
+    aiShadowNote: text("ai_shadow_note"),
     sentBy: uuid("sent_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

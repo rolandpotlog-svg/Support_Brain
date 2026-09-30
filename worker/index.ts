@@ -9,6 +9,7 @@ import { ingestAll } from "./imap";
 import { processOutbox } from "./smtp";
 import { runWeeklyReports } from "./reports";
 import { autoTagRecent } from "../src/server/ai/autotag";
+import { autoDraftRecent } from "../src/server/ai/autodraft";
 
 // Anhänge (Fotos) automatisch begrenzen: alte löschen, damit die DB nicht vollläuft. Höchstens 1×/Std.
 const KEEP_DAYS = Number(process.env.ATTACHMENT_KEEP_DAYS ?? 30);
@@ -39,8 +40,15 @@ async function runCycle() {
     } catch (e) {
       console.error("[worker] Auto-Tag-Fehler:", e instanceof Error ? e.message : e);
     }
+    // KI-Entwurf zu jeder neuen Kundenmail (nur Entwurf — gesendet wird nach menschlicher Freigabe).
+    let drafted = 0;
+    try {
+      drafted = await autoDraftRecent();
+    } catch (e) {
+      console.error("[worker] Auto-Entwurf-Fehler:", e instanceof Error ? e.message : e);
+    }
     console.log(
-      `[${new Date().toISOString()}] ${fetched} Mail(s) abgeholt, ${sent} gesendet, ${tagged} getaggt.`,
+      `[${new Date().toISOString()}] ${fetched} Mail(s) abgeholt, ${sent} gesendet, ${tagged} getaggt, ${drafted} Entwürfe.`,
     );
   } catch (err) {
     console.error("[worker] Zyklus-Fehler:", err);

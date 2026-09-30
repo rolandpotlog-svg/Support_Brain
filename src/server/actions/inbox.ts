@@ -125,6 +125,10 @@ export async function replyToThread(threadId: string, bodyText: string, filesFor
       where: eq(schema.shopMailboxes.shopId, t.shopId),
     }));
   if (!mailbox) throw new Error("Shop hat keine Postfach-Konfiguration");
+  // Schattenbetrieb: das Team antwortet im Webmail — aus dem Tool wird nichts gesendet (kein Doppel-Versand).
+  if (mailbox.shadowMode) {
+    throw new Error("Schattenbetrieb aktiv: Bitte im Webmail antworten. Das Tool liest die Antwort automatisch mit und vergleicht sie mit dem KI-Entwurf.");
+  }
 
   const lastInbound = await db.query.messages.findFirst({
     where: and(
@@ -174,6 +178,7 @@ export async function replyToThread(threadId: string, bodyText: string, filesFor
         inReplyTo: lastInbound?.messageId ?? null,
         aiOutcome,
         aiDraft: t.lastAiDraft ?? null,
+        aiDecision: t.lastAiDraft ? t.aiDecision : null,
         sentBy: user.id,
       })
       .returning({ id: schema.messages.id });
@@ -187,6 +192,9 @@ export async function replyToThread(threadId: string, bodyText: string, filesFor
         // Erste Antwortzeit festhalten (nur beim ersten Mal); Entwurf-Puffer leeren.
         firstResponseAt: t.firstResponseAt ?? new Date(),
         lastAiDraft: null,
+        aiDecision: null,
+        aiReason: null,
+        aiDraftAt: null,
       })
       .where(eq(schema.threads.id, threadId));
   });

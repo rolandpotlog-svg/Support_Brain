@@ -4,6 +4,9 @@ import { and, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { CATEGORY_AREA, normalizeCategory } from "@/lib/reports/categories";
 
+// Ab so vielen unverändert gesendeten KI-Entwürfen (je Kategorie, bei ≥ 90 % Quote) gilt eine Kategorie als reif.
+export const AUTOSEND_MIN_VERBATIM = 30;
+
 const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 export function weekdayLabel(dow: number): string {
   return WEEKDAYS[dow] ?? String(dow);
@@ -41,6 +44,13 @@ export type FullReport = {
   // KI-Qualität
   draftOutcomes: { verbatim: number; edited: number; manual: number };
   categoryQuality: { category: string; total: number; verbatim: number; edited: number; verbatimPct: number; ready: boolean }[];
+  // Schattenbetrieb: KI-Entwurf vs. echte Webmail-Antwort (hätte der Entwurf gepasst?)
+  shadow: {
+    total: number;
+    match: number;
+    byCategory: { category: string; total: number; match: number }[];
+    lessons: { threadId: string; category: string; note: string; at: Date }[];
+  };
   // Sentiment
   sentiment: { positiv: number; neutral: number; negativ: number };
   // Retouren-Portal
@@ -211,7 +221,14 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
 
   // 5) KI-Entwurf-Nutzung in der Periode — gesamt UND je Problem-Kategorie (für die KI-Reife).
   const draftRows = await db
-    .select({ outcome: schema.messages.aiOutcome, category: schema.threads.aiCategory })
+    .select({
+      outcome: schema.messages.aiOutcome,
+      category: schema.threads.aiCategory,
+      shadowMatch: schema.messages.aiShadowMatch,
+      shadowNote: schema.messages.aiShadowNote,
+      threadId: schema.messages.threadId,
+      createdAt: schema.messages.createdAt,
+    })
     .from(schema.messages)
     .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
     .where(
@@ -223,7 +240,25 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
     );
   const draftOutcomes = { verbatim: 0, edited: 0, manual: 0 };
   const catQual = new Map<string, { verbatim: number; edited: number; manual: number }>();
+  const shadow = { total: 0, match: 0, byCategory: [] as { category: string; total: number; match: number }[], lessons: [] as { threadId: string; category: string; note: string; at: Date }[] };
+  const shadowCat = new Map<string, { total: number; match: number }>();
   for (const d of draftRows) {
+    // Schattenbetrieb separat werten — dort sieht das Team den Entwurf nicht, "unverändert" gibt es nicht.
+    if (d.outcome === "shadow") {
+      if (d.shadowMatch == null) continue; // nicht verglichen
+      const c = normalizeCategory(d.category);
+      const q = shadowCat.get(c) ?? { total: 0, match: 0 };
+      q.total++;
+      shadow.total++;
+      if (d.shadowMatch) {
+        q.match++;
+        shadow.match++;
+      } else if (d.shadowNote) {
+        shadow.lessons.push({ threadId: d.threadId, category: c, note: d.shadowNote, at: d.createdAt });
+      }
+      shadowCat.set(c, q);
+      continue;
+    }
     if (d.outcome === "verbatim") draftOutcomes.verbatim++;
     else if (d.outcome === "edited") draftOutcomes.edited++;
     else draftOutcomes.manual++;
@@ -235,12 +270,13 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
       catQual.set(c, q);
     }
   }
-  // Reife je Kategorie: hoher Anteil "unverändert" + genug Fälle => reif fürs Auto-Senden (später).
+  // Reife je Kategorie (Rolands Regel 30.09.2026): mind. 30 Entwürfe UNVERÄNDERT gesendet + ≥ 90 % unverändert
+  // => reif fürs Auto-Senden. Bis dahin: immer Entwurf, Mensch gibt frei.
   const categoryQuality = [...catQual.entries()]
     .map(([category, q]) => {
       const total = q.verbatim + q.edited;
       const verbatimPct = total ? Math.round((q.verbatim / total) * 100) : 0;
-      return { category, total, verbatim: q.verbatim, edited: q.edited, verbatimPct, ready: total >= 20 && verbatimPct >= 90 };
+      return { category, total, verbatim: q.verbatim, edited: q.edited, verbatimPct, ready: q.verbatim >= AUTOSEND_MIN_VERBATIM && verbatimPct >= 90 };
     })
     .sort((a, b) => b.total - a.total);
 
@@ -352,6 +388,11 @@ export async function fullReport(shopId: string, days: number): Promise<FullRepo
     backlogAging,
     draftOutcomes,
     categoryQuality,
+    shadow: {
+      ...shadow,
+      byCategory: [...shadowCat.entries()].map(([category, q]) => ({ category, ...q })).sort((a, b) => b.total - a.total),
+      lessons: shadow.lessons.sort((a, b) => b.at.getTime() - a.at.getTime()).slice(0, 30),
+    },
     sentiment,
     returns,
     warnings,

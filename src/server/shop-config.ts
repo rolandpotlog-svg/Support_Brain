@@ -45,6 +45,7 @@ export type MailboxView = {
   smtpUser: string;
   fromEmail: string;
   fromName: string | null;
+  shadowMode: boolean;
   passwordsSet: boolean; // bestehende Postfächer haben immer Passwörter gesetzt
 };
 
@@ -56,6 +57,7 @@ export type ShopDetail = {
   weeklyReportEnabled: boolean;
   weeklyReportTo: string;
   autoTag: boolean;
+  autoDraft: boolean;
   shopify: {
     configured: boolean;
     domain: string | null;
@@ -87,6 +89,7 @@ export async function loadShopForEdit(shopId: string): Promise<ShopDetail | null
       smtpUser: schema.shopMailboxes.smtpUser,
       fromEmail: schema.shopMailboxes.fromEmail,
       fromName: schema.shopMailboxes.fromName,
+      shadowMode: schema.shopMailboxes.shadowMode,
     })
     .from(schema.shopMailboxes)
     .where(eq(schema.shopMailboxes.shopId, shopId))
@@ -100,6 +103,7 @@ export async function loadShopForEdit(shopId: string): Promise<ShopDetail | null
     weeklyReportEnabled: shop.weeklyReportEnabled,
     weeklyReportTo: shop.weeklyReportTo ?? "",
     autoTag: shop.autoTag,
+    autoDraft: shop.autoDraft,
     shopify: {
       configured: Boolean(sh),
       domain: sh?.storeDomain ?? null,

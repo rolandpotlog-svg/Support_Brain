@@ -17,6 +17,9 @@ export type ProfileData = {
   signature: string;
   emojis: "" | "ja" | "nein";
   length: "" | "kurz" | "mittel" | "lang";
+  // Gesprächsabschluss: "abschliessen" = nie zum Nachschreiben einladen (Default, Repello);
+  // "einladen" = Kunde wird freundlich eingeladen, sich bei Fragen wieder zu melden (Lovenja).
+  closing?: "" | "abschliessen" | "einladen";
   examples: string[];
   // 3) Richtlinien
   returnPeriod: string;
@@ -48,7 +51,7 @@ export const HUMAN_ONLY: (keyof ProfileData)[] = [
 export function emptyProfile(): ProfileData {
   return {
     whatSold: "", brandCore: "", website: "", supportHours: "",
-    address: "", style: "", greeting: "", signature: "", emojis: "", length: "",
+    address: "", style: "", greeting: "", signature: "", emojis: "", length: "", closing: "",
     examples: [],
     returnPeriod: "", notReturnable: "", exchange: "", refund: "", shipping: "",
     damage: "", discountAuthority: "",

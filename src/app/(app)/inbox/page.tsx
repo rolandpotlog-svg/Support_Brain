@@ -351,6 +351,10 @@ export default async function InboxPage({
             assigneeId: selected.assigneeId,
             tag: selected.tag,
             deleted: selectedThread!.deletedAt != null,
+            // Auto-Entwurf des Workers vorbefüllen (nur wenn er zur aktuellen Kundenmail passt).
+            aiDraft: selectedThread!.lastAiDraft,
+            aiDecision: selectedThread!.aiDecision,
+            aiReason: selectedThread!.aiReason,
           }}
           messages={selected.messages}
           supportEmail={supportEmail}

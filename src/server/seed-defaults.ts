@@ -3,6 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { buildSystemPrompt, type ProfileData, type ProfileSources } from "@/lib/profile/types";
+import { LOVENJA_PROFILE, lovenjaReplies } from "@/server/seed-lovenja";
 
 // ---- Deeskalations-Leiter "Gerät funktioniert nicht" (Repello) — der wichtigste Baustein ----
 const REPELLO_DEFECT_LADDER =
@@ -27,6 +28,7 @@ const REPELLO_PROFILE: ProfileData = {
   signature: "Liebe Grüße\nIhr Repello-Team",
   emojis: "ja",
   length: "mittel",
+  closing: "abschliessen",
   examples: [
     "Hallo und vielen Dank für Ihre Nachricht 😊\n\nGerne helfen wir Ihnen weiter.\n\n[Antwort]\n\nFalls Sie noch Fragen haben, sind wir jederzeit für Sie da. 👍",
     "vielen Dank für Ihre Nachricht 😊\n\nDass sich noch nichts getan hat, ist bei einer so frischen Bestellung ganz normal — das Gerät braucht etwas Zeit. Bitte achten Sie darauf, dass es fest und tief in der Erde steckt und dauerhaft eingeschaltet ist. Die Tiere merken erst nach und nach, dass das Gerät da ist; die volle Wirkung entfaltet sich über bis zu einem Monat.\n\nProbieren Sie es bitte so weiter und melden Sie sich gern, ob es besser wird — wir bleiben für Sie dran. 🌿",
@@ -61,40 +63,6 @@ const REPELLO_PROFILE: ProfileData = {
     "Rechtliche Drohungen, Presseanfragen oder stark eskalierte Fälle an die Geschäftsführung übergeben.",
 };
 
-const LOVENJA_PROFILE: ProfileData = {
-  whatSold: "Personalisierter Schmuck mit Gravur (z. B. Mutter-Tochter-Halsketten) — Geschenke mit persönlicher Note.",
-  brandCore:
-    "Lovenja steht für persönliche Schmuckstücke und Geschenkmomente — warm, menschlich, positiv und wertschätzend, auch bei wiederholten Beschwerden. Der Kunde wird namentlich angesprochen und in seiner Wichtigkeit bestärkt (Ihre Zufriedenheit liegt uns am Herzen).",
-  website: "",
-  supportHours: "",
-  address: "sie",
-  style: "premium",
-  greeting: "Hallo Herr/Frau [Nachname],",
-  signature: "Liebe Grüße\nIhr Lovenja-Team\nRoland, Gründer von Lovenja",
-  emojis: "ja",
-  length: "mittel",
-  examples: [
-    "vielen Dank für Ihre Nachricht. Ich verstehe sehr gut, wie frustrierend es ist, wenn man sehnsüchtig auf seine Bestellung wartet. Leider kommt es aktuell bei unserem Versandpartner zu Verzögerungen, weshalb Sie Ihr Paket noch nicht erhalten haben. Wir entschuldigen uns an dieser Stelle dafür.",
-    "Es tut uns leid, dass die Bestellung diesmal nicht Ihren Vorstellungen entsprochen hat. Als kleine Geste möchten wir Ihnen dennoch einen 20 % Rabattcode für Ihren nächsten Einkauf anbieten: SORRY20 — vielleicht dürfen wir Sie ja bald wieder mit etwas Schönem überraschen. 💛",
-  ],
-  returnPeriod:
-    "Rücksendung in ungenutztem Zustand und Originalverpackung an: Lovenja Retourenabteilung, Roland Potlog, Aufeldstraße 21, 4050 Traun, Österreich. Immer Bestellnummer und vollständige Adresse angeben. Kein Rücksendeschein.",
-  notReturnable:
-    "Individuell gravierte/personalisierte Artikel sind vom Widerrufsrecht ausgeschlossen — sie werden speziell für den Kunden angefertigt und können nicht wiederverkauft werden.",
-  exchange: "",
-  refund: "Erstattung nach Eingang und Prüfung der Rücksendung automatisch auf das genutzte Zahlungsmittel, mit Bestätigung per E-Mail.",
-  shipping:
-    "Nach Zahlungseingang Übergabe an den Versandpartner innerhalb von 1–3 Werktagen; Lieferzeit meist 5–10 Werktage. Ursache von Verzögerungen ist IMMER der Versandpartner — aufrichtig entschuldigen, Verständnis zeigen. Keine exakten Liefertermine zusagen.",
-  damage: "Verständnis zeigen, um Bestellnummer und Fotos bitten, Fall persönlich ansehen, Lösung anbieten.",
-  discountAuthority: "Bei Verzögerungen/Unzufriedenheit den Rabattcode SORRY20 (20 %) als Entschuldigung anbieten.",
-  faq: [],
-  specialties:
-    "Das Gespräch so abschließen, dass sich der Kunde bei Bedarf selbst meldet — keine Folgemeldungen unsererseits. Kunden namentlich ansprechen. Warm, menschlich, positiv — nie kühl oder rechtfertigend, keine unpersönlichen Standardtexte.",
-  donts:
-    "Den Kunden niemals beschuldigen. Interne Abläufe oder Dropshipping NIEMALS erwähnen. Nicht rechtfertigend oder kühl wirken. Keine Standardtexte ohne persönliche Note.",
-  escalationRules: "Rechtliche Drohungen, Presseanfragen oder stark eskalierte Fälle an die Geschäftsführung übergeben.",
-};
-
 // ---- Schnellantworten (Sie-Form) ----
 const RULES =
   "Antworte GENAU in diesem Wortlaut und Ton (Sie-Form). Beginne mit der Anrede (Hallo Herr/Frau [Nachname],). " +
@@ -127,19 +95,14 @@ const repelloExtras = (shopName: string): Reply[] => [
   { title: "Positives Feedback bedanken", body: RULES + "vielen Dank für Ihr tolles Feedback! 😊\n\nEs freut uns sehr zu hören, dass Sie gute Erfahrungen mit Ihrem " + shopName + "-Produkt gemacht haben. Wir wünschen Ihnen weiterhin ein geschütztes Zuhause und viel Freude mit Ihrem Produkt. 🏡" },
 ];
 
-const lovenjaExtras = (): Reply[] => [
-  { title: "Gravur-Namen erfragen", body: RULES + "vielen Dank für Ihre Nachricht und gerne können Sie mir mitteilen, welche Namen Sie eingraviert haben möchten.\n\n1. Name:\n\n2. Name:\n\nWir bedanken uns für Ihre Bestellung und wünschen Ihnen noch eine schöne Woche." },
-  { title: "Gravur-Namen weitergeleitet", body: RULES + "vielen Dank für Ihre Nachricht und ich habe soeben Ihre Namenswünsche an die Gravur-Abteilung zur Bearbeitung weitergeleitet. Wir bedanken uns für Ihre Bestellung und stehen Ihnen gerne für weitere Fragen zur Verfügung." },
-  { title: "Storno abgelehnt (Gravur/personalisiert)", body: RULES + "vielen Dank für Ihre Nachricht. Es tut uns sehr leid, dass Sie Ihre Bestellung stornieren möchten. Da Ihr Artikel individuell mit einer Gravur angefertigt wurde, ist eine Rückgabe, Stornierung oder Gutschrift leider nicht möglich. Personalisierte Produkte werden speziell für Sie hergestellt und sind vom Widerrufsrecht ausgeschlossen. Sollten Sie noch Fragen haben, stehen wir Ihnen gerne zur Verfügung." },
-];
-
 /** Setzt Profil + Schnellantworten für einen Brand. Reicht Owner-Recht (Aufrufer prüft das). */
 export async function applyBrandDefaults(shopId: string): Promise<{ brand: string; set: string; replies: number }> {
   const shop = await db.query.shops.findFirst({ where: eq(schema.shops.id, shopId) });
   if (!shop) throw new Error("Brand nicht gefunden");
   const isLovenja = shop.slug.includes("lovenja");
   const data = isLovenja ? LOVENJA_PROFILE : REPELLO_PROFILE;
-  const replies = [...sharedSie(shop.name), ...(isLovenja ? lovenjaExtras() : repelloExtras(shop.name))];
+  // Lovenja hat einen eigenen, vollständigen Satz (aus Rolands Vorlagen) — Repello: gemeinsam + Extras.
+  const replies = isLovenja ? lovenjaReplies() : [...sharedSie(shop.name), ...repelloExtras(shop.name)];
 
   // Profil
   const sources: ProfileSources = Object.fromEntries(

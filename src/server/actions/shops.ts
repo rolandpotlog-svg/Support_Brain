@@ -18,6 +18,7 @@ export type MailboxInput = {
   smtpPassword: string; // leer = bestehendes behalten (nur bei Update)
   fromEmail: string;
   fromName: string;
+  shadowMode: boolean; // nur lesen — Team antwortet weiter im Webmail
 };
 
 export type ShopInput = {
@@ -27,6 +28,7 @@ export type ShopInput = {
   weeklyReportEnabled: boolean;
   weeklyReportTo: string; // kommagetrennte Empfänger
   autoTag: boolean; // neue Tickets automatisch taggen
+  autoDraft: boolean; // KI-Entwurf zu jeder neuen Kundenmail
   shopifyDomain: string; // leer = Shopify trennen
   shopifyClientId: string; // Client-Credentials-Grant (primär)
   shopifyClientSecret: string; // leer = bestehendes behalten
@@ -90,6 +92,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
           weeklyReportEnabled: input.weeklyReportEnabled,
           weeklyReportTo,
           autoTag: input.autoTag,
+          autoDraft: input.autoDraft,
         })
         .where(eq(schema.shops.id, id));
     } else {
@@ -103,6 +106,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
           weeklyReportEnabled: input.weeklyReportEnabled,
           weeklyReportTo,
           autoTag: input.autoTag,
+          autoDraft: input.autoDraft,
         })
         .returning({ id: schema.shops.id });
       id = created.id;
@@ -190,6 +194,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
             smtpPasswordEnc: mb.smtpPassword ? encrypt(mb.smtpPassword) : prev.smtpPasswordEnc,
             fromEmail,
             fromName: mb.fromName.trim() || null,
+            shadowMode: mb.shadowMode,
             updatedAt: new Date(),
           })
           .where(eq(schema.shopMailboxes.id, mb.id));
@@ -212,6 +217,7 @@ export async function saveShop(input: ShopInput): Promise<{ id: string }> {
           smtpPasswordEnc: encrypt(mb.smtpPassword),
           fromEmail,
           fromName: mb.fromName.trim() || null,
+          shadowMode: mb.shadowMode,
         });
       }
     }

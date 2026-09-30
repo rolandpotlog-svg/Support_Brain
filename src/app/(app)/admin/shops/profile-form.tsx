@@ -108,7 +108,7 @@ export function ProfileForm({
   const select = (k: keyof ProfileData, lbl: string, opts: [string, string][]) => (
     <label className="pfield">
       {label(k, lbl)}
-      <select value={data[k] as string} onChange={(e) => set(k, e.target.value as never)}>
+      <select value={(data[k] as string) ?? ""} onChange={(e) => set(k, e.target.value as never)}>
         <option value="">— nicht gesetzt</option>
         {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
@@ -174,6 +174,7 @@ export function ProfileForm({
         <div className="prow">
           {select("length", "Antwortlänge", [["kurz", "kurz"], ["mittel", "mittel"], ["lang", "ausführlich"]])}
           {select("emojis", "Emojis", [["ja", "ja, sparsam"], ["nein", "nein"]])}
+          {select("closing", "Abschluss", [["abschliessen", "abschließen (nie zum Nachschreiben einladen)"], ["einladen", "einladen (bei Fragen gern melden)"]])}
         </div>
         {text("greeting", "Begrüßung", "z. B. Hallo {Name},")}
         {area("signature", "Feste Signatur (wird automatisch unter jede Antwort gesetzt)", "z. B.\nViele Grüße\ndein Repello-Team\nsupport@repello.de")}

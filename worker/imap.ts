@@ -8,6 +8,9 @@ import { db, schema } from "../src/server/db/index";
 import { decrypt } from "../src/lib/mailbox/crypto";
 import { bestBodyText } from "../src/lib/mailbox/html-text";
 import { bestCustomerEmail, nameFromBody } from "../src/lib/mailbox/extract";
+import { aiConfigured } from "../src/server/ai";
+import { generateDraft } from "../src/server/ai/draft";
+import { compareShadow, stripQuoted } from "../src/server/ai/shadow-compare";
 
 const RE_PREFIX = /^\s*(re|aw|fwd|wg)\s*:\s*/i;
 
@@ -248,7 +251,149 @@ async function appendSent(client: ImapFlow, mb: MailboxRow, F: Folders) {
   }
 }
 
-async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: MailboxRow): Promise<number> {
+/** Gesendet-Ordner nur FINDEN (Schattenbetrieb: nichts anlegen). */
+async function findSentReadOnly(client: ImapFlow): Promise<string | null> {
+  const list = await client.list();
+  const up = (p: string) => p.toUpperCase();
+  const names = ["SENT", "GESENDET", "SENT ITEMS", "GESENDETE OBJEKTE", "INBOX.SENT", "INBOX.GESENDET", "INBOX/SENT", "INBOX/GESENDET"];
+  return list.find((m) => m.specialUse === "\\Sent")?.path ?? list.find((m) => names.includes(up(m.path)))?.path ?? null;
+}
+
+/**
+ * Schattenbetrieb: echte Antworten des Teams aus dem Gesendet-Ordner (nur lesend) ins Ticket übernehmen
+ * und mit dem KI-Entwurf vergleichen. Beim allerersten Lauf nur die Position merken (kein Altbestand).
+ */
+async function ingestSentShadow(client: ImapFlow, shop: typeof schema.shops.$inferSelect, mb: MailboxRow, sentPath: string): Promise<number> {
+  const lock = await client.getMailboxLock(sentPath, { readOnly: true });
+  let n = 0;
+  let maxUid = mb.lastSeenSentUid ?? 0;
+  try {
+    const box = client.mailbox;
+    if (mb.lastSeenSentUid == null) {
+      const start = box && typeof box === "object" && box.uidNext ? Number(box.uidNext) - 1 : 0;
+      await db.update(schema.shopMailboxes).set({ lastSeenSentUid: start }).where(eq(schema.shopMailboxes.id, mb.id));
+      return 0;
+    }
+    const aiOn = aiConfigured() && !shop.killSwitch;
+    for await (const msg of client.fetch(`${mb.lastSeenSentUid + 1}:*`, { uid: true, source: true }, { uid: true })) {
+      if (msg.uid <= (mb.lastSeenSentUid ?? 0) || !msg.source) continue;
+      maxUid = Math.max(maxUid, msg.uid);
+      try {
+        const parsed = await simpleParser(msg.source);
+        const messageId = parsed.messageId ?? null;
+        if (messageId && (await db.query.messages.findFirst({ where: eq(schema.messages.messageId, messageId) }))) continue;
+        const to = parsed.to && !Array.isArray(parsed.to) ? parsed.to.value?.[0]?.address : Array.isArray(parsed.to) ? parsed.to[0]?.value?.[0]?.address : undefined;
+        if (!to) continue;
+        const inReplyTo = parsed.inReplyTo ?? null;
+        const refs = Array.isArray(parsed.references) ? parsed.references : parsed.references ? [parsed.references] : [];
+        const refIds = [inReplyTo, ...refs].filter(Boolean) as string[];
+
+        // Zugehöriges Ticket: über Message-IDs (sicher), sonst Kunde + Betreff. Ohne Treffer ignorieren
+        // (z. B. eigene Mails an Lieferanten) — wir legen hier nie neue Tickets an.
+        let threadId: string | null = null;
+        if (refIds.length) {
+          const m = await db
+            .select({ threadId: schema.messages.threadId })
+            .from(schema.messages)
+            .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+            .where(and(inArray(schema.messages.messageId, refIds), eq(schema.threads.shopId, shop.id)))
+            .limit(1);
+          threadId = m[0]?.threadId ?? null;
+        }
+        if (!threadId) {
+          const norm = normalizeSubject(parsed.subject);
+          const cands = await db
+            .select({ id: schema.threads.id, subject: schema.threads.subject })
+            .from(schema.threads)
+            .where(and(eq(schema.threads.shopId, shop.id), sql`lower(${schema.threads.customerEmail}) = lower(${to})`))
+            .orderBy(desc(schema.threads.lastMessageAt))
+            .limit(20);
+          threadId = cands.find((c) => norm && normalizeSubject(c.subject) === norm)?.id ?? null;
+        }
+        if (!threadId) continue;
+
+        const body = stripQuoted(bestBodyText(parsed.text ?? null, typeof parsed.html === "string" ? parsed.html : null) ?? "");
+        if (!body) continue;
+
+        // Liegt noch kein Entwurf zur aktuellen Kundenmail vor (Team war schneller als der Worker)?
+        // Dann jetzt erzeugen — so wird JEDE Antwort verglichen.
+        let t = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
+        if (!t) continue;
+        const lastIn = await db.query.messages.findFirst({
+          where: and(eq(schema.messages.threadId, threadId), eq(schema.messages.direction, "inbound")),
+          orderBy: desc(schema.messages.createdAt),
+        });
+        const hasProfile = await db.query.shopProfile.findFirst({ where: eq(schema.shopProfile.shopId, shop.id) });
+        if (aiOn && hasProfile && lastIn && (!t.lastAiDraft || !t.aiDraftAt || t.aiDraftAt < lastIn.createdAt)) {
+          try {
+            await generateDraft(threadId);
+            t = (await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) })) ?? t;
+          } catch (e) {
+            console.error(`[shadow] Entwurf ${threadId}:`, e instanceof Error ? e.message : e);
+          }
+        }
+
+        let match: boolean | null = null;
+        let note: string | null = null;
+        if (aiOn && t.lastAiDraft && lastIn) {
+          try {
+            const c = await compareShadow({ customerText: lastIn.bodyText ?? "", draft: t.lastAiDraft, actual: body });
+            match = c.match;
+            note = c.note || null;
+          } catch (e) {
+            console.error(`[shadow] Vergleich ${threadId}:`, e instanceof Error ? e.message : e);
+          }
+        }
+
+        const sentAt = parsed.date ?? new Date();
+        await db.transaction(async (tx) => {
+          await tx.insert(schema.messages).values({
+            threadId: threadId!,
+            direction: "outbound",
+            fromEmail: mb.fromEmail,
+            toEmail: to,
+            subject: parsed.subject ?? null,
+            bodyText: body,
+            messageId,
+            inReplyTo,
+            imapUid: msg.uid,
+            imapFolder: null, // nie spiegeln/verschieben
+            aiOutcome: t!.lastAiDraft ? "shadow" : "manual",
+            aiDraft: t!.lastAiDraft ?? null,
+            aiDecision: t!.lastAiDraft ? t!.aiDecision : null,
+            aiShadowMatch: match,
+            aiShadowNote: note,
+            createdAt: sentAt,
+          }).onConflictDoNothing();
+          await tx
+            .update(schema.threads)
+            .set({
+              status: "pending",
+              lastMessageAt: sentAt,
+              firstResponseAt: t!.firstResponseAt ?? sentAt,
+              lastAiDraft: null,
+              aiDecision: null,
+              aiReason: null,
+              aiDraftAt: null,
+            })
+            .where(eq(schema.threads.id, threadId!));
+        });
+        n++;
+      } catch (e) {
+        console.error(`[shadow] Gesendet UID ${msg.uid}:`, e instanceof Error ? e.message : e);
+      }
+    }
+  } finally {
+    lock.release();
+  }
+  if (maxUid > (mb.lastSeenSentUid ?? 0)) {
+    await db.update(schema.shopMailboxes).set({ lastSeenSentUid: maxUid }).where(eq(schema.shopMailboxes.id, mb.id));
+  }
+  return n;
+}
+
+export async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: MailboxRow): Promise<number> {
+  const shadow = mb.shadowMode;
   const client = new ImapFlow({
     host: mb.imapHost,
     port: mb.imapPort,
@@ -260,7 +405,8 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
 
   let folders: Folders | null = null;
   try {
-    folders = await setupFolders(client);
+    // Schattenbetrieb: KEINE Ordner anlegen/verschieben — Postfach bleibt exakt wie im Webmail.
+    if (!shadow) folders = await setupFolders(client);
   } catch (e) {
     console.error(`[folders] ${mb.fromEmail}:`, e instanceof Error ? e.message : e);
   }
@@ -269,9 +415,19 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
   let maxUid = mb.lastSeenUid ?? 0; // höchste ERFOLGREICH verarbeitete UID
   let firstUnhandled: number | null = null; // niedrigste UID, die (noch) nicht ging -> nicht überspringen
   const newUids: number[] = [];
-  const lock = await client.getMailboxLock("INBOX");
+  // Schattenbetrieb: INBOX nur lesend öffnen (EXAMINE) — Server lässt dann gar keine Änderung zu.
+  const lock = await client.getMailboxLock("INBOX", { readOnly: shadow });
   try {
-    const range = `${(mb.lastSeenUid ?? 0) + 1}:*`;
+    let startUid = (mb.lastSeenUid ?? 0) + 1;
+    // Schattenbetrieb, erster Lauf: nur die letzten 14 Tage holen statt des ganzen Posteingangs.
+    if (shadow && mb.lastSeenUid == null) {
+      const recent = await client.search({ since: new Date(Date.now() - 14 * 86_400_000) }, { uid: true });
+      const first = Array.isArray(recent) && recent.length ? Math.min(...recent) : null;
+      const uidNext = client.mailbox && typeof client.mailbox === "object" ? Number(client.mailbox.uidNext ?? 1) : 1;
+      startUid = first ?? uidNext;
+      if (startUid > 1) maxUid = startUid - 1;
+    }
+    const range = `${startUid}:*`;
     const markUnhandled = (u: number) => {
       if (firstUnhandled === null || u < firstUnhandled) firstUnhandled = u;
     };
@@ -332,7 +488,8 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
             messageId,
             inReplyTo,
             imapUid: uid,
-            imapFolder: "INBOX",
+            // Schattenbetrieb: kein Ordner merken -> wird nie verschoben (auch nicht nach dem Umstellen).
+            imapFolder: shadow ? null : "INBOX",
           })
           .onConflictDoNothing()
           .returning({ id: schema.messages.id });
@@ -377,7 +534,7 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
     }
 
     // Abgeholte Mails als gelesen markieren (kein ungelesener Wust).
-    if (newUids.length) {
+    if (newUids.length && !shadow) {
       try {
         await client.messageFlagsAdd(newUids.join(","), ["\\Seen"], { uid: true });
       } catch {
@@ -408,6 +565,19 @@ async function ingestMailbox(shop: typeof schema.shops.$inferSelect, mb: Mailbox
       await appendSent(client, mb, folders);
     } catch (e) {
       console.error(`[sent] ${mb.fromEmail}:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  // Schattenbetrieb: echte Antworten aus dem Webmail mitlesen + mit KI-Entwurf vergleichen.
+  if (shadow) {
+    try {
+      const sentPath = await findSentReadOnly(client);
+      if (sentPath) {
+        const n = await ingestSentShadow(client, shop, mb, sentPath);
+        if (n) console.log(`[shadow] ${mb.fromEmail}: ${n} Webmail-Antwort(en) übernommen + verglichen.`);
+      } else console.error(`[shadow] ${mb.fromEmail}: Gesendet-Ordner nicht gefunden.`);
+    } catch (e) {
+      console.error(`[shadow] ${mb.fromEmail}:`, e instanceof Error ? e.message : e);
     }
   }
 

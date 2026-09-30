@@ -1,0 +1,1 @@
+ALTER TABLE "shops" ADD COLUMN "auto_draft" boolean DEFAULT false NOT NULL;
