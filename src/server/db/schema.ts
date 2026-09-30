@@ -350,6 +350,13 @@ export const threads = pgTable(
     assigneeId: uuid("assignee_id").references(() => users.id),
     // Manuell am Ticket gemerkte Bestellnummer (Abgleich-Override, hat Vorrang).
     manualOrderName: text("manual_order_name"),
+    // Bestell-Abgleich (automatisch): zugeordnete Bestellung, wie sicher, welche Prüfungen, welche Artikel.
+    // Grundlage für KI-Entwurf (nur bei „sicher“ Details) und Produktanalyse (echte Shopify-Produkte).
+    orderName: text("order_name"),
+    orderConfidence: text("order_confidence"), // sicher | unsicher | keine
+    orderChecks: jsonb("order_checks"), // [{ label, status: ok|info|warn|fail, detail }]
+    orderItems: jsonb("order_items"), // [{ title, variantTitle, quantity, properties }]
+    orderMatchedAt: timestamp("order_matched_at", { withTimezone: true }),
     // Effizienz-Tracking: wann zuerst geantwortet / wann geschlossen.
     firstResponseAt: timestamp("first_response_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
@@ -360,6 +367,14 @@ export const threads = pgTable(
     aiSentiment: text("ai_sentiment"),
     aiProduct: text("ai_product"),
     aiClassifiedAt: timestamp("ai_classified_at", { withTimezone: true }),
+    // Anliegen-Erkennung (bei JEDER neuen Kundenmail neu): Anliegen, genaues Problem, betroffener Artikel.
+    aiIntent: text("ai_intent"), // siehe src/lib/support/intents.ts
+    aiIssue: text("ai_issue"), // z. B. „Verschluss defekt“, „Box beschädigt“ (einheitlich benannt je Shop)
+    aiItem: text("ai_item"), // betroffener Artikel (Shopify-Titel aus der Bestellung, wenn bekannt)
+    aiSummary: text("ai_summary"), // Ein-Satz-Zusammenfassung für die Liste
+    aiLanguage: text("ai_language"), // de | en | …
+    aiPraise: boolean("ai_praise"), // Lob/positives Feedback enthalten
+    aiTriagedAt: timestamp("ai_triaged_at", { withTimezone: true }),
     // Zuletzt erzeugter KI-Entwurf (zum Vergleich beim Senden: 1:1 / bearbeitet).
     lastAiDraft: text("last_ai_draft"),
     // KI-Entscheidung zum aktuellen Entwurf: auto (KI kann allein) | mensch (Team entscheidet) + Grund.

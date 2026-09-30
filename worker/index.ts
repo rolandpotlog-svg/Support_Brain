@@ -8,8 +8,9 @@ import { db } from "../src/server/db/index";
 import { ingestAll } from "./imap";
 import { processOutbox } from "./smtp";
 import { runWeeklyReports } from "./reports";
-import { autoTagRecent } from "../src/server/ai/autotag";
+import { triageRecent } from "../src/server/ai/triage";
 import { autoDraftRecent } from "../src/server/ai/autodraft";
+import { autoLinkOrders } from "../src/server/ai/autolink";
 
 // Anhänge (Fotos) automatisch begrenzen: alte löschen, damit die DB nicht vollläuft. Höchstens 1×/Std.
 const KEEP_DAYS = Number(process.env.ATTACHMENT_KEEP_DAYS ?? 30);
@@ -43,11 +44,18 @@ async function runCycle() {
     const sent = await processOutbox();
     const fetched = await ingestAll();
     await pruneOldAttachments();
+    // Bestell-Abgleich zu jeder neuen Kundenmail (vor dem Entwurf, damit die Zuordnung gespeichert ist).
+    try {
+      await autoLinkOrders();
+    } catch (e) {
+      console.error("[worker] Bestell-Abgleich-Fehler:", e instanceof Error ? e.message : e);
+    }
+    // Anliegen-Erkennung bei jeder neuen Kundenmail (nach dem Abgleich -> kennt die Bestellartikel).
     let tagged = 0;
     try {
-      tagged = await autoTagRecent();
+      tagged = await triageRecent();
     } catch (e) {
-      console.error("[worker] Auto-Tag-Fehler:", e instanceof Error ? e.message : e);
+      console.error("[worker] Anliegen-Erkennung-Fehler:", e instanceof Error ? e.message : e);
     }
     // KI-Entwurf zu jeder neuen Kundenmail (nur Entwurf — gesendet wird nach menschlicher Freigabe).
     let drafted = 0;
@@ -57,7 +65,7 @@ async function runCycle() {
       console.error("[worker] Auto-Entwurf-Fehler:", e instanceof Error ? e.message : e);
     }
     console.log(
-      `[${new Date().toISOString()}] ${fetched} Mail(s) abgeholt, ${sent} gesendet, ${tagged} getaggt, ${drafted} Entwürfe.`,
+      `[${new Date().toISOString()}] ${fetched} Mail(s) abgeholt, ${sent} gesendet, ${tagged} eingeordnet, ${drafted} Entwürfe.`,
     );
   } catch (err) {
     console.error("[worker] Zyklus-Fehler:", err);

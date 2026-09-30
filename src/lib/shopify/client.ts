@@ -48,6 +48,8 @@ export type ShopifyOrder = {
   totalDiscount: Money | null; // gesamter Rabatt in Geld (nur wenn > 0)
   shippingAddress: ShopifyAddress | null;
   tracking: Tracking[];
+  // Sendungsstatus laut Shopify (letzte Sendung): z. B. DELIVERED / IN_TRANSIT + Zeitpunkte.
+  delivery: { status: string | null; deliveredAt: string | null; estimatedAt: string | null; inTransitAt: string | null } | null;
   lineItems: LineItem[];
 };
 
@@ -103,7 +105,7 @@ const ORDER_FIELDS = `
     country
     phone
   }
-  fulfillments(first: 10) { trackingInfo { number url company } }
+  fulfillments(first: 10) { displayStatus deliveredAt estimatedDeliveryAt inTransitAt trackingInfo { number url company } }
   lineItems(first: 25) {
     nodes {
       title
@@ -159,6 +161,12 @@ function mapOrder(o: any): ShopifyOrder {
         }
       : null,
     tracking: (o.fulfillments ?? []).flatMap((f: any) => f.trackingInfo ?? []),
+    delivery: (() => {
+      const f = (o.fulfillments ?? []).at(-1);
+      return f
+        ? { status: f.displayStatus ?? null, deliveredAt: f.deliveredAt ?? null, estimatedAt: f.estimatedDeliveryAt ?? null, inTransitAt: f.inTransitAt ?? null }
+        : null;
+    })(),
     lineItems: (o.lineItems?.nodes ?? []).map((li: any) => ({
       title: li.title,
       variantTitle: li.variantTitle ?? null,

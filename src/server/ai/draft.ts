@@ -5,7 +5,9 @@ import { db, schema } from "@/server/db";
 import { complete } from "@/server/ai";
 import { getSettings } from "@/server/returns";
 import { loadShopifyCreds } from "@/server/shopify-config";
-import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
+import type { Resolution } from "@/lib/shopify/order-match";
+import { checksForPrompt, linkThreadOrder } from "@/server/order-link";
+import { intentLabel } from "@/lib/support/intents";
 import { trackingUrl } from "@/lib/shopify/client";
 import { bestBodyText } from "@/lib/mailbox/html-text";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
@@ -26,7 +28,14 @@ function orderLines(o: import("@/lib/shopify/client").ShopifyOrder): string {
       return url ? `${label} — Sendungslink: ${url}` : label;
     })
     .join(" | ");
-  const items = o.lineItems.map((li) => `${li.quantity}× ${li.title}`).join(", ");
+  // Artikel inkl. Variante + Gravur/Personalisierung (für „Gravur falsch“, „falsche Farbe“ etc.).
+  const items = o.lineItems
+    .map((li) => {
+      const v = li.variantTitle ? ` (${li.variantTitle})` : "";
+      const p = li.properties.length ? ` [${li.properties.map((x) => `${x.key}: ${x.value}`).join("; ")}]` : "";
+      return `${li.quantity}× ${li.title}${v}${p}`;
+    })
+    .join(", ");
   const ageDays = Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 86_400_000);
   return [
     `Bestellung ${o.name} vom ${new Date(o.createdAt).toLocaleDateString("de-DE")} (vor ${ageDays} Tag(en))`,
@@ -34,17 +43,6 @@ function orderLines(o: import("@/lib/shopify/client").ShopifyOrder): string {
     tracking ? `Tracking: ${tracking}` : "Tracking: keins hinterlegt",
     items ? `Artikel: ${items}` : "",
   ].filter(Boolean).join("\n");
-}
-
-/** Gehört das Abgleich-Ergebnis sicher zum Absender? (E-Mail der Bestellung/des Kunden = Absender,
- *  oder die Bestellung wurde von einem Mitarbeiter manuell am Ticket gesetzt.) */
-function belongsToSender(r: Resolution, senderEmail: string, manuallySet: boolean): boolean {
-  const me = (senderEmail ?? "").trim().toLowerCase();
-  const same = (e: string | null | undefined) => Boolean(e && me && e.trim().toLowerCase() === me);
-  if (r.mode === "order") return manuallySet || same(r.order.email) || same(r.customer?.email);
-  if (r.mode === "customer") return same(r.customer.email) || r.orders.some((o) => same(o.email));
-  if (r.mode === "orders") return r.orders.every((o) => same(o.email));
-  return true; // none / candidates / error / unconfigured: enthalten ohnehin keine Bestelldetails
 }
 
 function formatResolution(r: Resolution): string {
@@ -124,28 +122,29 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
   let orderContext = "Shopify ist für diesen Shop nicht verbunden.";
   const creds = await loadShopifyCreds(thread.shopId);
   if (creds) {
-    const firstInbound = await db.query.messages.findFirst({
-      where: eq(schema.messages.threadId, threadId),
-    });
     try {
-      const r = await resolveForThread(creds, {
-        email: thread.customerEmail,
-        subject: thread.subject,
-        body: firstInbound ? bestBodyText(firstInbound.bodyText, firstInbound.bodyHtml) : null,
-        name: thread.customerName,
-        manualOrderName: thread.manualOrderName,
-      });
-      // Sicherheit: Bestelldaten nur verwenden, wenn sie nachweislich zu DIESEM Absender gehören.
-      // Sonst könnte die KI Tracking/Adresse/Artikel eines fremden Kunden in die Antwort schreiben.
-      orderContext = belongsToSender(r, thread.customerEmail, Boolean(thread.manualOrderName))
-        ? formatResolution(r)
-        : "ACHTUNG: Eine Bestellung wurde gefunden, gehört aber NICHT nachweislich zu diesem Absender (E-Mail weicht ab). " +
+      // Bestell-Abgleich mit Mehrfach-Prüfung (wird am Ticket gespeichert — auch für die Produktanalyse).
+      const link = await linkThreadOrder(threadId);
+      const r = link?.resolution;
+      if (!link || !r) {
+        orderContext = "Shopify-Abgleich fehlgeschlagen.";
+      } else if (link.confidence === "unsicher") {
+        // Sicherheit: Bestelldaten nur verwenden, wenn sie nachweislich zu DIESEM Absender gehören.
+        orderContext =
+          "ACHTUNG: Eine Bestellung wurde gefunden, gehört aber NICHT nachweislich zu diesem Absender (E-Mail weicht ab). " +
           "Nenne KEINE Bestelldetails (keine Artikel, Adresse, Trackingnummer, Beträge). Entscheidung: MENSCH.";
+      } else {
+        orderContext = link.order ? orderLines(link.order) : formatResolution(r);
+      }
+      const extra = link ? checksForPrompt(link.checks) : "";
+      if (extra && link?.confidence !== "unsicher") orderContext += `\n\nABGLEICH-HINWEISE:\n${extra}`;
     } catch {
       orderContext = "Shopify-Abgleich fehlgeschlagen.";
     }
   }
 
+  // Frisch laden: Anliegen-Erkennung/Abgleich können gerade erst gelaufen sein.
+  const freshThread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
   const wish = (intent ?? "").trim();
   const userMsg = [
     `KUNDE: ${thread.customerName || ""} <${thread.customerEmail}>`,
@@ -156,6 +155,15 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
     "",
     "SHOPIFY-KONTEXT:",
     orderContext,
+    "",
+    // Anliegen-Erkennung (aktuelles Anliegen der letzten Kundennachricht) — bestimmt den Ablauf.
+    freshThread?.aiIntent
+      ? `ERKANNTES ANLIEGEN: ${intentLabel(freshThread.aiIntent)}` +
+        (freshThread.aiIssue ? ` · Problem: ${freshThread.aiIssue}` : "") +
+        (freshThread.aiItem ? ` · betroffener Artikel: ${freshThread.aiItem}` : "") +
+        (freshThread.aiLanguage && freshThread.aiLanguage !== "de" ? ` · Sprache des Kunden: ${freshThread.aiLanguage}` : "") +
+        (freshThread.aiSummary ? `\nKunde will jetzt: ${freshThread.aiSummary}` : "")
+      : "",
     "",
     // Gewählte Schnellantwort: verbindliche Vorgabe, vom Mitarbeiter freigegeben —
     // auch wenn sie über die Standard-Rabattbefugnis hinausgeht.
