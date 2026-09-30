@@ -90,11 +90,13 @@ export async function triageThread(threadId: string): Promise<void> {
       and(
         eq(schema.threads.shopId, t.shopId),
         sql`${schema.threads.id} <> ${t.id}`,
-        sql`lower(${schema.threads.customerEmail}) = lower(${t.customerEmail})`,
+        t.orderName
+          ? sql`(lower(${schema.threads.customerEmail}) = lower(${t.customerEmail}) or ${schema.threads.orderName} = ${t.orderName})`
+          : sql`lower(${schema.threads.customerEmail}) = lower(${t.customerEmail})`,
       ),
     )
     .orderBy(desc(schema.threads.createdAt))
-    .limit(3);
+    .limit(5);
   const past = pastRows.map((p) => `- ${p.createdAt.toLocaleDateString("de-DE")}: ${p.intent ?? "?"} · ${p.summary ?? ""}`);
 
   const raw = await complete({

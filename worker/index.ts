@@ -66,7 +66,7 @@ async function runCycle() {
     } catch (e) {
       console.error("[worker] Auto-Entwurf-Fehler:", e instanceof Error ? e.message : e);
     }
-    // Beantwortete Tickets nach 3 Tagen ohne Kundenantwort automatisch abhaken.
+    // Beantwortete Tickets nach 5 Tagen ohne Kundenantwort automatisch abhaken.
     try {
       const closed = await autoCloseAnswered();
       if (closed) console.log(`[worker] ${closed} beantwortete Ticket(s) automatisch gelöst.`);

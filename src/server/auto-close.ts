@@ -1,10 +1,10 @@
-// Beantwortete Tickets automatisch abhaken: 3 Tage keine Kundenantwort -> „Gelöst“.
+// Beantwortete Tickets automatisch abhaken: 5 Tage keine Kundenantwort -> „Gelöst“.
 // Die Antworten sind so formuliert, dass der Fall damit erledigt ist; schreibt der Kunde doch wieder,
 // öffnet der Mail-Abruf das Ticket automatisch neu. Im Postfach wandert die Mail nach „Erledigt“.
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 
-const DAYS = Number(process.env.AUTO_CLOSE_DAYS ?? 3);
+const DAYS = Number(process.env.AUTO_CLOSE_DAYS ?? 5);
 
 export async function autoCloseAnswered(): Promise<number> {
   const rows = await db

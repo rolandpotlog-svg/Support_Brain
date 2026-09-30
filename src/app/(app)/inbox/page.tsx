@@ -13,7 +13,7 @@ import { ShopifyPanel } from "./shopify-panel";
 import { SyncButton } from "./sync-button";
 
 // „Offen“ = wir sind dran. Beantwortete Tickets (pending) liegen in „Beantwortet“, kommen automatisch
-// zurück, sobald der Kunde antwortet, und werden nach 3 Tagen ohne Antwort automatisch „Gelöst“.
+// zurück, sobald der Kunde antwortet, und werden nach 5 Tagen ohne Antwort automatisch „Gelöst“.
 const OPEN: ("open" | "escalated")[] = ["open", "escalated"];
 
 // Warteschlangen nach Anliegen (Filter-Chips über der Liste).

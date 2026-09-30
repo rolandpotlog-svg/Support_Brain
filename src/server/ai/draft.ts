@@ -164,11 +164,15 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
         eq(schema.threads.shopId, thread.shopId),
         ne(schema.threads.id, threadId),
         isNull(schema.threads.deletedAt),
-        sql`lower(${schema.threads.customerEmail}) = lower(${thread.customerEmail})`,
+        // Gleicher Kunde = gleiche E-Mail ODER gleiche (sicher zugeordnete) Bestellnummer — auch wenn er
+        // später von einer anderen Adresse schreibt.
+        freshThread?.orderName
+          ? sql`(lower(${schema.threads.customerEmail}) = lower(${thread.customerEmail}) or ${schema.threads.orderName} = ${freshThread.orderName})`
+          : sql`lower(${schema.threads.customerEmail}) = lower(${thread.customerEmail})`,
       ),
     )
     .orderBy(desc(schema.threads.createdAt))
-    .limit(3);
+    .limit(5);
   const history2: string[] = [];
   for (const p of pastThreads) {
     const lastOut = await db.query.messages.findFirst({
