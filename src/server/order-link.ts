@@ -4,7 +4,7 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { loadShopifyCreds } from "@/server/shopify-config";
-import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
+import { namesMatch, resolveForThread, type Resolution } from "@/lib/shopify/order-match";
 import type { ShopifyCustomer, ShopifyOrder } from "@/lib/shopify/client";
 import { bestBodyText } from "@/lib/mailbox/html-text";
 
@@ -20,22 +20,6 @@ export type OrderLink = {
   resolution: Resolution;
   checks: OrderCheck[];
 };
-
-const norm = (s: string | null | undefined) =>
-  (s ?? "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9 ]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w.length > 1);
-
-/** Namen ähnlich? (mind. ein gemeinsames Wort, z. B. Nachname) */
-function namesMatch(a: string | null | undefined, b: string | null | undefined): boolean | null {
-  const x = norm(a), y = norm(b);
-  if (!x.length || !y.length) return null;
-  return x.some((w) => y.includes(w));
-}
 
 const days = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 
@@ -78,16 +62,27 @@ export async function linkThreadOrder(threadId: string): Promise<OrderLink | nul
     order = resolution.order;
     customer = resolution.customer;
     checks.push(
-      thread.manualOrderName
-        ? { label: "Bestellung manuell gesetzt", status: "ok", detail: thread.manualOrderName }
+      resolution.verified === "manual"
+        ? { label: "Bestellung manuell gesetzt", status: "ok", detail: order.name }
         : { label: "Bestellnummer in der Mail gefunden", status: "ok", detail: order.name },
     );
+    if (resolution.verified === "name")
+      checks.push({ label: "Kunde schreibt von anderer E-Mail — Name + Bestellnummer passen", status: "warn", detail: order.email ?? "" });
+  } else if (resolution.mode === "mismatch") {
+    // Fremde Bestellnummer: NICHT zuordnen (keine Artikel speichern, keine Details an die KI).
+    checks.push({
+      label: `Bestellnummer #${resolution.orderNumber} gehört zu einem anderen Kunden`,
+      status: "fail",
+      detail: `${resolution.order.shippingAddress?.name ?? resolution.customer?.displayName ?? "?"} — E-Mail und Name passen nicht`,
+    });
   } else if (resolution.mode === "customer") {
+    if (resolution.note) checks.push({ label: resolution.note, status: "warn" });
     customer = resolution.customer;
     order = resolution.orders[0] ?? null;
     if (resolution.total > 1)
       checks.push({ label: `Kunde hat ${resolution.total} Bestellungen`, status: "warn", detail: "neueste gewählt — ggf. manuell setzen" });
   } else if (resolution.mode === "orders") {
+    if (resolution.note) checks.push({ label: resolution.note, status: "warn" });
     order = resolution.orders[0] ?? null;
     if (resolution.orders.length > 1)
       checks.push({ label: `${resolution.orders.length} Gast-Bestellungen zu dieser E-Mail`, status: "warn", detail: "neueste gewählt — ggf. manuell setzen" });
@@ -115,7 +110,8 @@ export async function linkThreadOrder(threadId: string): Promise<OrderLink | nul
           ? { label: "Name passt zur Lieferadresse", status: "ok" }
           : { label: "Name weicht von der Lieferadresse ab", status: "warn", detail: order.shippingAddress?.name ?? "" },
       );
-    confidence = emailOk || thread.manualOrderName ? "sicher" : "unsicher";
+    const nameVerified = resolution.mode === "order" && resolution.verified === "name";
+    confidence = emailOk || nameVerified || thread.manualOrderName ? "sicher" : "unsicher";
 
     // Versand
     const age = days(order.createdAt);
@@ -145,6 +141,7 @@ export async function linkThreadOrder(threadId: string): Promise<OrderLink | nul
       .where(and(eq(schema.threads.shopId, thread.shopId), eq(schema.threads.orderName, order.name), ne(schema.threads.id, threadId)));
     if (same?.n) checks.push({ label: `Bestellung schon in ${same.n} anderem Ticket`, status: "info" });
   }
+  if (resolution.mode === "mismatch") confidence = "unsicher"; // fremde Nummer -> KI nennt keine Details
   const [prev] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(schema.threads)

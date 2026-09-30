@@ -427,9 +427,37 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
     );
   }
 
+  if (res.mode === "mismatch") {
+    // Bestellnummer aus der Mail gehört einem ANDEREN Kunden -> nicht als Kundenbestellung anzeigen.
+    return (
+      <>
+        <div className="sec">
+          <div className="note note-bad">
+            <b>Keine passende Bestellung für diesen Absender.</b> Die Nummer <b>#{res.orderNumber}</b> aus der Mail gehört zu einem
+            anderen Kunden ({res.order.shippingAddress?.name ?? res.customer?.displayName ?? "?"}) — E-Mail und Name passen nicht.
+            Vielleicht ein Tippfehler oder eine Bestellung bei einem anderen Shop. Die KI nennt keine Bestelldetails.
+          </div>
+        </div>
+        <div className="sec">
+          <details>
+            <summary className="muted" style={{ cursor: "pointer", fontSize: 13 }}>Fremde Bestellung trotzdem ansehen</summary>
+            <OrderBlock order={res.order} refundCtx={{ shopId, threadId, customerName: res.customer?.displayName ?? "" }} />
+            <PinOrder threadId={threadId} orderName={res.order.name} onResult={apply} />
+          </details>
+        </div>
+        <ManualSearch shopId={shopId} onResult={apply} />
+      </>
+    );
+  }
+
   if (res.mode === "order") {
     return (
       <>
+        {res.verified === "name" && (
+          <div className="sec">
+            <div className="note">Kunde schreibt von einer <b>anderen E-Mail</b> als bei der Bestellung ({res.order.email ?? "—"}). Name und Bestellnummer passen — bitte kurz prüfen.</div>
+          </div>
+        )}
         <CustomerHead customer={res.customer} />
         <OrderBlock order={res.order} refundCtx={{ shopId, threadId, customerName: res.customer?.displayName ?? "" }} />
         <PinOrder threadId={threadId} orderName={res.order.name} onResult={apply} />
@@ -442,6 +470,7 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
     const current = orders[idx];
     return (
       <>
+        {res.note && <div className="sec"><div className="note">{res.note}</div></div>}
         <div className="sec"><div className="sec-label">Bestellungen über die E-Mail (Gast)</div></div>
         {current ? (
           <>
@@ -469,7 +498,7 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
     return (
       <>
         <div className="sec">
-          <div className="note">Mehrere mögliche Kunden über den Namen gefunden — bitte den richtigen wählen:</div>
+          <div className="note">Nur über den <b>Namen</b> gefunden (E-Mail unbekannt) — das ist keine sichere Zuordnung. Bitte prüfen und den richtigen Kunden wählen:</div>
         </div>
         <div className="sec">
           {res.candidates.map((c) => (
@@ -494,7 +523,7 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
   if (res.mode === "none") {
     return (
       <>
-        <div className="sec"><div className="note">Keine Shopify-Bestellung gefunden.</div></div>
+        <div className="sec"><div className="note"><b>Keine passende Bestellung gefunden</b> — weder über Bestellnummer, E-Mail noch Namen. Vielleicht hat sich der Kunde vertan oder meint einen anderen Shop. Die KI fragt höflich nach Bestellnummer bzw. Bestell-E-Mail.</div></div>
         <ManualSearch shopId={shopId} onResult={apply} />
       </>
     );
@@ -504,6 +533,7 @@ export function ShopifyPanel({ threadId, shopId }: { threadId: string; shopId: s
   const current = orders[idx];
   return (
     <>
+      {res.mode === "customer" && res.note && <div className="sec"><div className="note">{res.note}</div></div>}
       <CustomerHead customer={customer} />
       {current ? (
         <>

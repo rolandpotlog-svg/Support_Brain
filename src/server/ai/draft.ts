@@ -134,8 +134,10 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
       } else if (link.confidence === "unsicher") {
         // Sicherheit: Bestelldaten nur verwenden, wenn sie nachweislich zu DIESEM Absender gehören.
         orderContext =
-          "ACHTUNG: Eine Bestellung wurde gefunden, gehört aber NICHT nachweislich zu diesem Absender (E-Mail weicht ab). " +
-          "Nenne KEINE Bestelldetails (keine Artikel, Adresse, Trackingnummer, Beträge). Entscheidung: MENSCH.";
+          "ACHTUNG: Keine Bestellung, die nachweislich zu diesem Absender gehört (die genannte Bestellnummer gehört zu einem anderen Kunden " +
+          "oder passt nicht zu E-Mail/Name). Nenne KEINE Bestelldetails (keine Artikel, Adresse, Trackingnummer, Beträge) und bestätige nichts. " +
+          "Bitte den Kunden freundlich um die richtige Bestellnummer oder die E-Mail-Adresse, mit der bestellt wurde " +
+          "(evtl. Tippfehler oder Verwechslung mit einem anderen Shop). Das darfst du selbst beantworten (AUTO).";
       } else {
         orderContext = link.order ? orderLines(link.order) : formatResolution(r);
       }

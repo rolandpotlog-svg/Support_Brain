@@ -1,8 +1,9 @@
-// Automatischer Abgleich Mail -> Shopify, in fester Reihenfolge:
-//   0) manuell gemerkte Bestellung (Vorrang)
-//   1) Bestellnummer (Betreff/Text)
+// Automatischer Abgleich Mail -> Shopify, mehrstufig GEGENGEPRÜFT:
+//   0) manuell gemerkte Bestellung (Vorrang, vom Mitarbeiter bestätigt)
+//   1) Bestellnummer aus Betreff/Text — gilt nur, wenn E-Mail ODER Name zur Bestellung passt.
+//      Passt beides nicht (z. B. Tippfehler, fremde Nummer) -> NICHT zuordnen, Warnung „mismatch“.
 //   2) Absender-E-Mail -> Kundenkonto, sonst Gast-Bestellungen über die E-Mail
-//   3) Name (Fallback): 1 Treffer -> direkt; mehrere -> per E-Mail eingrenzen, sonst Auswahl
+//   3) Name allein -> nur Vorschläge (candidates), nie automatische Zuordnung
 import {
   findCustomerByEmail,
   findCustomersByName,
@@ -17,7 +18,16 @@ import {
 export type Resolution =
   | { mode: "unconfigured" }
   | { mode: "error"; message: string }
-  | { mode: "order"; order: ShopifyOrder; customer: ShopifyCustomer | null; matchedBy: "number" }
+  | {
+      mode: "order";
+      order: ShopifyOrder;
+      customer: ShopifyCustomer | null;
+      matchedBy: "number";
+      // Wodurch bestätigt: manuell gesetzt, E-Mail passt, oder Name passt (E-Mail weicht ab).
+      verified: "manual" | "email" | "name";
+    }
+  // Bestellnummer gefunden, gehört aber NICHT zum Absender (weder E-Mail noch Name passen).
+  | { mode: "mismatch"; order: ShopifyOrder; customer: ShopifyCustomer | null; orderNumber: string }
   | {
       mode: "customer";
       customer: ShopifyCustomer;
@@ -27,8 +37,9 @@ export type Resolution =
       total: number;
       page: number;
       matchedBy: "email";
+      note?: string; // z. B. „Bestellnummer #1234 aus der Mail gehört zu einem anderen Kunden“
     }
-  | { mode: "orders"; orders: ShopifyOrder[]; matchedBy: "email" }
+  | { mode: "orders"; orders: ShopifyOrder[]; matchedBy: "email"; note?: string }
   | { mode: "candidates"; candidates: ShopifyCustomer[] }
   | { mode: "none" };
 
@@ -62,6 +73,26 @@ export function extractOrderNumber(subject: string | null, body: string | null):
   return null;
 }
 
+const words = (s: string | null | undefined) =>
+  (s ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 1);
+
+/** Namen ähnlich? (mind. ein gemeinsames Wort mit ≥ 3 Zeichen, z. B. Nachname). null = nicht prüfbar. */
+export function namesMatch(a: string | null | undefined, b: string | null | undefined): boolean | null {
+  const x = words(a).filter((w) => w.length >= 3);
+  const y = words(b);
+  if (!x.length || !y.length) return null;
+  return x.some((w) => y.includes(w));
+}
+
+const sameEmail = (a: string | null | undefined, b: string | null | undefined) =>
+  Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
+
 async function asCustomer(creds: ShopifyCreds, customer: ShopifyCustomer): Promise<Resolution> {
   const o = await getCustomerOrders(creds, customer.id);
   return {
@@ -87,39 +118,51 @@ export async function resolveForThread(
   },
 ): Promise<Resolution> {
   try {
-    // 0) Manuell gemerkte Bestellung hat Vorrang.
+    // 0) Manuell gemerkte Bestellung hat Vorrang (vom Mitarbeiter bestätigt).
     if (input.manualOrderName) {
       const hit = await getOrderByName(creds, input.manualOrderName);
-      if (hit) return { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number" };
+      if (hit) return { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number", verified: "manual" };
     }
 
-    // 1) Bestellnummer aus Betreff/Text
+    const email = (input.email ?? "").trim();
+
+    // 1) Bestellnummer aus Betreff/Text — mit Gegenprüfung E-Mail / Name.
+    let foreign: { order: ShopifyOrder; customer: ShopifyCustomer | null; num: string } | null = null;
     const num = extractOrderNumber(input.subject, input.body);
     if (num) {
       const hit = await getOrderByName(creds, num);
-      if (hit) return { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number" };
+      if (hit) {
+        if (sameEmail(hit.order.email, email) || sameEmail(hit.customer?.email, email)) {
+          return { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number", verified: "email" };
+        }
+        const nm =
+          namesMatch(input.name, hit.order.shippingAddress?.name) ?? namesMatch(input.name, hit.customer?.displayName);
+        if (nm) return { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number", verified: "name" };
+        foreign = { order: hit.order, customer: hit.customer, num }; // gehört jemand anderem -> nicht zuordnen
+      }
     }
+    const foreignNote = foreign
+      ? `Bestellnummer #${foreign.num} aus der Mail gehört zu einem anderen Kunden — nicht zugeordnet.`
+      : undefined;
 
     // 2) E-Mail -> Kundenkonto, sonst Gast-Bestellungen
-    const email = (input.email ?? "").trim();
     if (email && !email.includes("unknown")) {
       const customer = await findCustomerByEmail(creds, email);
-      if (customer) return await asCustomer(creds, customer);
+      if (customer) {
+        const r = await asCustomer(creds, customer);
+        return r.mode === "customer" && foreignNote ? { ...r, note: foreignNote } : r;
+      }
       const guestOrders = await findOrdersByEmail(creds, email);
-      if (guestOrders.length) return { mode: "orders", orders: guestOrders, matchedBy: "email" };
+      if (guestOrders.length) return { mode: "orders", orders: guestOrders, matchedBy: "email", note: foreignNote };
     }
 
-    // 3) Name (Fallback) mit Auflösung
+    // Nummer gehört jemand anderem und über die E-Mail nichts gefunden -> deutlich warnen.
+    if (foreign) return { mode: "mismatch", order: foreign.order, customer: foreign.customer, orderNumber: foreign.num };
+
+    // 3) Name allein -> nur Vorschläge, nie automatisch zuordnen
     if (input.name) {
       const candidates = await findCustomersByName(creds, input.name);
-      if (candidates.length === 1) return await asCustomer(creds, candidates[0]);
-      if (candidates.length > 1) {
-        const byEmail = candidates.find(
-          (c) => c.email && email && c.email.toLowerCase() === email.toLowerCase(),
-        );
-        if (byEmail) return await asCustomer(creds, byEmail);
-        return { mode: "candidates", candidates };
-      }
+      if (candidates.length) return { mode: "candidates", candidates };
     }
 
     return { mode: "none" };

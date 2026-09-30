@@ -82,7 +82,7 @@ export async function manualSearch(
     if (type === "order") {
       const hit = await getOrderByName(creds, q);
       return hit
-        ? { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number" }
+        ? { mode: "order", order: hit.order, customer: hit.customer, matchedBy: "number", verified: "manual" }
         : { mode: "none" };
     }
     if (type === "email") {

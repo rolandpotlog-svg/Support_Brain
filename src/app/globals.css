@@ -665,3 +665,5 @@ details.kpi > summary::-webkit-details-marker { display: none; }
 .trend.up { color: var(--tag-rose-fg); } .trend.down { color: var(--green); }
 .btnlink.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 600; }
 .btnlink.primary:hover { background: var(--primary-hover); color: var(--on-primary); }
+
+.note.note-bad { background: var(--tag-rose-bg); color: var(--tag-rose-fg); border-color: transparent; }
