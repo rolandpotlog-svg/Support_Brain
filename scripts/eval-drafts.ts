@@ -60,7 +60,7 @@ const CASES: Case[] = [
     history: "Anna Wolf: Die Kette ist heute angekommen aber es ist gar nichts eingraviert. Ich bin sehr enttäuscht.",
     shopify: ORDER({ tracking: "00340434161094012345", ageDays: 9, items: "1× Namenskette Gravur 'Emma'" }),
     want: "auto",
-    expect: "aufrichtige Entschuldigung, Foto + Namen erbitten, kostenfreie Ersatzlieferung zusagen",
+    expect: "aufrichtige Entschuldigung, Foto erbitten, sagen dass mit der Bestellung abgeglichen wird, KEINEN Ersatz fest zusagen (Support-Regel 01.10.: erst Foto-Abgleich)",
   },
   {
     title: "Tracking zeigt China",
@@ -130,6 +130,30 @@ const CASES: Case[] = [
     shopify: ORDER({ tracking: "00340434161094011111", ageDays: 14, items: "1× Lovebox Deluxe ewige Rose mit Herzschmuck" }),
     want: "auto",
     expect: "erkennt: jetzt BESCHÄDIGT (nicht mehr WISMO); Foto erbitten + kostenlosen Ersatz zusagen; KEIN zweites SORRY20; bezieht sich auf den Verlauf; nichts erfinden",
+  },
+  {
+    title: "Österreich: wo ist mein Paket?",
+    customer: "Eva Gruber", subject: "Paket",
+    history: "Eva Gruber: Grüß Gott, ich wohne in Linz und warte auf meine Kette. Wo kann ich nachsehen, wo sie ist?",
+    shopify: ORDER({ tracking: "00340434161094077777", ageDays: 8, items: "1× Namenskette (Gelbgold)" }) + "\nLieferadresse: Eva Gruber, Landstraße 1, 4020 Linz, Austria",
+    want: "auto",
+    expect: "nennt die echte Sendungsnummer und den Post.at-Link https://www.post.at/en/s/ (Österreich), keine DHL-Filialsuche als Hauptweg, kein Liefertermin",
+  },
+  {
+    title: "Tracking 7 Tage ohne Bewegung (Nachforschung)",
+    customer: "Petra Lang", subject: "Seit einer Woche nichts",
+    history: "Petra Lang: Hallo, die Sendungsverfolgung zeigt seit 7 Tagen denselben Stand. Ist mein Paket verloren gegangen?",
+    shopify: ORDER({ tracking: "00340434161094088888", ageDays: 16, items: "1× Herzkette Gravur 'Tom'" }) + "\nSendungsstatus: IN_TRANSIT, letzte Bewegung vor 7 Tagen",
+    want: "mensch",
+    expect: "sagt, dass eine Nachforschung beim Versandpartner veranlasst wird; KEIN Ersatz, KEINE Erstattung zugesagt; Tracking genannt; als Fall für einen Menschen erkennbar",
+  },
+  {
+    title: "Gravur ändern, 3 Stunden nach Bestellung",
+    customer: "Lisa Berger", subject: "Gravur ändern bitte",
+    history: "Lisa Berger: Hallo, ich habe vor 3 Stunden bestellt und mich bei der Gravur vertippt: statt 'Lena' soll 'Leni' stehen. Geht das noch?",
+    shopify: ORDER({ ageDays: 0, items: "1× Namenskette Gravur 'Lena'", fulfilled: false }),
+    want: "mensch",
+    expect: "nimmt den Änderungswunsch auf (Leni), bestätigt den neuen Wortlaut, sagt NICHT fest zu, dass es klappt (wird mit Gravur-Abteilung geprüft), Fall für einen Menschen",
   },
 ];
 

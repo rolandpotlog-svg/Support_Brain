@@ -1,9 +1,9 @@
 // Zentrale Standard-Inhalte je Brand: KI-Profil (Ton, Produktwissen, Deeskalations-Strategie)
 // + Schnellantworten. Wird von den Seed-Skripten UND vom Admin-Knopf "Standard laden" genutzt.
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { buildSystemPrompt, type ProfileData, type ProfileSources } from "@/lib/profile/types";
-import { LOVENJA_PROFILE, lovenjaReplies } from "@/server/seed-lovenja";
+import { LOVENJA_PROFILE, LOVENJA_RETIRED_REPLIES, lovenjaReplies } from "@/server/seed-lovenja";
 
 // ---- Deeskalations-Leiter "Gerät funktioniert nicht" (Repello) — der wichtigste Baustein ----
 const REPELLO_DEFECT_LADDER =
@@ -119,6 +119,13 @@ export async function applyBrandDefaults(shopId: string): Promise<{ brand: strin
     .insert(schema.shopProfile)
     .values({ shopId: shop.id, data, sources, systemPrompt })
     .onConflictDoUpdate({ target: schema.shopProfile.shopId, set: { data, sources, systemPrompt } });
+
+  // Überholte Vorlagen entfernen
+  if (isLovenja && LOVENJA_RETIRED_REPLIES.length) {
+    await db
+      .delete(schema.cannedReply)
+      .where(and(eq(schema.cannedReply.shopId, shop.id), inArray(schema.cannedReply.title, LOVENJA_RETIRED_REPLIES)));
+  }
 
   // Schnellantworten (aktualisieren statt duplizieren)
   let n = 0;
