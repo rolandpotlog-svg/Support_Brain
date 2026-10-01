@@ -98,13 +98,20 @@ const REVIEWER =
 /** Stufe 3: Prüfer-KI. Fehler -> null (gilt als nicht bestanden). */
 export async function review(system: string, userMsg: string, body: string, shopId: string): Promise<{ ok: boolean; issues: string[] } | null> {
   try {
+    // Gleicher gecachter Anfang wie beim Entwurf (Shop-Richtlinien) -> der Prüfer liest ihn fast gratis aus dem
+    // Zwischenspeicher, den der Entwurf Sekunden vorher gefüllt hat. Die Prüfer-Rolle kommt als Zusatz danach.
     const raw = await complete({
-      system: REVIEWER + "\n\n--- RICHTLINIEN DES SHOPS ---\n" + system,
-      messages: [{ role: "user", content: `ANFRAGE UND DATEN:\n${userMsg}\n\nENTWURF:\n${body}` }],
+      system,
+      systemSuffix:
+        "\n\n=== ROLLENWECHSEL: DU BIST JETZT DIE PRÜFUNG, NICHT DER VERFASSER ===\n" +
+        "Alles oben sind die Richtlinien, nach denen der Entwurf geschrieben wurde. Schreibe KEINE E-Mail und nutze NICHT das Ausgabeformat von oben. " +
+        REVIEWER,
+      messages: [{ role: "user", content: `ANFRAGE UND DATEN:\n${userMsg}\n\nENTWURF (zu prüfen):\n${body}\n\nAntworte NUR mit dem JSON.` }],
       maxTokens: 2000,
       effort: "low",
       kind: "pruefung",
       shopId,
+      cacheTtl: "1h",
     });
     const j = JSON.parse(raw.replace(/^```(json)?|```$/g, "").trim()) as { ok?: boolean; issues?: unknown };
     return { ok: j.ok === true, issues: Array.isArray(j.issues) ? j.issues.map(String).slice(0, 6) : [] };

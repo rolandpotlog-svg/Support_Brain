@@ -344,6 +344,13 @@
       "when": 1790882796550,
       "tag": "0048_auto_send",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1790887256753,
+      "tag": "0049_auto_eligible",
+      "breakpoints": true
     }
   ]
 }

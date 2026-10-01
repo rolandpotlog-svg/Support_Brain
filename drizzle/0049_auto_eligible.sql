@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD COLUMN "ai_auto_eligible" boolean;

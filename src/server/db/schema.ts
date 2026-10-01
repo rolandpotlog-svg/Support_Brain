@@ -441,6 +441,8 @@ export const messages = pgTable(
     aiDraft: text("ai_draft"),
     // Hatte der Entwurf beim Senden die Prüfung bestanden? (misst, wie zuverlässig der Prüfer ist)
     aiCheckPassed: boolean("ai_check_passed"),
+    // Trockenlauf: wäre dieser Entwurf automatisch rausgegangen (Prüfung ok, keine Sperre, KI sagt AUTO)?
+    aiAutoEligible: boolean("ai_auto_eligible"),
     // KI-Entscheidung zum Entwurf (auto | mensch) — für die Reife-Auswertung „30× unverändert“.
     aiDecision: text("ai_decision"),
     // Schattenbetrieb: Hätte der KI-Entwurf inhaltlich gepasst? + was abweicht (Lernsignal).

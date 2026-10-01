@@ -79,7 +79,7 @@ export type DraftPrep = { system: string; userMsg: string; signature: string; sh
 /** Entwurf erzeugen (Worker + Server-Action): vorbereiten -> KI -> speichern -> prüfen. */
 export async function generateDraft(threadId: string, intent?: string): Promise<DraftDecision & { check?: DraftCheck }> {
   const prep = await prepareDraft(threadId, intent);
-  const raw = await complete({ system: prep.system, messages: [{ role: "user", content: prep.userMsg }], maxTokens: 8000, effort: DRAFT_EFFORT, kind: "entwurf", shopId: prep.shopId });
+  const raw = await complete({ system: prep.system, messages: [{ role: "user", content: prep.userMsg }], maxTokens: 8000, effort: DRAFT_EFFORT, kind: "entwurf", shopId: prep.shopId, cacheTtl: "1h" });
   const d = await finishDraft(threadId, prep, raw);
   const check = await runCheck(threadId, prep, d);
   return { ...d, check };

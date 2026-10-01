@@ -70,6 +70,15 @@ export default async function GehirnPage() {
     .where(and(eq(schema.threads.shopId, shopId), eq(schema.messages.direction, "outbound"), isNotNull(schema.messages.aiCheckPassed), gte(schema.messages.createdAt, since)))
     .groupBy(schema.messages.aiCheckPassed, schema.messages.aiOutcome);
   const cnt = (p: boolean, o: string) => pq.filter((r) => r.passed === p && r.outcome === o).reduce((a, r) => a + r.n, 0);
+  // Trockenlauf: Entwürfe, die automatisch rausgegangen wären — hat der Mensch sie unverändert gesendet?
+  const dry = await db
+    .select({ intent: schema.threads.aiIntent, outcome: schema.messages.aiOutcome, n: sql<number>`count(*)::int` })
+    .from(schema.messages)
+    .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+    .where(and(eq(schema.threads.shopId, shopId), eq(schema.messages.direction, "outbound"), eq(schema.messages.aiAutoEligible, true), inArray(schema.messages.aiOutcome, ["verbatim", "edited"]), gte(schema.messages.createdAt, since)))
+    .groupBy(schema.threads.aiIntent, schema.messages.aiOutcome);
+  const dryOf = (k: string | null, o: string) => dry.filter((r) => (k === null || (r.intent ?? "sonstiges") === k) && r.outcome === o).reduce((a, r) => a + r.n, 0);
+  const dryVerb = dryOf(null, "verbatim"), dryEdit = dryOf(null, "edited");
   const passVerb = cnt(true, "verbatim"), passEdit = cnt(true, "edited"), failVerb = cnt(false, "verbatim"), failEdit = cnt(false, "edited");
 
   // Automatik-Reife je Anliegen: ≥ 30 unverändert UND ≥ 90 % unverändert (Rolands Regel)
@@ -95,7 +104,7 @@ export default async function GehirnPage() {
       <div className="report">
         <div className="rstat"><div className="k">Unverändert gesendet (30 T.)</div><div className="v">{pct(verbatim, verbatim + edited) ?? "—"}{verbatim + edited ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{verbatim} von {verbatim + edited} Entwürfen</div></div>
         <div className="rstat"><div className="k">Schattenbetrieb: hätte gepasst</div><div className="v">{pct(shadowOk, shadowAll) ?? "—"}{shadowAll ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{shadowOk} von {shadowAll}</div></div>
-        <div className="rstat"><div className="k">KI-Kosten (30 T.)</div><div className="v">{totalEur.toFixed(2).replace(".", ",")} €</div><div className="muted" style={{ fontSize: 12 }}>{perMailCt != null ? `ca. ${perMailCt.toFixed(1).replace(".", ",")} ct pro Mail` : "noch keine Daten"}{cacheShare != null ? ` · ${cacheShare} % aus Cache` : ""}</div></div>
+        <div className="rstat"><div className="k">KI-Kosten (30 T.)</div><div className="v">{totalEur.toFixed(2).replace(".", ",")} €</div><div className={perMailCt != null && perMailCt > 3 ? "error" : "muted"} style={{ fontSize: 12 }}>{perMailCt != null ? `${perMailCt > 3 ? "⚠ über Limit: " : "ca. "}${perMailCt.toFixed(1).replace(".", ",")} ct pro Mail (Limit 3 ct)` : "noch keine Daten"}{cacheShare != null ? ` · ${cacheShare} % aus Cache` : ""}</div></div>
         <div className="rstat"><div className="k">Ø Dauer Entwurf</div><div className="v">{drafts ? `${(drafts.ms / 1000).toFixed(0)} s` : "—"}</div><div className="muted" style={{ fontSize: 12 }}>läuft im Hintergrund vor dem Öffnen</div></div>
         <div className="rstat"><div className="k">Aktive Regeln</div><div className="v">{active.length}</div></div>
         <div className="rstat"><div className="k">Offene Vorschläge</div><div className="v">{proposals.length}</div></div>
@@ -108,12 +117,13 @@ export default async function GehirnPage() {
         </p>
         <div className="report">
           <div className="rstat"><div className="k">Bestanden → unverändert</div><div className="v">{pct(passVerb, passVerb + passEdit) ?? "—"}{passVerb + passEdit ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{passVerb} von {passVerb + passEdit} — so oft lag „bestanden“ richtig</div></div>
+          <div className="rstat"><div className="k">Trockenlauf Automatik</div><div className="v">{pct(dryVerb, dryVerb + dryEdit) ?? "—"}{dryVerb + dryEdit ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{dryVerb} von {dryVerb + dryEdit} „wäre automatisch gegangen“ wurden unverändert gesendet (Ziel ≥ 95 %)</div></div>
           <div className="rstat"><div className="k">Durchgefallen → geändert</div><div className="v">{pct(failEdit, failEdit + failVerb) ?? "—"}{failEdit + failVerb ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{failEdit} von {failEdit + failVerb} — Fehler richtig erkannt</div></div>
         </div>
         {intents.length > 0 && (
           <div style={{ overflowX: "auto", marginTop: 12 }}>
             <table style={{ fontSize: 13 }}>
-              <thead><tr><th>Anliegen</th><th>Unverändert</th><th>Geändert</th><th>Quote</th><th>Reif?</th></tr></thead>
+              <thead><tr><th>Anliegen</th><th>Unverändert</th><th>Geändert</th><th>Quote</th><th>Trockenlauf</th><th>Reif?</th></tr></thead>
               <tbody>
                 {intents.map((x) => (
                   <tr key={x.k}>
@@ -121,6 +131,7 @@ export default async function GehirnPage() {
                     <td>{x.v}</td>
                     <td>{x.e}</td>
                     <td>{x.p ?? "—"} %</td>
+                    <td>{dryOf(x.k, "verbatim") + dryOf(x.k, "edited") ? `${dryOf(x.k, "verbatim")} von ${dryOf(x.k, "verbatim") + dryOf(x.k, "edited")} unverändert` : <span className="muted">—</span>}</td>
                     <td>{x.ready ? <span className="orderbadge ok">reif</span> : <span className="muted">{Math.max(0, 30 - x.v)} fehlen{(x.p ?? 0) < 90 && x.v + x.e > 0 ? " · Quote < 90 %" : ""}</span>}</td>
                   </tr>
                 ))}

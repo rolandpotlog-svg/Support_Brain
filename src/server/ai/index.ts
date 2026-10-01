@@ -26,6 +26,12 @@ const MODELS = {
 } as const;
 type ModelKey = keyof typeof MODELS;
 
+/** System als Block mit cache_control (zu kurze Prompts werden vom API einfach nicht gecacht, kein Fehler). */
+function systemBlocks(opts: { system: string; cacheTtl?: "5m" | "1h"; systemSuffix?: string }) {
+  const cached = { type: "text" as const, text: opts.system, cache_control: { type: "ephemeral" as const, ...(opts.cacheTtl === "1h" ? { ttl: "1h" as const } : {}) } };
+  return opts.systemSuffix ? [cached, { type: "text" as const, text: opts.systemSuffix }] : [cached];
+}
+
 /** Eine Antwort vom Modell. system = Anweisungen/Shop-Gehirn, messages = Verlauf/Kontext.
  *  Der System-Prompt wird gecacht (gleicher Shop = gleiche Regeln): ~90 % günstiger + schneller ab dem 2. Aufruf.
  *  Jeder Aufruf wird mit Tokens, Kosten und Dauer protokolliert (ai_usage). */
@@ -37,6 +43,10 @@ export async function complete(opts: {
   kind?: string;
   shopId?: string | null;
   model?: ModelKey;
+  /** Zwischenspeicher der Shop-Regeln 1 Stunde halten (lohnt bei wenigen Mails/Stunde). */
+  cacheTtl?: "5m" | "1h";
+  /** Zusatz-Anweisung NACH dem gecachten Block (z. B. Prüfer-Rolle) — teilt sich den Cache mit dem Entwurf. */
+  systemSuffix?: string;
 }): Promise<string> {
   const m = MODELS[opts.model ?? "standard"];
   const t0 = Date.now();
@@ -47,8 +57,7 @@ export async function complete(opts: {
     ...(opts.model === "schnell"
       ? {}
       : { thinking: { type: "adaptive" as const }, output_config: { effort: opts.effort ?? "medium" } }),
-    // Als Block mit cache_control: zu kurze System-Prompts werden vom API einfach nicht gecacht (kein Fehler).
-    system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
+    system: systemBlocks(opts),
     messages: opts.messages,
   });
   void logUsage(opts.kind ?? "sonstiges", opts.shopId ?? null, m.id, m.price, res.usage, Date.now() - t0);
@@ -70,6 +79,8 @@ export async function completeStream(
     kind?: string;
     shopId?: string | null;
     model?: ModelKey;
+    cacheTtl?: "5m" | "1h";
+    systemSuffix?: string;
   },
   onText: (delta: string) => void,
 ): Promise<string> {
@@ -81,7 +92,7 @@ export async function completeStream(
     ...(opts.model === "schnell"
       ? {}
       : { thinking: { type: "adaptive" as const }, output_config: { effort: opts.effort ?? "medium" } }),
-    system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
+    system: systemBlocks(opts),
     messages: opts.messages,
   });
   stream.on("text", (t) => onText(t));
@@ -141,15 +152,24 @@ async function logUsage(
   shopId: string | null,
   model: string,
   price: { input: number; output: number; cacheRead: number; cacheWrite: number },
-  u: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null },
+  u: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
+    cache_creation?: { ephemeral_1h_input_tokens?: number | null } | null;
+  },
   ms: number,
 ): Promise<void> {
   try {
     const { db, schema } = await import("@/server/db");
     const cr = u.cache_read_input_tokens ?? 0;
     const cw = u.cache_creation_input_tokens ?? 0;
+    // 1-Stunden-Cache kostet beim Schreiben das 2-fache der Eingabe (5 Min.: 1,25-fach)
+    const cw1h = u.cache_creation?.ephemeral_1h_input_tokens ?? 0;
+    const cw5m = Math.max(0, cw - cw1h);
     const usd =
-      (u.input_tokens * price.input + u.output_tokens * price.output + cr * price.cacheRead + cw * price.cacheWrite) / 1_000_000;
+      (u.input_tokens * price.input + u.output_tokens * price.output + cr * price.cacheRead + cw5m * price.cacheWrite + cw1h * price.input * 2) / 1_000_000;
     await db.insert(schema.aiUsage).values({
       shopId,
       kind,

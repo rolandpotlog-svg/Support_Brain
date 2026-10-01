@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         let inAnswer = false;
         let first = true;
         const raw = await completeStream(
-          { system: prep.system, messages: [{ role: "user", content: prep.userMsg }], maxTokens: 8000, effort: EFFORT, kind: "entwurf", shopId: prep.shopId },
+          { system: prep.system, messages: [{ role: "user", content: prep.userMsg }], maxTokens: 8000, effort: EFFORT, kind: "entwurf", shopId: prep.shopId, cacheTtl: "1h" },
           (delta) => {
             buf += delta;
             if (!inAnswer) {
