@@ -6,7 +6,7 @@
 // Schreibt der Worker gerade denselben Entwurf, wird auf dessen Ergebnis gewartet (keine doppelten Kosten).
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/server/db";
-import { requireWrite } from "@/server/access";
+import { requireUser, requireWrite } from "@/server/access";
 import { completeStream } from "@/server/ai";
 import { finishDraft, prepareDraft, runCheck } from "@/server/ai/draft";
 import { claimDrafting, releaseDrafting } from "@/server/ai/draft-lock";
@@ -18,6 +18,12 @@ const EFFORT = (process.env.DRAFT_EFFORT as "low" | "medium" | "high" | undefine
 
 export async function POST(req: Request) {
   const { threadId, intent, onlyIfMissing } = (await req.json().catch(() => ({}))) as { threadId?: string; intent?: string; onlyIfMissing?: boolean };
+  // Erst Login prüfen (verrät sonst, ob es ein Ticket gibt)
+  try {
+    await requireUser();
+  } catch {
+    return new Response("Nicht angemeldet", { status: 401 });
+  }
   if (!threadId) return new Response("threadId fehlt", { status: 400 });
   const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
   if (!thread) return new Response("Ticket nicht gefunden", { status: 404 });
