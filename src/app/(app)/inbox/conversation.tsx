@@ -14,7 +14,8 @@ import {
   setThreadTag,
   touchPresence,
 } from "@/server/actions/inbox";
-import { draftReply, summarizeThread } from "@/server/actions/ai";
+import { summarizeThread } from "@/server/actions/ai";
+import type { DraftCheck } from "@/server/ai/check";
 import { intentLabel } from "@/lib/support/intents";
 import { initials, timeAgo } from "@/lib/format";
 import { CATEGORIES } from "@/lib/reports/categories";
@@ -136,6 +137,32 @@ function Lightbox({ imgs, index, onIndex }: { imgs: { id: string; filename: stri
 }
 
 /** KI-Kopfzeile: was will der Kunde, welches Problem, welcher Artikel, welche Bestellung (+ Prüfungen). */
+/** Ergebnis der Entwurfs-Prüfung (Fakten + Prüfer-KI) und warum der Fall nicht automatisch rausgehen dürfte. */
+function CheckBadge({ check, checking, drafting }: { check: DraftCheck | null; checking: boolean; drafting: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (drafting) return <div className="checkbar muted">✨ KI schreibt den Entwurf…</div>;
+  if (checking) return <div className="checkbar muted">🔎 Prüfung läuft…</div>;
+  if (!check) return null;
+  const problems = [...check.facts, ...(check.reviewer?.issues ?? [])];
+  const ok = check.passed;
+  return (
+    <div className={`checkbar ${ok ? "ok" : "warn"}`}>
+      <button type="button" className="checkbar-head" onClick={() => setOpen(!open)}>
+        {ok ? "✓ Prüfung bestanden" : check.reviewer === null && !check.facts.length ? "⚠ Prüfung nicht gelaufen" : `⚠ Prüfung: ${problems.length} Hinweis${problems.length === 1 ? "" : "e"}`}
+        {check.blocks.length > 0 && <span className="muted"> · nicht automatisch: {check.blocks[0]}{check.blocks.length > 1 ? ` (+${check.blocks.length - 1})` : ""}</span>}
+        <span className="muted"> {open ? "▴" : "▾"}</span>
+      </button>
+      {open && (
+        <ul>
+          {problems.map((p, i) => <li key={i}>{p}</li>)}
+          {check.blocks.map((b, i) => <li key={`b${i}`} className="muted">Sperre: {b}</li>)}
+          {!problems.length && !check.blocks.length && <li className="muted">Keine Auffälligkeiten. Wäre für die Automatik geeignet.</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function AiHeader({ thread }: { thread: Thread }) {
   const [open, setOpen] = useState(false);
   const checks = thread.orderChecks ?? [];
@@ -185,6 +212,8 @@ type Thread = {
   tag: string | null;
   deleted?: boolean;
   aiDraft?: string | null;
+  aiDraftFresh?: boolean;
+  aiCheck?: DraftCheck | null;
   aiDecision?: string | null;
   aiReason?: string | null;
   aiIntent?: string | null;
@@ -216,7 +245,10 @@ export function Conversation({
   const router = useRouter();
   const [tab, setTab] = useState<"reply" | "note">("reply");
   // Vorbefüllt mit dem Auto-Entwurf der KI (falls vorhanden) — Senden bleibt eine menschliche Freigabe.
-  const [text, setText] = useState(thread.aiDraft ?? "");
+  // Nur ein Entwurf, der zur AKTUELLEN Kundenmail passt — ein alter Entwurf würde eine frühere Mail beantworten.
+  const [text, setText] = useState(thread.aiDraftFresh ? thread.aiDraft ?? "" : "");
+  const [check, setCheck] = useState<DraftCheck | null>(thread.aiDraftFresh ? thread.aiCheck ?? null : null);
+  const [checking, setChecking] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [noteText, setNoteText] = useState("");
   const [drafting, setDrafting] = useState(false);
@@ -225,9 +257,71 @@ export function Conversation({
   const [error, setError] = useState<string | null>(null);
   // KI hat den Fall als „Mensch muss entscheiden" markiert (Grund) — Hinweis über dem Antwortfeld.
   const [aiHint, setAiHint] = useState<string | null>(
-    thread.aiDraft && thread.aiDecision === "mensch" ? thread.aiReason || "Bitte prüfen" : null,
+    thread.aiDraftFresh && thread.aiDecision === "mensch" ? thread.aiReason || "Bitte prüfen" : null,
   );
   const [pending, start] = useTransition();
+
+  // KI-Entwurf live: Text erscheint beim Schreiben, danach kommt das Prüfergebnis.
+  async function streamDraft(intent?: string, onlyIfMissing = false) {
+    setError(null);
+    setDrafting(true);
+    setCheck(null);
+    let started = false;
+    try {
+      const res = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadId: thread.id, intent, onlyIfMissing }),
+      });
+      if (!res.ok || !res.body) throw new Error((await res.text().catch(() => "")) || `Fehler ${res.status}`);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, nl);
+          buf = buf.slice(nl + 1);
+          if (!line.trim()) continue;
+          const ev = JSON.parse(line);
+          if (ev.t === "delta") {
+            if (!started) { started = true; setText(""); }
+            setText((prev) => prev + ev.v);
+          } else if (ev.t === "done") {
+            if (ev.text) setText(ev.text);
+            setAiHint(ev.decision === "mensch" ? ev.reason || "Bitte prüfen" : null);
+            setDrafting(false);
+            setChecking(true);
+          } else if (ev.t === "check") {
+            const { t: _t, ...c } = ev;
+            setCheck(c as DraftCheck);
+            setChecking(false);
+          } else if (ev.t === "error") {
+            throw new Error(ev.error);
+          }
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDrafting(false);
+      setChecking(false);
+    }
+  }
+
+  // Ticket geöffnet, letzte Nachricht vom Kunden, aber noch kein passender Entwurf -> sofort starten.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoStarted.current) return;
+    const last = [...messages].reverse().find((m) => !m.internal);
+    if (thread.aiDraftFresh || thread.deleted || thread.status !== "open" || last?.direction !== "inbound") return;
+    autoStarted.current = true;
+    void streamDraft(undefined, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Kollisionsschutz: alle 15 s melden „ich bin hier (tippe?)“ und anzeigen, wer sonst gerade dran ist.
   const [others, setOthers] = useState<{ name: string; typing: boolean }[]>([]);
@@ -453,6 +547,7 @@ export function Conversation({
         {tab === "reply" ? (
           <>
             {aiHint && <div className="alertbar warn" style={{ marginBottom: 8 }}>🧑‍💼 KI empfiehlt: Mensch entscheidet — {aiHint}</div>}
+            <CheckBadge check={check} checking={checking} drafting={drafting} />
             <textarea
               placeholder="Antwort verfassen… (wird erst nach Freigabe gesendet)"
               value={text}
@@ -512,17 +607,7 @@ export function Conversation({
                     const c = cannedReplies.find((x) => x.id === e.target.value);
                     e.target.value = "";
                     if (!c) return;
-                    setError(null);
-                    setDrafting(true);
-                    try {
-                      const d = await draftReply(thread.id, c.body);
-                      setText(d.text);
-                      setAiHint(d.decision === "mensch" ? d.reason || "Bitte prüfen" : null);
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : String(err));
-                    } finally {
-                      setDrafting(false);
-                    }
+                    await streamDraft(c.body);
                   }}
                   style={{ maxWidth: 200 }}
                 >
@@ -535,19 +620,7 @@ export function Conversation({
               <button
                 disabled={drafting || pending}
                 title="Antwortentwurf von der KI (Shop-Profil + Bestelldaten)"
-                onClick={async () => {
-                  setError(null);
-                  setDrafting(true);
-                  try {
-                    const d = await draftReply(thread.id);
-                    setText(d.text);
-                    setAiHint(d.decision === "mensch" ? d.reason || "Bitte prüfen" : null);
-                  } catch (e) {
-                    setError(e instanceof Error ? e.message : String(e));
-                  } finally {
-                    setDrafting(false);
-                  }
-                }}
+                onClick={() => void streamDraft()}
               >
                 {drafting ? "Entwirft…" : "✨ KI-Entwurf"}
               </button>

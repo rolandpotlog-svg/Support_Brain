@@ -230,6 +230,8 @@ async function replyToThreadInner(threadId: string, bodyText: string, filesForm?
         aiOutcome,
         aiDraft: t.lastAiDraft ?? null,
         aiDecision: t.lastAiDraft ? t.aiDecision : null,
+        // Prüfung bestanden? (nur wenn es zum gesendeten Entwurf ein Prüfergebnis gibt)
+        aiCheckPassed: t.lastAiDraft && t.aiCheck ? t.aiCheck.passed : null,
         sentBy: user.id,
       })
       .returning({ id: schema.messages.id });

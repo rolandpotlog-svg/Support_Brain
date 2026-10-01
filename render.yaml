@@ -19,8 +19,8 @@ envVarGroups:
         sync: false
       - key: ANTHROPIC_API_KEY   # dein Claude-API-Key
         sync: false
-      - key: POLL_INTERVAL_SECONDS
-        value: "60"
+      - key: MAIL_POLL_SECONDS
+        value: "20"
       - key: MAX_SEND_ATTEMPTS
         value: "5"
 

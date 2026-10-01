@@ -396,6 +396,10 @@ export const threads = pgTable(
     // KI-Entscheidung zum aktuellen Entwurf: auto (KI kann allein) | mensch (Team entscheidet) + Grund.
     aiDecision: text("ai_decision"),
     aiReason: text("ai_reason"),
+    // Läuft gerade ein Entwurf (Worker oder Posteingang)? Verhindert doppelte KI-Aufrufe (Sperre 2 Min.).
+    aiDraftingAt: timestamp("ai_drafting_at", { withTimezone: true }),
+    // Prüfung des aktuellen Entwurfs (Fakten, Sperren, Prüfer-KI) — src/server/ai/check.ts
+    aiCheck: jsonb("ai_check").$type<import("@/server/ai/check").DraftCheck>(),
     // Wann der Entwurf erzeugt wurde — neuer als die letzte Kundenmail? Sonst erzeugt der Worker neu.
     aiDraftAt: timestamp("ai_draft_at", { withTimezone: true }),
     lastMessageAt: timestamp("last_message_at", { withTimezone: true })
@@ -430,6 +434,8 @@ export const messages = pgTable(
     aiOutcome: text("ai_outcome"),
     // Der ursprüngliche KI-Entwurf (für den Lern-Loop: was hat der Mitarbeiter geändert?).
     aiDraft: text("ai_draft"),
+    // Hatte der Entwurf beim Senden die Prüfung bestanden? (misst, wie zuverlässig der Prüfer ist)
+    aiCheckPassed: boolean("ai_check_passed"),
     // KI-Entscheidung zum Entwurf (auto | mensch) — für die Reife-Auswertung „30× unverändert“.
     aiDecision: text("ai_decision"),
     // Schattenbetrieb: Hätte der KI-Entwurf inhaltlich gepasst? + was abweicht (Lernsignal).

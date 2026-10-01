@@ -6,6 +6,7 @@ import { db, schema } from "@/server/db";
 import { aiConfigured } from "@/server/ai";
 import { generateDraft } from "@/server/ai/draft";
 import { runPool } from "@/server/ai/pool";
+import { claimDrafting, releaseDrafting } from "@/server/ai/draft-lock";
 
 const MAX_PER_CYCLE = Number(process.env.AUTODRAFT_MAX_PER_CYCLE ?? 40);
 const CONCURRENCY = Number(process.env.AI_CONCURRENCY ?? 5);
@@ -72,10 +73,13 @@ export async function autoDraftRecent(): Promise<number> {
           .where(eq(schema.threads.id, t.id));
         return;
       }
+      // Sperre: entwirft gerade der Posteingang (Mitarbeiter hat das Ticket offen), hier nicht doppelt
+      if (!(await claimDrafting(t.id))) return;
       try {
         await generateDraft(t.id);
         n++;
       } catch (e) {
+        await releaseDrafting(t.id);
         const msg = e instanceof Error ? e.message : String(e);
         console.error(`[autodraft] Ticket ${t.id}:`, msg);
         // Nicht in jedem Zyklus erneut versuchen (Kosten) — erst wieder bei neuer Kundenmail.

@@ -60,6 +60,40 @@ export async function complete(opts: {
     .trim();
 }
 
+/** Wie complete(), aber der Text kommt Stück für Stück (onText) — für „Entwurf erscheint beim Schreiben“. */
+export async function completeStream(
+  opts: {
+    system: string;
+    messages: ChatMessage[];
+    maxTokens?: number;
+    effort?: "low" | "medium" | "high";
+    kind?: string;
+    shopId?: string | null;
+    model?: ModelKey;
+  },
+  onText: (delta: string) => void,
+): Promise<string> {
+  const m = MODELS[opts.model ?? "standard"];
+  const t0 = Date.now();
+  const stream = getClient().messages.stream({
+    model: m.id,
+    max_tokens: opts.maxTokens ?? 3000,
+    ...(opts.model === "schnell"
+      ? {}
+      : { thinking: { type: "adaptive" as const }, output_config: { effort: opts.effort ?? "medium" } }),
+    system: [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }],
+    messages: opts.messages,
+  });
+  stream.on("text", (t) => onText(t));
+  const res = await stream.finalMessage();
+  void logUsage(opts.kind ?? "sonstiges", opts.shopId ?? null, m.id, m.price, res.usage, Date.now() - t0);
+  if (res.stop_reason === "refusal") throw new Error("KI hat die Anfrage abgelehnt (Sicherheitsfilter) — bitte manuell beantworten");
+  return res.content
+    .map((b) => (b.type === "text" ? b.text : ""))
+    .join("")
+    .trim();
+}
+
 export type Classification = { ref: number; category: string; sentiment: string; product: string | null };
 
 /** Klassifiziert mehrere Anfragen in einem Aufruf (feste Kategorien/Sentiment + Produkt). */

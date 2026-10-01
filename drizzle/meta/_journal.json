@@ -330,6 +330,13 @@
       "when": 1790803092780,
       "tag": "0046_team_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790882311988,
+      "tag": "0047_draft_check",
+      "breakpoints": true
     }
   ]
 }

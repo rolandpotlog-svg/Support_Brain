@@ -15,6 +15,7 @@ import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
 import { draftSystemPrompt, parseDraft, type DraftDecision } from "@/server/ai/draft-prompt";
 import { stripQuoted } from "@/server/ai/shadow-compare";
 import { euro } from "@/lib/format";
+import { checkDraft, type DraftCheck } from "@/server/ai/check";
 
 // Denk-Stufe für Entwürfe (per Qualitätstest festgelegt; über ENV umstellbar ohne Code-Änderung).
 const DRAFT_EFFORT = (process.env.DRAFT_EFFORT as "low" | "medium" | "high" | undefined) ?? "medium";
@@ -73,7 +74,29 @@ function formatResolution(r: Resolution): string {
  * `intent` = optionale, vom Mitarbeiter gewählte Schnellantwort/Absicht
  * (z. B. „Biete 10 % Rabatt auf die aktuelle Bestellung an"), die die Antwort steuert.
  */
-export async function generateDraft(threadId: string, intent?: string): Promise<DraftDecision> {
+export type DraftPrep = { system: string; userMsg: string; signature: string; shopId: string };
+
+/** Entwurf erzeugen (Worker + Server-Action): vorbereiten -> KI -> speichern -> prüfen. */
+export async function generateDraft(threadId: string, intent?: string): Promise<DraftDecision & { check?: DraftCheck }> {
+  const prep = await prepareDraft(threadId, intent);
+  const raw = await complete({ system: prep.system, messages: [{ role: "user", content: prep.userMsg }], maxTokens: 8000, effort: DRAFT_EFFORT, kind: "entwurf", shopId: prep.shopId });
+  const d = await finishDraft(threadId, prep, raw);
+  const check = await runCheck(threadId, prep, d);
+  return { ...d, check };
+}
+
+/** Prüfung zum Entwurf (Fehler in der Prüfung blockieren nie den Entwurf selbst). */
+export async function runCheck(threadId: string, prep: DraftPrep, d: DraftDecision & { body: string }): Promise<DraftCheck | undefined> {
+  try {
+    return await checkDraft({ threadId, shopId: prep.shopId, body: d.body, decision: d.decision, system: prep.system, userMsg: prep.userMsg });
+  } catch (e) {
+    console.error("[draft] Prüfung fehlgeschlagen:", e instanceof Error ? e.message : e);
+    return undefined;
+  }
+}
+
+/** Alles, was die KI für den Entwurf braucht (Profil, Verlauf, Shopify, Vorgeschichte, Lernbuch). */
+export async function prepareDraft(threadId: string, intent?: string): Promise<DraftPrep> {
   const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, threadId) });
   if (!thread) throw new Error("Thread nicht gefunden");
 
@@ -216,8 +239,12 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
     "Verfasse jetzt die nächste Antwort an den Kunden.",
   ].join("\n");
 
-  // Hoher Denk-Aufwand: der Entwurf ist das Kernprodukt — Qualität vor Sparsamkeit.
-  const raw = await complete({ system, messages: [{ role: "user", content: userMsg }], maxTokens: 8000, effort: DRAFT_EFFORT, kind: "entwurf", shopId: thread.shopId });
+  return { system, userMsg, signature, shopId: thread.shopId };
+}
+
+/** KI-Ausgabe zerlegen, Signatur anhängen, am Ticket speichern. */
+export async function finishDraft(threadId: string, prep: DraftPrep, raw: string): Promise<DraftDecision & { body: string }> {
+  const { signature } = prep;
   // Denken: Entscheidung (AUTO/MENSCH) + Grund von der eigentlichen Mail trennen.
   const parsed = parseDraft(raw);
   // Leerer Entwurf (z. B. Denk-Budget aufgebraucht) -> NICHT speichern; sonst stünde nur die Signatur im Feld.
@@ -228,8 +255,8 @@ export async function generateDraft(threadId: string, intent?: string): Promise<
   // Entscheidung mitspeichern: der Posteingang zeigt sie beim Öffnen an (auch bei Auto-Entwürfen des Workers).
   await db
     .update(schema.threads)
-    .set({ lastAiDraft: full, aiDecision: parsed.decision, aiReason: parsed.reason || null, aiDraftAt: new Date() })
+    .set({ lastAiDraft: full, aiDecision: parsed.decision, aiReason: parsed.reason || null, aiDraftAt: new Date(), aiDraftingAt: null, aiCheck: null })
     .where(eq(schema.threads.id, threadId));
-  return { ...parsed, text: full };
+  return { ...parsed, text: full, body: parsed.text.trim() };
 }
 

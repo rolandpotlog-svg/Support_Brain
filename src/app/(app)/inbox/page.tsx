@@ -468,6 +468,11 @@ export default async function InboxPage({
             deleted: selectedThread!.deletedAt != null,
             // Auto-Entwurf des Workers vorbefüllen (nur wenn er zur aktuellen Kundenmail passt).
             aiDraft: selectedThread!.lastAiDraft,
+            // Entwurf passt zur aktuellen Kundenmail? (sonst startet der Posteingang beim Öffnen einen neuen)
+            aiDraftFresh: Boolean(
+              selectedThread!.lastAiDraft && selectedThread!.aiDraftAt && selectedThread!.aiDraftAt >= selectedThread!.lastMessageAt,
+            ),
+            aiCheck: selectedThread!.aiCheck ?? null,
             aiDecision: selectedThread!.aiDecision,
             aiReason: selectedThread!.aiReason,
             aiIntent: selectedThread!.aiIntent,

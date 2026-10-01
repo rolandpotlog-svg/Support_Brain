@@ -1,5 +1,5 @@
 // Mail-Worker: holt eingehende Mails (IMAP) und sendet freigegebene Antworten (SMTP).
-//   npm run worker        -> Dauerschleife (POLL_INTERVAL_SECONDS)
+//   npm run worker        -> Dauerschleife (MAIL_POLL_SECONDS, Standard 20)
 //   npm run worker:once   -> ein Zyklus, dann Ende (z. B. zum Testen / Cron)
 import "dotenv/config";
 import cron from "node-cron";
@@ -110,7 +110,9 @@ async function main() {
     process.exit(0);
   }
 
-  const intervalSec = Number(process.env.POLL_INTERVAL_SECONDS ?? 60);
+  // Postfach-Abruf alle 20 s (vorher 60 s): Entwürfe liegen schneller bereit. Eigene Variable, damit der
+  // alte Render-Wert POLL_INTERVAL_SECONDS=60 nicht greift; über MAIL_POLL_SECONDS umstellbar.
+  const intervalSec = Math.max(10, Number(process.env.MAIL_POLL_SECONDS ?? 20));
   console.log(`[worker] Start. Intervall ${intervalSec}s. Strg+C zum Beenden.`);
   await runCycle();
   // node-cron braucht ein Sekunden-/Minuten-Pattern; wir bauen es aus dem Intervall.

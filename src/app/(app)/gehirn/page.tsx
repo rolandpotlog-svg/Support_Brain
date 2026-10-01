@@ -62,6 +62,29 @@ export default async function GehirnPage() {
     return cr + inp ? Math.round((cr / (cr + inp)) * 100) : null;
   })();
 
+  // Prüfer-Zuverlässigkeit: Stimmt „Prüfung bestanden“ mit dem überein, was der Mensch tut (unverändert senden)?
+  const pq = await db
+    .select({ passed: schema.messages.aiCheckPassed, outcome: schema.messages.aiOutcome, n: sql<number>`count(*)::int` })
+    .from(schema.messages)
+    .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+    .where(and(eq(schema.threads.shopId, shopId), eq(schema.messages.direction, "outbound"), isNotNull(schema.messages.aiCheckPassed), gte(schema.messages.createdAt, since)))
+    .groupBy(schema.messages.aiCheckPassed, schema.messages.aiOutcome);
+  const cnt = (p: boolean, o: string) => pq.filter((r) => r.passed === p && r.outcome === o).reduce((a, r) => a + r.n, 0);
+  const passVerb = cnt(true, "verbatim"), passEdit = cnt(true, "edited"), failVerb = cnt(false, "verbatim"), failEdit = cnt(false, "edited");
+
+  // Automatik-Reife je Anliegen: ≥ 30 unverändert UND ≥ 90 % unverändert (Rolands Regel)
+  const byIntent = await db
+    .select({ intent: schema.threads.aiIntent, outcome: schema.messages.aiOutcome, n: sql<number>`count(*)::int` })
+    .from(schema.messages)
+    .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+    .where(and(eq(schema.threads.shopId, shopId), eq(schema.messages.direction, "outbound"), isNotNull(schema.messages.aiDraft), gte(schema.messages.createdAt, since)))
+    .groupBy(schema.threads.aiIntent, schema.messages.aiOutcome);
+  const intents = [...new Set(byIntent.map((r) => r.intent ?? "sonstiges"))].map((k) => {
+    const v = byIntent.filter((r) => (r.intent ?? "sonstiges") === k && r.outcome === "verbatim").reduce((a, r) => a + r.n, 0);
+    const e = byIntent.filter((r) => (r.intent ?? "sonstiges") === k && r.outcome === "edited").reduce((a, r) => a + r.n, 0);
+    return { k, v, e, p: pct(v, v + e), ready: v >= 30 && (pct(v, v + e) ?? 0) >= 90 };
+  }).filter((x) => x.v + x.e > 0).sort((a, b) => b.v + b.e - (a.v + a.e));
+
   return (
     <div className="adminwrap">
       <h1 style={{ marginTop: 0 }}>KI-Gehirn</h1>
@@ -77,6 +100,35 @@ export default async function GehirnPage() {
         <div className="rstat"><div className="k">Aktive Regeln</div><div className="v">{active.length}</div></div>
         <div className="rstat"><div className="k">Offene Vorschläge</div><div className="v">{proposals.length}</div></div>
       </div>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Prüfer &amp; Automatik-Reife</h2>
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Jeder Entwurf wird geprüft (Fakten + zweite KI). Hier sieht man, ob die Prüfung mit eurem Urteil übereinstimmt. Automatisch senden kommt erst für Anliegen, die belegt reif sind (≥ 30× und ≥ 90 % unverändert).
+        </p>
+        <div className="report">
+          <div className="rstat"><div className="k">Bestanden → unverändert</div><div className="v">{pct(passVerb, passVerb + passEdit) ?? "—"}{passVerb + passEdit ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{passVerb} von {passVerb + passEdit} — so oft lag „bestanden“ richtig</div></div>
+          <div className="rstat"><div className="k">Durchgefallen → geändert</div><div className="v">{pct(failEdit, failEdit + failVerb) ?? "—"}{failEdit + failVerb ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{failEdit} von {failEdit + failVerb} — Fehler richtig erkannt</div></div>
+        </div>
+        {intents.length > 0 && (
+          <div style={{ overflowX: "auto", marginTop: 12 }}>
+            <table style={{ fontSize: 13 }}>
+              <thead><tr><th>Anliegen</th><th>Unverändert</th><th>Geändert</th><th>Quote</th><th>Reif?</th></tr></thead>
+              <tbody>
+                {intents.map((x) => (
+                  <tr key={x.k}>
+                    <td>{intentLabel(x.k)}</td>
+                    <td>{x.v}</td>
+                    <td>{x.e}</td>
+                    <td>{x.p ?? "—"} %</td>
+                    <td>{x.ready ? <span className="orderbadge ok">reif</span> : <span className="muted">{Math.max(0, 30 - x.v)} fehlen{(x.p ?? 0) < 90 && x.v + x.e > 0 ? " · Quote < 90 %" : ""}</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Vorschläge ({proposals.length})</h2>
