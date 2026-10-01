@@ -227,11 +227,11 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .tag.rose { background: var(--tag-rose-bg); color: var(--tag-rose-fg); }
 
 /* ── Spalte: Konversation ─────────────────────────────────────────────── */
-.convo { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--panel); }
+.convo { flex: 1; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--panel); }
 .convo .chead { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
 .convo .chead h2 { font-size: 17px; margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .convo .chead .icon-btn { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-2); }
-.convo .body { flex: 1 1 auto; min-height: 200px; overflow-y: auto; overflow-x: hidden; padding: 18px 20px; }
+.convo .body { flex: 1 1 auto; min-height: 140px; overflow-y: auto; overflow-x: hidden; padding: 18px 20px; }
 
 .mail {
   border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
@@ -247,7 +247,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .mail .mmeta b { color: var(--text); font-weight: 600; }
 
 /* Antwort-Editor */
-.editor { border-top: 1px solid var(--border); padding: 10px 20px 12px; background: var(--panel); flex-shrink: 0; max-height: 58%; overflow-y: auto; }
+/* Editor darf schrumpfen (scrollt dann innen), Senden-Leiste klebt unten — passt auch bei niedrigen Fenstern */
+.editor { border-top: 1px solid var(--border); padding: 10px 20px 12px; background: var(--panel); flex: 0 1 auto; min-height: 190px; max-height: 58%; overflow-y: auto; }
 .editor .fields { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-bottom: 4px; }
 .editor .frow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2); }
 .editor .frow .lbl { width: 38px; color: var(--muted); }
@@ -256,7 +257,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .editor .tabs .t { padding: 8px 2px; color: var(--muted); cursor: pointer; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .editor .tabs .t.active { color: var(--accent); border-color: var(--accent); }
 .editor textarea { min-height: 120px; resize: vertical; }
-.editor .actions { display: flex; gap: 8px; margin-top: 10px; }
+/* Senden-Leiste klebt immer unten im Editor — auch wenn Entwurf/KI-Hinweis lang sind (kleine Bildschirme) */
+.editor .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; position: sticky; bottom: -12px; z-index: 2; background: var(--panel); padding: 8px 0 12px; margin-bottom: -12px; border-top: 1px solid var(--border); }
 .editor .actions .spacer { flex: 1; }
 
 /* ── Spalte: Kundendetails / Shopify ──────────────────────────────────── */

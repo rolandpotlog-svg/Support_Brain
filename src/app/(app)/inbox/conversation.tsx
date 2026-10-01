@@ -458,7 +458,7 @@ export function Conversation({
               value={text}
               onChange={(e) => setText(e.target.value)}
               // Wächst mit dem Text, max. ~1/3 Bildschirmhöhe — der Verlauf behält immer genug Platz.
-              style={{ minHeight: 110, maxHeight: "34vh", resize: "vertical", fieldSizing: "content" } as React.CSSProperties}
+              style={{ minHeight: 110, maxHeight: "min(34vh, 320px)", resize: "vertical", fieldSizing: "content" } as React.CSSProperties}
             />
             {files.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 0" }}>
