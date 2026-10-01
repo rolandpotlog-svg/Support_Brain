@@ -1,6 +1,6 @@
 // SMTP-Versand (raus): freigegebene Outbound-Messages senden.
 // Nutzt dasselbe Sende-Modul wie die Server-Action (src/server/send.ts) — keine Doppel-Logik.
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, or } from "drizzle-orm";
 import { db, schema } from "../src/server/db/index";
 import { sendOutboxMessage } from "../src/server/send";
 
@@ -8,7 +8,8 @@ export async function processOutbox(): Promise<number> {
   const jobs = await db
     .select({ messageId: schema.outbox.messageId })
     .from(schema.outbox)
-    .where(eq(schema.outbox.status, "pending"))
+    // geplante automatische Antworten erst nach Ablauf des Sicherheitsfensters
+    .where(and(eq(schema.outbox.status, "pending"), or(isNull(schema.outbox.sendAfter), lte(schema.outbox.sendAfter, new Date()))))
     .orderBy(asc(schema.outbox.createdAt))
     .limit(50);
 

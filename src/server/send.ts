@@ -1,6 +1,7 @@
 // Gemeinsames SMTP-Sende-Modul — nutzbar aus dem Worker UND direkt aus der Server-Action
 // (damit eine freigegebene Antwort SOFORT rausgeht statt bis zu 60 s in der Warteschlange zu warten).
 import nodemailer from "nodemailer";
+import { afterAutoSent, autoStillValid } from "@/server/ai/autosend";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db, schema } from "@/server/db";
 import { decrypt } from "@/lib/mailbox/crypto";
@@ -64,6 +65,12 @@ export async function sendOutboxMessage(messageId: string): Promise<{ ok: boolea
   const box = await db.query.outbox.findFirst({ where: eq(schema.outbox.messageId, messageId) });
   if (!box) return { ok: false, error: "Keine Outbox-Zeile" };
   if (box.status === "sent") return { ok: true };
+  // Automatische Antwort im Sicherheitsfenster: noch nicht senden
+  if (box.sendAfter && box.sendAfter.getTime() > Date.now()) return { ok: false, error: "geplant" };
+  const msgRow = await db.query.messages.findFirst({ where: eq(schema.messages.id, messageId) });
+  const isAuto = msgRow?.aiOutcome === "auto";
+  // Direkt vor dem Senden nochmal prüfen (Kunde neu geschrieben? Automatik aus?) — sonst stoppen
+  if (isAuto && !(await autoStillValid(messageId))) return { ok: false, error: "Automatik gestoppt" };
 
   // Atomar „beanspruchen“: nur EIN Aufrufer (Senden-Knopf oder Worker) darf diese Zeile senden.
   // Eine hängengebliebene Sperre verfällt nach 5 Minuten (z. B. Prozess abgestürzt).
@@ -83,6 +90,7 @@ export async function sendOutboxMessage(messageId: string): Promise<{ ok: boolea
   try {
     await deliver(messageId);
     await db.update(schema.outbox).set({ status: "sent", sentAt: new Date(), claimedAt: null }).where(eq(schema.outbox.id, box.id));
+    if (isAuto) await afterAutoSent(messageId).catch(() => null);
     return { ok: true };
   } catch (err) {
     const attempts = box.attempts + 1;

@@ -65,6 +65,11 @@ export const shops = pgTable("shops", {
   autoTag: boolean("auto_tag").notNull().default(false),
   // KI legt zu jeder neuen Kundenmail automatisch einen Entwurf an (je Shop einzeln einschaltbar).
   autoDraft: boolean("auto_draft").notNull().default(false),
+  // Automatisch senden (nur geprüfte Entwürfe, nur freigegebene + reife Anliegen, mit Sicherheitsfenster).
+  autoSend: boolean("auto_send").notNull().default(false),
+  autoSendIntents: text("auto_send_intents").array().notNull().default(sql`'{}'::text[]`),
+  autoSendDelayMin: integer("auto_send_delay_min").notNull().default(10),
+  autoSendDailyMax: integer("auto_send_daily_max").notNull().default(50),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -518,6 +523,8 @@ export const outbox = pgTable(
     status: outboxStatus("status").notNull().default("pending"),
     // Sende-Sperre: wer gerade sendet (Knopf ODER Worker), setzt claimedAt — verhindert Doppel-Versand.
     claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    // Automatische Antworten: frühestens dann senden (Sicherheitsfenster, in dem ein Mensch stoppen kann).
+    sendAfter: timestamp("send_after", { withTimezone: true }),
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

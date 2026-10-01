@@ -10,6 +10,8 @@ import {
   replyToThread,
   restoreThread,
   retrySend,
+  sendAutoNow,
+  stopAutoSend,
   setThreadStatus,
   setThreadTag,
   touchPresence,
@@ -35,6 +37,8 @@ type Msg = {
   sentByName?: string | null;
   sendError?: string | null;
   sendStuck?: boolean;
+  autoAt?: string | null;
+  isAuto?: boolean;
   attachments?: { id: string; filename: string; contentType: string; sizeBytes: number }[];
 };
 
@@ -137,6 +141,34 @@ function Lightbox({ imgs, index, onIndex }: { imgs: { id: string; filename: stri
 }
 
 /** KI-Kopfzeile: was will der Kunde, welches Problem, welcher Artikel, welche Bestellung (+ Prüfungen). */
+/** Geplante automatische Antwort: Countdown + Stoppen / Jetzt senden. */
+function AutoPending({ messageId, at, onDone }: { messageId: string; at: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  const mins = Math.max(0, Math.ceil((new Date(at).getTime() - now) / 60_000));
+  const act = async (fn: (id: string) => Promise<{ ok: boolean; error?: string }>) => {
+    setBusy(true);
+    setErr(null);
+    const r = await fn(messageId);
+    setBusy(false);
+    if (!r.ok) setErr(r.error ?? "Fehler");
+    onDone();
+  };
+  return (
+    <span className="autopending">
+      🤖 Automatische Antwort geht {mins > 0 ? `in ${mins} Min. (${new Date(at).toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" })})` : "gleich"} raus
+      <button className="danger" disabled={busy} onClick={() => act(stopAutoSend)}>Stoppen</button>
+      <button disabled={busy} onClick={() => act(sendAutoNow)}>Jetzt senden</button>
+      {err && <span className="error">{err}</span>}
+    </span>
+  );
+}
+
 /** Ergebnis der Entwurfs-Prüfung (Fakten + Prüfer-KI) und warum der Fall nicht automatisch rausgehen dürfte. */
 function CheckBadge({ check, checking, drafting }: { check: DraftCheck | null; checking: boolean; drafting: boolean }) {
   const [open, setOpen] = useState(false);
@@ -503,8 +535,11 @@ export function Conversation({
               <AttachmentList atts={m.attachments ?? []} />
               {m.direction === "outbound" && m.sendStatus && (
                 <div className="sendstatus" style={{ marginTop: 6 }}>
-                  {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ gesendet{m.sentByName ? ` von ${m.sentByName}` : ""}</span>}
-                  {m.sendStatus === "pending" && !m.sendStuck && (
+                  {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ {m.isAuto ? "automatisch gesendet (KI, geprüft)" : `gesendet${m.sentByName ? ` von ${m.sentByName}` : ""}`}</span>}
+                  {m.sendStatus === "pending" && m.autoAt && (
+                    <AutoPending messageId={m.id} at={m.autoAt} onDone={() => router.refresh()} />
+                  )}
+                  {m.sendStatus === "pending" && !m.autoAt && !m.sendStuck && (
                     <span style={{ fontSize: 12, display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <span className="muted">⏳ in Warteschlange…</span>
                       <button className="btnlink" disabled={pending} onClick={() => run(() => retrySend(m.id))} style={{ fontSize: 12 }}>

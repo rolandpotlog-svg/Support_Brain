@@ -234,7 +234,7 @@ export default async function InboxPage({
       // Sende-Status (Outbox) je ausgehender Nachricht — für „gesendet/Warteschlange/fehlgeschlagen".
       const outboxRows = messages.length
         ? await db
-            .select({ messageId: schema.outbox.messageId, status: schema.outbox.status, lastError: schema.outbox.lastError, createdAt: schema.outbox.createdAt })
+            .select({ messageId: schema.outbox.messageId, status: schema.outbox.status, lastError: schema.outbox.lastError, createdAt: schema.outbox.createdAt, sendAfter: schema.outbox.sendAfter })
             .from(schema.outbox)
             .where(inArray(schema.outbox.messageId, messages.map((m) => m.id)))
         : [];
@@ -301,7 +301,11 @@ export default async function InboxPage({
           // "hängt fest": noch in Warteschlange, aber älter als die Schwelle -> nicht zugestellt.
           sendStuck:
             obMap.get(m.id)?.status === "pending" &&
+            !(obMap.get(m.id)!.sendAfter && obMap.get(m.id)!.sendAfter! > new Date()) &&
             obMap.get(m.id)!.createdAt < new Date(Date.now() - STUCK_SEND_MS),
+          // Automatische Antwort im Sicherheitsfenster: wann sie rausgeht
+          autoAt: m.aiOutcome === "auto" && obMap.get(m.id)?.status === "pending" ? (obMap.get(m.id)!.sendAfter?.toISOString() ?? new Date().toISOString()) : null,
+          isAuto: m.aiOutcome === "auto",
           attachments: (attMap.get(m.id) ?? []).map((a) => ({
             id: a.id,
             filename: a.filename,
@@ -522,5 +526,7 @@ type Msg = {
   sentByName: string | null;
   sendError: string | null;
   sendStuck: boolean;
+  autoAt: string | null;
+  isAuto: boolean;
   attachments: { id: string; filename: string; contentType: string; sizeBytes: number }[];
 };

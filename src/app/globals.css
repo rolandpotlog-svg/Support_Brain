@@ -743,3 +743,7 @@ button.danger { background: var(--tag-rose-fg); border-color: var(--tag-rose-fg)
 .checkbar.ok { color: var(--tag-green-fg); }
 .checkbar.warn { color: var(--tag-amber-fg); }
 .checkbar ul { margin: 4px 0 2px; padding-left: 18px; color: var(--text-2); }
+
+/* Geplante automatische Antwort (Sicherheitsfenster) */
+.autopending { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; background: var(--accent-weak); color: var(--accent-strong); }
+.autopending button { font-size: 12px; padding: 3px 10px; }

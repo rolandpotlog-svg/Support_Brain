@@ -7,6 +7,7 @@ import { aiConfigured } from "@/server/ai";
 import { generateDraft } from "@/server/ai/draft";
 import { runPool } from "@/server/ai/pool";
 import { claimDrafting, releaseDrafting } from "@/server/ai/draft-lock";
+import { maybeAutoSend } from "@/server/ai/autosend";
 
 const MAX_PER_CYCLE = Number(process.env.AUTODRAFT_MAX_PER_CYCLE ?? 40);
 const CONCURRENCY = Number(process.env.AI_CONCURRENCY ?? 5);
@@ -76,8 +77,15 @@ export async function autoDraftRecent(): Promise<number> {
       // Sperre: entwirft gerade der Posteingang (Mitarbeiter hat das Ticket offen), hier nicht doppelt
       if (!(await claimDrafting(t.id))) return;
       try {
-        await generateDraft(t.id);
+        const d = await generateDraft(t.id);
         n++;
+        // Automatisch senden? (Standard aus — nur freigegebene, reife Anliegen mit bestandener Prüfung)
+        try {
+          const a = await maybeAutoSend(t.id, d.text, d.check);
+          if (a.scheduled) console.log(`[autosend] Ticket ${t.id}: ${a.why}`);
+        } catch (e) {
+          console.error(`[autosend] Ticket ${t.id}:`, e instanceof Error ? e.message : e);
+        }
       } catch (e) {
         await releaseDrafting(t.id);
         const msg = e instanceof Error ? e.message : String(e);

@@ -337,6 +337,13 @@
       "when": 1790882311988,
       "tag": "0047_draft_check",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1790882796550,
+      "tag": "0048_auto_send",
+      "breakpoints": true
     }
   ]
 }

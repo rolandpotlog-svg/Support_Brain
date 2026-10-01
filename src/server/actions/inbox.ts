@@ -8,7 +8,8 @@ import { db, schema } from "@/server/db";
 import { assertShopAccess, assignableUsers, requireUser, requireWrite } from "@/server/access";
 import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
 import { sendOutboxMessage } from "@/server/send";
-import { emailFromBody, isRelayAddress } from "@/lib/mailbox/extract";
+import { resolveOutbound } from "@/server/outbound";
+import { cancelAuto, pendingAuto } from "@/server/ai/autosend";
 
 /** Aktiven Shop wechseln (vom Shop-Umschalter aufgerufen). */
 export async function setActiveShop(shopId: string, redirectTo: string = "/inbox") {
@@ -136,6 +137,12 @@ async function replyToThreadInner(threadId: string, bodyText: string, filesForm?
   await requireWrite(t.shopId, "support");
   if (!bodyText.trim()) throw new Error("Leere Antwort");
 
+  // Liegt eine automatische Antwort im Sicherheitsfenster? Der Mensch hat Vorrang — Automatik stoppen.
+  const auto = await pendingAuto(threadId);
+  if (auto && !(await cancelAuto(auto.messageId, "Mitarbeiter antwortet selbst"))) {
+    throw new Error("Die automatische Antwort wird gerade gesendet — bitte Seite neu laden, bevor du antwortest.");
+  }
+
   // Doppel-Schutz: Ist seit dem Öffnen etwas Neues passiert, NICHT senden.
   if (seenMessageId) {
     const seen = await db.query.messages.findFirst({ where: eq(schema.messages.id, seenMessageId) });
@@ -165,45 +172,7 @@ async function replyToThreadInner(threadId: string, bodyText: string, filesForm?
     }
   }
 
-  // Antwort geht über das Postfach des Tickets raus (Fallback: erstes Postfach des Shops).
-  const mailbox =
-    (t.mailboxId
-      ? await db.query.shopMailboxes.findFirst({
-          where: eq(schema.shopMailboxes.id, t.mailboxId),
-        })
-      : null) ??
-    (await db.query.shopMailboxes.findFirst({
-      where: eq(schema.shopMailboxes.shopId, t.shopId),
-    }));
-  if (!mailbox) throw new Error("Shop hat keine Postfach-Konfiguration");
-  // Schattenbetrieb: das Team antwortet im Webmail — aus dem Tool wird nichts gesendet (kein Doppel-Versand).
-  if (mailbox.shadowMode) {
-    throw new Error("Schattenbetrieb aktiv: Bitte im Webmail antworten. Das Tool liest die Antwort automatisch mit und vergleicht sie mit dem KI-Entwurf.");
-  }
-
-  const lastInbound = await db.query.messages.findFirst({
-    where: and(
-      eq(schema.messages.threadId, threadId),
-      eq(schema.messages.direction, "inbound"),
-    ),
-    orderBy: desc(schema.messages.createdAt),
-  });
-
-  // Empfänger bestimmen. Bei Kontaktformular-/Relay-Adressen (z. B. mailer@shopify.com) den echten
-  // Kunden aus der ersten eingehenden Nachricht ziehen — sonst ginge die Antwort an das Relay.
-  let recipient = t.customerEmail;
-  if (isRelayAddress(recipient)) {
-    const firstInbound = await db.query.messages.findFirst({
-      where: and(eq(schema.messages.threadId, threadId), eq(schema.messages.direction, "inbound")),
-      orderBy: schema.messages.createdAt,
-    });
-    const real = emailFromBody(firstInbound?.bodyText ?? null, mailbox.fromEmail);
-    if (real) recipient = real;
-  }
-
-  const subject = (t.subject ?? "").toLowerCase().startsWith("re:")
-    ? t.subject
-    : `Re: ${t.subject ?? ""}`.trim();
+  const { mailbox, recipient, subject, lastInbound } = await resolveOutbound(t);
   const newMsgId = `<${randomUUID().replace(/-/g, "")}@support-brain>`;
 
   // KI-Entwurf-Nutzung messen: 1:1 übernommen, bearbeitet oder ganz ohne Entwurf.
@@ -344,4 +313,36 @@ export async function touchPresence(threadId: string, typing: boolean): Promise<
       ),
     );
   return others.map((o) => ({ name: o.name || o.email, typing: o.typing }));
+}
+
+/** Geplante automatische Antwort stoppen (Text wird wieder zum Entwurf). */
+export async function stopAutoSend(messageId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const user = await requireUser();
+    const m = await db.query.messages.findFirst({ where: eq(schema.messages.id, messageId) });
+    if (!m) return { ok: false, error: "Nachricht nicht gefunden" };
+    const t = await loadThread(m.threadId);
+    await requireWrite(t.shopId, "support");
+    const ok = await cancelAuto(messageId, `gestoppt von ${user.email}`);
+    revalidatePath("/inbox");
+    return ok ? { ok: true } : { ok: false, error: "Schon gesendet oder bereits gestoppt." };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Geplante automatische Antwort sofort senden (Sicherheitsfenster überspringen). */
+export async function sendAutoNow(messageId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const m = await db.query.messages.findFirst({ where: eq(schema.messages.id, messageId) });
+    if (!m || m.aiOutcome !== "auto") return { ok: false, error: "Nachricht nicht gefunden" };
+    const t = await loadThread(m.threadId);
+    await requireWrite(t.shopId, "support");
+    await db.update(schema.outbox).set({ sendAfter: null }).where(and(eq(schema.outbox.messageId, messageId), eq(schema.outbox.status, "pending")));
+    const r = await sendOutboxMessage(messageId);
+    revalidatePath("/inbox");
+    return r.ok ? { ok: true } : { ok: false, error: r.error };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }

@@ -18,7 +18,7 @@ export type DraftCheck = {
 };
 
 /** Anliegen, die nie automatisch beantwortet werden (Geld, Mangel, Streit). */
-const NEVER_AUTO = new Set(["nicht_erhalten", "beschaedigt", "defekt", "gravur_fehler", "falsch_fehlt", "retoure", "nicht_wie_erwartet"]);
+export const NEVER_AUTO = new Set(["nicht_erhalten", "beschaedigt", "defekt", "gravur_fehler", "falsch_fehlt", "retoure", "nicht_wie_erwartet"]);
 /** Anliegen, die eine sicher zugeordnete Bestellung brauchen. */
 const ORDER_INTENTS = new Set(["wismo", "nachfrage", "adresse", "storno", "zahlung", "gravur_angaben"]);
 const FORBIDDEN = [/dropshipping/i, /aliexpress/i, /lieferant(en)? aus china/i, /china-lieferant/i, /fulfillment/i];
