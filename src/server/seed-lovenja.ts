@@ -33,7 +33,7 @@ export const LOVENJA_PROFILE: ProfileData = {
     "Individuell gravierte/personalisierte Artikel (Gravur, Foto, Namen, Spruchkarte) sind gesetzlich vom Widerrufsrecht ausgeschlossen: Sie werden nach Kundenvorgabe angefertigt und können nicht weiterverkauft werden. Das gilt auch für eine Stornierung direkt nach der Bestellung, weil die Anfertigung sofort mit dem Bestelleingang startet. " +
     "Freundlich und verständnisvoll erklären, nie belehrend, KEINE Paragraphen nennen. Ausnahme: echter Mangel oder falsche Lieferung (siehe Schäden/Reklamation).",
   exchange:
-    "Gravur-/Spruchänderung: Kommt der Wunsch innerhalb von 24 Stunden nach der Bestellung, ist eine Änderung nach Rücksprache mit der Gravur-Abteilung evtl. noch möglich — dann den genauen neuen Wortlaut erfragen bzw. bestätigen, NICHTS zusagen („wir prüfen das umgehend mit unserer Gravur-Abteilung“) und an einen Menschen geben (Supplier anfragen). " +
+    "Gravur-/Spruchänderung: Kommt der Wunsch innerhalb von 24 Stunden nach der Bestellung, ist eine Änderung nach Rücksprache mit der Gravur-Abteilung evtl. noch möglich — dann den genannten neuen Wortlaut in der Antwort wiederholen (nur nachfragen, wenn er unklar ist), NICHTS zusagen („wir prüfen das umgehend mit unserer Gravur-Abteilung“) und an einen Menschen geben (Supplier anfragen). " +
     "Später als 24 Stunden nach der Bestellung: nicht mehr änderbar (geht in die Produktion), freundlich erklären, keinen Änderungsversuch anbieten; SORRY20 passt als Geste. " +
     "FEHLENDE Gravur-Namen, die der Kunde nachreicht, nehmen wir immer entgegen (Mitarbeiter leitet sie an die Gravur-Abteilung weiter) und bestätigen mit: „ich habe soeben Ihre Namenswünsche an die Gravur-Abteilung zur Bearbeitung weitergeleitet“.",
   refund:
@@ -62,7 +62,7 @@ export const LOVENJA_PROFILE: ProfileData = {
   faq: [
     {
       q: "Ist die Kette aus echtem Gold? Warum gibt es keinen Goldstempel/kein Zertifikat?",
-      a: "Nein, kein massives Gold, sondern hochwertig vergoldeter Schmuck (14K-Vergoldung auf einem robusten Basismaterial wie Edelstahl): eleganter Gold-Look, farbbeständig, alltagstauglich. Eine Karat-Punze und ein Zertifikat gibt es nur bei massivem Echtgold. Transparent und ohne Ausreden erklären; Basismaterial nicht raten, wenn es für das konkrete Produkt nicht bekannt ist.",
+      a: "Nein, kein massives Gold, sondern hochwertig vergoldeter Schmuck (14K-Vergoldung auf einem robusten Basismaterial). Eine Karat-Punze und ein Zertifikat gibt es nur bei massivem Echtgold, deshalb fehlen beide. Kurz, ehrlich und ohne Werbesprache erklären (keine Aufzählung von Vorzügen); Basismaterial nicht raten, wenn es für das konkrete Produkt nicht bekannt ist. Auf lange Freude am Schmuck durch sorgfältige Verarbeitung darf in EINEM Satz hingewiesen werden.",
     },
     {
       q: "Ich habe Weißgold bestellt, auf der Verpackung steht „Silver“ / die Kette sieht silbern aus.",
@@ -106,7 +106,7 @@ export const LOVENJA_PROFILE: ProfileData = {
     },
     {
       q: "Kunde nicht im System gefunden.",
-      a: "Freundlich sagen, dass wir weder unter der E-Mail noch unter dem Namen eine Bestellung finden; bitten, Bestellbestätigung, Bestellnummer oder die bei der Bestellung verwendete E-Mail zu schicken. Hinweis: Es kommt vor, dass wir mit einem anderen Anbieter ähnlicher Produkte verwechselt werden (Browserverlauf prüfen hilft).",
+      a: "Freundlich sagen, dass wir unter dieser E-Mail-Adresse keine Bestellung finden (den Namen nur erwähnen, wenn der Kunde ihn genannt hat); bitten, Bestellbestätigung, Bestellnummer oder die bei der Bestellung verwendete E-Mail zu schicken. Hinweis: Es kommt vor, dass wir mit einem anderen Anbieter ähnlicher Produkte verwechselt werden (Browserverlauf prüfen hilft).",
     },
     {
       q: "Rabattcode konnte bei der Bestellung nicht verwendet werden.",
