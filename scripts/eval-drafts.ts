@@ -4,7 +4,7 @@
 // Ablauf je Fall: Entwurf erzeugen -> zweiter KI-Aufruf prüft ihn gegen Profil + Checkliste
 // -> Bericht nach backups/eval-<datum>.md (gitignored-Ordner, kein Kundenbezug: Testfälle sind erfunden).
 import "dotenv/config";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { complete } from "@/server/ai";
 import { buildSystemPrompt } from "@/lib/profile/types";
 import { draftSystemPrompt, parseDraft } from "@/server/ai/draft-prompt";
@@ -173,7 +173,11 @@ async function main() {
   const only = process.argv.slice(2).map(Number).filter(Boolean);
   const profile = LOVENJA_PROFILE;
   const signature = profile.signature.trim();
-  const system = draftSystemPrompt(buildSystemPrompt(profile, "Lovenja"), signature, profile.closing);
+  // Optional: gelernte Regeln aus dem KI-Gehirn mitprüfen (LESSONS_FILE=pfad, eine Regel je Zeile mit „- “)
+  const lessons = process.env.LESSONS_FILE
+    ? "\n\n--- GELERNTE REGELN DIESES SHOPS (vom Team bestätigt — haben VORRANG vor allem anderen) ---\n" + readFileSync(process.env.LESSONS_FILE, "utf8").trim()
+    : "";
+  const system = draftSystemPrompt(buildSystemPrompt(profile, "Lovenja"), signature, profile.closing) + lessons;
 
   const rows: string[] = [];
   let ok = 0, n = 0, sum = 0, decOk = 0, human = 0;
