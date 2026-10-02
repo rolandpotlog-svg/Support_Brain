@@ -62,6 +62,17 @@ export default async function GehirnPage() {
     return cr + inp ? Math.round((cr / (cr + inp)) * 100) : null;
   })();
 
+  // Die eigentliche Frage: Wie oft ändert der Mensch Entwürfe, die die KI ALLEIN beantworten wollte (AUTO) —
+  // und wie oft solche, die sie ohnehin an ihn abgegeben hat (MENSCH = Entscheidung nötig)?
+  const dq = await db
+    .select({ decision: schema.messages.aiDecision, outcome: schema.messages.aiOutcome, n: sql<number>`count(*)::int` })
+    .from(schema.messages)
+    .innerJoin(schema.threads, eq(schema.threads.id, schema.messages.threadId))
+    .where(and(eq(schema.threads.shopId, shopId), eq(schema.messages.direction, "outbound"), isNotNull(schema.messages.aiDraft), inArray(schema.messages.aiOutcome, ["verbatim", "edited"]), gte(schema.messages.createdAt, since)))
+    .groupBy(schema.messages.aiDecision, schema.messages.aiOutcome);
+  const dcnt = (d: string, o: string) => dq.filter((r) => (r.decision ?? "unbekannt") === d && r.outcome === o).reduce((a, r) => a + r.n, 0);
+  const autoVerb = dcnt("auto", "verbatim"), autoEdit = dcnt("auto", "edited"), humVerb = dcnt("mensch", "verbatim"), humEdit = dcnt("mensch", "edited");
+
   // Prüfer-Zuverlässigkeit: Stimmt „Prüfung bestanden“ mit dem überein, was der Mensch tut (unverändert senden)?
   const pq = await db
     .select({ passed: schema.messages.aiCheckPassed, outcome: schema.messages.aiOutcome, n: sql<number>`count(*)::int` })
@@ -96,7 +107,7 @@ export default async function GehirnPage() {
 
   return (
     <div className="adminwrap">
-      <h1 style={{ marginTop: 0 }}>KI-Gehirn</h1>
+      <h1 style={{ marginTop: 0 }}>KI-Gehirn · {shopList.find((x) => x.id === shopId)?.name}</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         Was die KI aus euren Korrekturen gelernt hat. Vorschläge entstehen automatisch, sobald ihr einen Entwurf ändert. Erst nach „Übernehmen“ gelten sie für jede neue Antwort in diesem Shop.
       </p>
@@ -115,6 +126,10 @@ export default async function GehirnPage() {
         <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
           Jeder Entwurf wird geprüft (Fakten + zweite KI). Hier sieht man, ob die Prüfung mit eurem Urteil übereinstimmt. Automatisch senden kommt erst für Anliegen, die belegt reif sind (≥ 30× und ≥ 90 % unverändert).
         </p>
+        <div className="report" style={{ marginBottom: 12 }}>
+          <div className="rstat"><div className="k">KI wollte allein antworten</div><div className="v">{pct(autoVerb, autoVerb + autoEdit) ?? "—"}{autoVerb + autoEdit ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{autoVerb} von {autoVerb + autoEdit} unverändert gesendet — das zählt für die Automatik</div></div>
+          <div className="rstat"><div className="k">KI gab an Mensch ab</div><div className="v">{pct(humVerb, humVerb + humEdit) ?? "—"}{humVerb + humEdit ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{humVerb} von {humVerb + humEdit} Vorschläge unverändert — hier entscheidet ihr (Nachlass, Ersatz, Erstattung)</div></div>
+        </div>
         <div className="report">
           <div className="rstat"><div className="k">Bestanden → unverändert</div><div className="v">{pct(passVerb, passVerb + passEdit) ?? "—"}{passVerb + passEdit ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{passVerb} von {passVerb + passEdit} — so oft lag „bestanden“ richtig</div></div>
           <div className="rstat"><div className="k">Trockenlauf Automatik</div><div className="v">{pct(dryVerb, dryVerb + dryEdit) ?? "—"}{dryVerb + dryEdit ? " %" : ""}</div><div className="muted" style={{ fontSize: 12 }}>{dryVerb} von {dryVerb + dryEdit} „wäre automatisch gegangen“ wurden unverändert gesendet (Ziel ≥ 95 %)</div></div>
