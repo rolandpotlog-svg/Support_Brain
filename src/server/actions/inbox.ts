@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/server/db";
 import { assertShopAccess, assignableUsers, requireUser, requireWrite } from "@/server/access";
-import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
+import { ACTIVE_SHOP_COOKIE, ACTIVE_SHOP_COOKIE_OPTS } from "@/server/active-shop";
 import { sendOutboxMessage } from "@/server/send";
 import { resolveOutbound } from "@/server/outbound";
 import { cancelAuto, pendingAuto } from "@/server/ai/autosend";
@@ -16,7 +16,7 @@ export async function setActiveShop(shopId: string, redirectTo: string = "/inbox
   const user = await requireUser();
   await assertShopAccess(user, shopId);
   const store = await cookies();
-  store.set(ACTIVE_SHOP_COOKIE, shopId, { httpOnly: true, sameSite: "lax", path: "/" });
+  store.set(ACTIVE_SHOP_COOKIE, shopId, ACTIVE_SHOP_COOKIE_OPTS);
   redirect(redirectTo);
 }
 
@@ -25,7 +25,7 @@ export async function selectActiveShop(shopId: string) {
   const user = await requireUser();
   await assertShopAccess(user, shopId);
   const store = await cookies();
-  store.set(ACTIVE_SHOP_COOKIE, shopId, { httpOnly: true, sameSite: "lax", path: "/" });
+  store.set(ACTIVE_SHOP_COOKIE, shopId, ACTIVE_SHOP_COOKIE_OPTS);
 }
 
 async function loadThread(threadId: string) {
