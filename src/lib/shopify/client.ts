@@ -413,6 +413,7 @@ export async function refundOrderAmount(
       totalRefundedSet { shopMoney { amount } }
       totalReceivedSet { shopMoney { amount } }
       transactions(first: 30) { id kind status gateway }
+      refunds(first: 20) { createdAt totalRefundedSet { shopMoney { amount } } }
     }
   }`;
   const d = await gql<{
@@ -421,11 +422,22 @@ export async function refundOrderAmount(
       totalRefundedSet: { shopMoney: { amount: string } } | null;
       totalReceivedSet: { shopMoney: { amount: string } } | null;
       transactions: { id: string; kind: string; status: string; gateway: string }[];
+      refunds: { createdAt: string; totalRefundedSet: { shopMoney: { amount: string } } | null }[];
     } | null;
   }>(creds, q, { id: orderId });
 
   const order = d.order;
   if (!order) throw new ShopifyError("Bestellung nicht gefunden");
+  // Doppel-Schutz: wurde genau dieser Betrag in den letzten 15 Minuten schon erstattet (z. B. Klick nach
+  // unklarem Fehler)? Dann NICHT nochmal — erst in Shopify prüfen.
+  const dup = (order.refunds ?? []).find(
+    (r) => Math.abs(Number(r.totalRefundedSet?.shopMoney.amount ?? "0") - Number(amount)) < 0.005 && Date.now() - new Date(r.createdAt).getTime() < 15 * 60_000,
+  );
+  if (dup) {
+    throw new ShopifyError(
+      `Dieser Betrag (${amount} ${order.currencyCode}) wurde vor ${Math.max(1, Math.round((Date.now() - new Date(dup.createdAt).getTime()) / 60_000))} Min. schon erstattet. Zur Sicherheit nicht doppelt. Bitte in Shopify prüfen.`,
+    );
+  }
   const parent = order.transactions.find(
     (t) => (t.kind === "SALE" || t.kind === "CAPTURE") && t.status === "SUCCESS",
   );

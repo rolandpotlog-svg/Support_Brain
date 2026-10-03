@@ -50,6 +50,10 @@ function RefundBox({ ctx, order }: { ctx: RefundCtx; order: ShopifyOrder }) {
         orderName: order.name,
         amountCents,
       });
+      if (!r.ok) {
+        setErr(r.error);
+        return;
+      }
       setDone(`${r.refundedAmount} ${r.currency}`);
       setConfirming(false);
     } catch (e) {

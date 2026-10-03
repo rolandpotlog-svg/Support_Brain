@@ -129,6 +129,32 @@ export async function refundOrder(args: {
   orderId: string;
   orderName: string;
   amountCents: number;
+}): Promise<{ ok: true; refundedAmount: string; currency: string } | { ok: false; error: string }> {
+  // Fehler als Rückgabewert: Next.js versteckt geworfene Fehler im Live-Betrieb („An error occurred …“).
+  try {
+    const r = await refundOrderInner(args);
+    return { ok: true, ...r };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[refund]", args.orderName, msg);
+    return { ok: false, error: explainRefundError(msg) };
+  }
+}
+
+/** Shopify-Fehler in verständliche Sprache übersetzen. */
+function explainRefundError(msg: string): string {
+  if (/access denied|not approved|scope|write_orders|ACCESS_DENIED/i.test(msg)) {
+    return `Shopify erlaubt der App keine Erstattungen (Berechtigung „write_orders“ fehlt). In der Shopify-App die Berechtigung ergänzen und neu installieren. Es wurde NICHTS erstattet. (${msg})`;
+  }
+  return msg;
+}
+
+async function refundOrderInner(args: {
+  shopId: string;
+  threadId: string;
+  orderId: string;
+  orderName: string;
+  amountCents: number;
 }): Promise<{ refundedAmount: string; currency: string }> {
   const { user } = await requireWrite(args.shopId, "support");
   // Trennung: Ticket muss zum selben Shop gehören — VOR der Erstattung prüfen (echtes Geld).
