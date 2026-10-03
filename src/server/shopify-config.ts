@@ -76,6 +76,15 @@ export async function loadShopifyCreds(shopId: string): Promise<ShopifyCreds | n
   return null;
 }
 
+/** Zwischengespeicherten CCG-Token verwerfen (z. B. nach neuer App-Berechtigung) — nächster Abruf holt einen frischen.
+ *  Nur bei Client-Credentials-Apps; Offline-OAuth-Tokens bleiben unangetastet. */
+export async function invalidateShopifyToken(shopId: string): Promise<boolean> {
+  const row = await db.query.shopShopify.findFirst({ where: eq(schema.shopShopify.shopId, shopId) });
+  if (!row?.clientId || !row.clientSecretEnc) return false;
+  await db.update(schema.shopShopify).set({ tokenExpiresAt: new Date(0), updatedAt: new Date() }).where(eq(schema.shopShopify.shopId, shopId));
+  return true;
+}
+
 /** OAuth: Authorization-Code gegen einen (langlebigen) Offline-Token tauschen + speichern.
  *  Installiert die App im Store als Nebeneffekt. */
 export async function exchangeShopifyCode(shopId: string, shop: string, code: string): Promise<void> {

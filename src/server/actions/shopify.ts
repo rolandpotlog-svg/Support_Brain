@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/server/db";
 import { assertShopAccess, requireUser, requireWrite } from "@/server/access";
-import { loadShopifyCreds } from "@/server/shopify-config";
+import { invalidateShopifyToken, loadShopifyCreds } from "@/server/shopify-config";
 import { resolveForThread, type Resolution } from "@/lib/shopify/order-match";
 import {
   findCustomerByEmail,
@@ -168,7 +168,18 @@ async function refundOrderInner(args: {
 
   const amount = (args.amountCents / 100).toFixed(2);
   const note = `Support-Kulanz-Erstattung über ${amount} (ausgelöst von ${user.email})`;
-  const r = await refundOrderAmount(creds, args.orderId, amount, note);
+  let r: { refundedAmount: string; currency: string };
+  try {
+    r = await refundOrderAmount(creds, args.orderId, amount, note);
+  } catch (e) {
+    // „Keine Berechtigung“: evtl. alter, zwischengespeicherter Token (App-Berechtigung frisch erweitert).
+    // Shopify hat dann nachweislich NICHTS ausgeführt -> einmal mit frischem Token versuchen.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/access denied|not approved|scope|ACCESS_DENIED|write_orders/i.test(msg) || !(await invalidateShopifyToken(args.shopId))) throw e;
+    const fresh = await loadShopifyCreds(args.shopId);
+    if (!fresh) throw e;
+    r = await refundOrderAmount(fresh, args.orderId, amount, note);
+  }
 
   // Audit-Spur im Ticket (interne Notiz, Kunde sieht sie nie).
   try {
