@@ -26,8 +26,9 @@ function Badges({ order }: { order: ShopifyOrder }) {
 
 type RefundCtx = { shopId: string; threadId: string; customerName: string };
 
-function RefundBox({ ctx, order }: { ctx: RefundCtx; order: ShopifyOrder }) {
-  const totalMajor = order.total ? parseFloat(order.total.amount) : 0;
+function RefundBox({ ctx, order, onRefunded }: { ctx: RefundCtx; order: ShopifyOrder; onRefunded?: (r: { amount: string; currency: string }) => void }) {
+  // Basis = noch erstattbarer Rest (Gesamt minus bereits Erstattetes)
+  const totalMajor = Math.max(0, (order.total ? parseFloat(order.total.amount) : 0) - (order.totalRefunded ? parseFloat(order.totalRefunded.amount) : 0));
   const cur = order.total?.currencyCode ?? "EUR";
   const [amount, setAmount] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -54,7 +55,10 @@ function RefundBox({ ctx, order }: { ctx: RefundCtx; order: ShopifyOrder }) {
         setErr(r.error);
         return;
       }
-      setDone(`${r.refundedAmount} ${r.currency}`);
+      const amt = r.refundedAmount ?? amount;
+      const c = r.currency ?? cur;
+      setDone(euro(amt, c));
+      onRefunded?.({ amount: amt, currency: c });
       setConfirming(false);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -133,7 +137,19 @@ function RefundBox({ ctx, order }: { ctx: RefundCtx; order: ShopifyOrder }) {
   );
 }
 
-function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: RefundCtx }) {
+function OrderBlock({ order: orderIn, refundCtx }: { order: ShopifyOrder; refundCtx?: RefundCtx }) {
+  // Gerade im Tool ausgelöste Erstattungen sofort mit anzeigen (Shopify-Daten kommen beim nächsten Laden)
+  const [justRefunded, setJustRefunded] = useState<{ at: string; amount: string; currency: string; note: string | null }[]>([]);
+  const order: ShopifyOrder = justRefunded.length
+    ? {
+        ...orderIn,
+        refunds: [...orderIn.refunds, ...justRefunded],
+        totalRefunded: {
+          amount: String([...orderIn.refunds, ...justRefunded].reduce((a, r) => a + Number(r.amount), 0).toFixed(2)),
+          currencyCode: orderIn.total?.currencyCode ?? justRefunded[0].currency,
+        },
+      }
+    : orderIn;
   const refundable =
     !!order.total && ["PAID", "PARTIALLY_REFUNDED"].includes((order.financialStatus ?? "").toUpperCase());
   // Rabatt-%: Shopifys exakter %-Wert, sonst effektiv aus €-Rabatt / (Summe + Rabatt) berechnet.
@@ -273,7 +289,32 @@ function OrderBlock({ order, refundCtx }: { order: ShopifyOrder; refundCtx?: Ref
         </div>
       )}
 
-      {refundCtx && refundable && <RefundBox ctx={refundCtx} order={order} />}
+      {order.refunds.length > 0 && (
+        <div className="sec">
+          <div className="sec-label">Bereits erstattet</div>
+          <div className="refund-sum">
+            {euro(order.totalRefunded?.amount ?? "0", order.totalRefunded?.currencyCode ?? order.total?.currencyCode ?? "EUR")}
+            {order.total && <span className="muted"> von {euro(order.total.amount, order.total.currencyCode)}</span>}
+          </div>
+          <ul className="refund-list">
+            {order.refunds.map((r, i) => (
+              <li key={i}>
+                <b>{euro(r.amount, r.currency)}</b>
+                <span className="muted"> · {new Date(r.at).toLocaleString("de-AT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                {r.note && <div className="muted" style={{ fontSize: 12 }}>{r.note}</div>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {refundCtx && refundable && (
+        <RefundBox
+          ctx={refundCtx}
+          order={order}
+          onRefunded={(r) => setJustRefunded((x) => [...x, { at: new Date().toISOString(), amount: r.amount, currency: r.currency, note: "gerade eben im Support Brain erstattet" }])}
+        />
+      )}
     </>
   );
 }

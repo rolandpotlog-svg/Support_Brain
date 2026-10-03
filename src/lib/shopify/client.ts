@@ -51,6 +51,9 @@ export type ShopifyOrder = {
   // Sendungsstatus laut Shopify (letzte Sendung): z. B. DELIVERED / IN_TRANSIT + Zeitpunkte.
   delivery: { status: string | null; deliveredAt: string | null; estimatedAt: string | null; inTransitAt: string | null } | null;
   lineItems: LineItem[];
+  // Bereits erstattet (Shopify): Summe + einzelne Erstattungen (Zeitpunkt, Betrag, Notiz)
+  totalRefunded: Money | null;
+  refunds: { at: string; amount: string; currency: string; note: string | null }[];
 };
 
 class ShopifyError extends Error {}
@@ -106,6 +109,8 @@ const ORDER_FIELDS = `
     phone
   }
   fulfillments(first: 10) { displayStatus deliveredAt estimatedDeliveryAt inTransitAt trackingInfo { number url company } }
+  totalRefundedSet { shopMoney { amount currencyCode } }
+  refunds(first: 20) { createdAt note totalRefundedSet { shopMoney { amount currencyCode } } }
   lineItems(first: 25) {
     nodes {
       title
@@ -160,6 +165,16 @@ function mapOrder(o: any): ShopifyOrder {
           phone: o.shippingAddress.phone ?? null,
         }
       : null,
+    totalRefunded:
+      o.totalRefundedSet?.shopMoney && Number(o.totalRefundedSet.shopMoney.amount) > 0 ? o.totalRefundedSet.shopMoney : null,
+    refunds: (o.refunds ?? [])
+      .map((r: any) => ({
+        at: r.createdAt,
+        amount: r.totalRefundedSet?.shopMoney?.amount ?? "0",
+        currency: r.totalRefundedSet?.shopMoney?.currencyCode ?? o.totalPriceSet?.shopMoney?.currencyCode ?? "EUR",
+        note: r.note ?? null,
+      }))
+      .filter((r: any) => Number(r.amount) > 0),
     tracking: (o.fulfillments ?? []).flatMap((f: any) => f.trackingInfo ?? []),
     delivery: (() => {
       const f = (o.fulfillments ?? []).at(-1);
