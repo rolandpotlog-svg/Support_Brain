@@ -53,7 +53,7 @@ export type ShopifyOrder = {
   lineItems: LineItem[];
   // Bereits erstattet (Shopify): Summe + einzelne Erstattungen (Zeitpunkt, Betrag, Notiz)
   totalRefunded: Money | null;
-  refunds: { at: string; amount: string; currency: string; note: string | null }[];
+  refunds: { at: string; amount: string; currency: string; note: string | null; pending?: boolean }[];
 };
 
 class ShopifyError extends Error {}
@@ -110,7 +110,7 @@ const ORDER_FIELDS = `
   }
   fulfillments(first: 10) { displayStatus deliveredAt estimatedDeliveryAt inTransitAt trackingInfo { number url company } }
   totalRefundedSet { shopMoney { amount currencyCode } }
-  refunds(first: 20) { createdAt note totalRefundedSet { shopMoney { amount currencyCode } } }
+  refunds(first: 20) { createdAt note totalRefundedSet { shopMoney { amount currencyCode } } transactions(first: 5) { nodes { status amountSet { shopMoney { amount currencyCode } } } } }
   lineItems(first: 25) {
     nodes {
       title
@@ -132,6 +132,21 @@ const CUSTOMER_FIELDS = `
 `;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/** Eine Erstattung: Betrag = abgeschlossen ODER (falls noch 0) die Summe der ausstehenden Transaktionen. */
+function mapRefund(r: any, fallbackCur: string): { at: string; amount: string; currency: string; note: string | null; pending: boolean } {
+  const done = Number(r.totalRefundedSet?.shopMoney?.amount ?? 0);
+  const tx = (r.transactions?.nodes ?? []).filter((t: any) => t.status === "PENDING" || t.status === "SUCCESS");
+  const txSum = tx.reduce((a: number, t: any) => a + Number(t.amountSet?.shopMoney?.amount ?? 0), 0);
+  const pending = done === 0 && txSum > 0;
+  return {
+    at: r.createdAt,
+    amount: (done > 0 ? done : txSum).toFixed(2),
+    currency: r.totalRefundedSet?.shopMoney?.currencyCode ?? tx[0]?.amountSet?.shopMoney?.currencyCode ?? fallbackCur,
+    note: r.note ?? null,
+    pending,
+  };
+}
+
 function mapOrder(o: any): ShopifyOrder {
   return {
     id: o.id,
@@ -165,15 +180,13 @@ function mapOrder(o: any): ShopifyOrder {
           phone: o.shippingAddress.phone ?? null,
         }
       : null,
-    totalRefunded:
-      o.totalRefundedSet?.shopMoney && Number(o.totalRefundedSet.shopMoney.amount) > 0 ? o.totalRefundedSet.shopMoney : null,
+    // inkl. ausstehender Erstattungen (Klarna & Co. buchen zeitversetzt — vorher stünde hier 0)
+    totalRefunded: (() => {
+      const sum = (o.refunds ?? []).reduce((a: number, r: any) => a + Number(mapRefund(r, "EUR").amount), 0);
+      return sum > 0 ? { amount: sum.toFixed(2), currencyCode: o.totalPriceSet?.shopMoney?.currencyCode ?? "EUR" } : null;
+    })(),
     refunds: (o.refunds ?? [])
-      .map((r: any) => ({
-        at: r.createdAt,
-        amount: r.totalRefundedSet?.shopMoney?.amount ?? "0",
-        currency: r.totalRefundedSet?.shopMoney?.currencyCode ?? o.totalPriceSet?.shopMoney?.currencyCode ?? "EUR",
-        note: r.note ?? null,
-      }))
+      .map((r: any) => mapRefund(r, o.totalPriceSet?.shopMoney?.currencyCode ?? "EUR"))
       .filter((r: any) => Number(r.amount) > 0),
     tracking: (o.fulfillments ?? []).flatMap((f: any) => f.trackingInfo ?? []),
     delivery: (() => {
@@ -421,14 +434,14 @@ export async function refundOrderAmount(
   orderId: string,
   amount: string,
   note: string,
-): Promise<{ refundedAmount: string; currency: string }> {
+): Promise<{ refundedAmount: string; currency: string; pending: boolean }> {
   const q = `query($id: ID!) {
     order(id: $id) {
       currencyCode
       totalRefundedSet { shopMoney { amount } }
       totalReceivedSet { shopMoney { amount } }
       transactions(first: 30) { id kind status gateway }
-      refunds(first: 20) { createdAt totalRefundedSet { shopMoney { amount } } }
+      refunds(first: 20) { createdAt totalRefundedSet { shopMoney { amount currencyCode } } transactions(first: 5) { nodes { status amountSet { shopMoney { amount currencyCode } } } } }
     }
   }`;
   const d = await gql<{
@@ -437,7 +450,7 @@ export async function refundOrderAmount(
       totalRefundedSet: { shopMoney: { amount: string } } | null;
       totalReceivedSet: { shopMoney: { amount: string } } | null;
       transactions: { id: string; kind: string; status: string; gateway: string }[];
-      refunds: { createdAt: string; totalRefundedSet: { shopMoney: { amount: string } } | null }[];
+      refunds: any[];
     } | null;
   }>(creds, q, { id: orderId });
 
@@ -445,12 +458,14 @@ export async function refundOrderAmount(
   if (!order) throw new ShopifyError("Bestellung nicht gefunden");
   // Doppel-Schutz: wurde genau dieser Betrag in den letzten 15 Minuten schon erstattet (z. B. Klick nach
   // unklarem Fehler)? Dann NICHT nochmal — erst in Shopify prüfen.
-  const dup = (order.refunds ?? []).find(
-    (r) => Math.abs(Number(r.totalRefundedSet?.shopMoney.amount ?? "0") - Number(amount)) < 0.005 && Date.now() - new Date(r.createdAt).getTime() < 15 * 60_000,
+  const refundList = (order.refunds ?? []).map((r) => mapRefund(r, order.currencyCode));
+  // auch AUSSTEHENDE Erstattungen zählen (Klarna bucht zeitversetzt, abgeschlossener Betrag ist anfangs 0)
+  const dup = refundList.find(
+    (r) => Math.abs(Number(r.amount) - Number(amount)) < 0.005 && Date.now() - new Date(r.at).getTime() < 15 * 60_000,
   );
   if (dup) {
     throw new ShopifyError(
-      `Dieser Betrag (${amount} ${order.currencyCode}) wurde vor ${Math.max(1, Math.round((Date.now() - new Date(dup.createdAt).getTime()) / 60_000))} Min. schon erstattet. Zur Sicherheit nicht doppelt. Bitte in Shopify prüfen.`,
+      `Dieser Betrag (${amount} ${order.currencyCode}) wurde vor ${Math.max(1, Math.round((Date.now() - new Date(dup.at).getTime()) / 60_000))} Min. schon erstattet${dup.pending ? " (noch in Bearbeitung beim Zahlungsanbieter)" : ""}. Zur Sicherheit nicht doppelt. Bitte in Shopify prüfen.`,
     );
   }
   const parent = order.transactions.find(
@@ -460,7 +475,7 @@ export async function refundOrderAmount(
 
   // Verbleibend erstattbar grob prüfen (harte Prüfung macht Shopify).
   const received = Number(order.totalReceivedSet?.shopMoney.amount ?? "0");
-  const refunded = Number(order.totalRefundedSet?.shopMoney.amount ?? "0");
+  const refunded = refundList.reduce((a, r) => a + Number(r.amount), 0);
   const remaining = received - refunded;
   if (Number(amount) > remaining + 0.001) {
     throw new ShopifyError(
@@ -470,7 +485,7 @@ export async function refundOrderAmount(
 
   const m = `mutation($input: RefundInput!) {
     refundCreate(input: $input) {
-      refund { id totalRefundedSet { shopMoney { amount currencyCode } } }
+      refund { id totalRefundedSet { shopMoney { amount currencyCode } } transactions(first: 5) { nodes { status amountSet { shopMoney { amount currencyCode } } } } }
       userErrors { field message }
     }
   }`;
@@ -482,13 +497,17 @@ export async function refundOrderAmount(
   };
   const r = await gql<{
     refundCreate: {
-      refund: { id: string; totalRefundedSet: { shopMoney: Money } } | null;
+      refund: any | null;
       userErrors: { field: string[]; message: string }[];
     };
   }>(creds, m, { input });
   if (r.refundCreate.userErrors?.length) throw new ShopifyError(r.refundCreate.userErrors[0].message);
-  const money = r.refundCreate.refund?.totalRefundedSet?.shopMoney;
-  return { refundedAmount: money?.amount ?? amount, currency: money?.currencyCode ?? order.currencyCode };
+  const made = r.refundCreate.refund ? mapRefund({ ...r.refundCreate.refund, createdAt: new Date().toISOString() }, order.currencyCode) : null;
+  return {
+    refundedAmount: made && Number(made.amount) > 0 ? made.amount : amount,
+    currency: made?.currency ?? order.currencyCode,
+    pending: made ? made.pending || Number(made.amount) === 0 : false,
+  };
 }
 
 /** Kunde exakt über die E-Mail-Adresse. */

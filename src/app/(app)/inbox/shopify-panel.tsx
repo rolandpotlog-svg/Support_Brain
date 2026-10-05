@@ -26,7 +26,7 @@ function Badges({ order }: { order: ShopifyOrder }) {
 
 type RefundCtx = { shopId: string; threadId: string; customerName: string };
 
-function RefundBox({ ctx, order, onRefunded }: { ctx: RefundCtx; order: ShopifyOrder; onRefunded?: (r: { amount: string; currency: string }) => void }) {
+function RefundBox({ ctx, order, onRefunded }: { ctx: RefundCtx; order: ShopifyOrder; onRefunded?: (r: { amount: string; currency: string; pending: boolean }) => void }) {
   // Basis = noch erstattbarer Rest (Gesamt minus bereits Erstattetes)
   const totalMajor = Math.max(0, (order.total ? parseFloat(order.total.amount) : 0) - (order.totalRefunded ? parseFloat(order.totalRefunded.amount) : 0));
   const cur = order.total?.currencyCode ?? "EUR";
@@ -57,8 +57,8 @@ function RefundBox({ ctx, order, onRefunded }: { ctx: RefundCtx; order: ShopifyO
       }
       const amt = r.refundedAmount ?? amount;
       const c = r.currency ?? cur;
-      setDone(euro(amt, c));
-      onRefunded?.({ amount: amt, currency: c });
+      setDone(euro(amt, c) + (r.pending ? " (wird vom Zahlungsanbieter bearbeitet)" : ""));
+      onRefunded?.({ amount: amt, currency: c, pending: !!r.pending });
       setConfirming(false);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -139,7 +139,7 @@ function RefundBox({ ctx, order, onRefunded }: { ctx: RefundCtx; order: ShopifyO
 
 function OrderBlock({ order: orderIn, refundCtx }: { order: ShopifyOrder; refundCtx?: RefundCtx }) {
   // Gerade im Tool ausgelöste Erstattungen sofort mit anzeigen (Shopify-Daten kommen beim nächsten Laden)
-  const [justRefunded, setJustRefunded] = useState<{ at: string; amount: string; currency: string; note: string | null }[]>([]);
+  const [justRefunded, setJustRefunded] = useState<{ at: string; amount: string; currency: string; note: string | null; pending?: boolean }[]>([]);
   const order: ShopifyOrder = justRefunded.length
     ? {
         ...orderIn,
@@ -300,6 +300,7 @@ function OrderBlock({ order: orderIn, refundCtx }: { order: ShopifyOrder; refund
             {order.refunds.map((r, i) => (
               <li key={i}>
                 <b>{euro(r.amount, r.currency)}</b>
+                {r.pending && <span className="orderbadge warn" style={{ marginLeft: 6 }}>wird bearbeitet</span>}
                 <span className="muted"> · {new Date(r.at).toLocaleString("de-AT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                 {r.note && <div className="muted" style={{ fontSize: 12 }}>{r.note}</div>}
               </li>
@@ -312,7 +313,7 @@ function OrderBlock({ order: orderIn, refundCtx }: { order: ShopifyOrder; refund
         <RefundBox
           ctx={refundCtx}
           order={order}
-          onRefunded={(r) => setJustRefunded((x) => [...x, { at: new Date().toISOString(), amount: r.amount, currency: r.currency, note: "gerade eben im Support Brain erstattet" }])}
+          onRefunded={(r) => setJustRefunded((x) => [...x, { at: new Date().toISOString(), amount: r.amount, currency: r.currency, pending: r.pending, note: "gerade eben im Support Brain erstattet" }])}
         />
       )}
     </>

@@ -129,7 +129,7 @@ export async function refundOrder(args: {
   orderId: string;
   orderName: string;
   amountCents: number;
-}): Promise<{ ok: true; refundedAmount: string; currency: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; refundedAmount: string; currency: string; pending?: boolean } | { ok: false; error: string }> {
   // Fehler als Rückgabewert: Next.js versteckt geworfene Fehler im Live-Betrieb („An error occurred …“).
   try {
     const r = await refundOrderInner(args);
@@ -155,7 +155,7 @@ async function refundOrderInner(args: {
   orderId: string;
   orderName: string;
   amountCents: number;
-}): Promise<{ refundedAmount: string; currency: string }> {
+}): Promise<{ refundedAmount: string; currency: string; pending?: boolean }> {
   const { user } = await requireWrite(args.shopId, "support");
   // Trennung: Ticket muss zum selben Shop gehören — VOR der Erstattung prüfen (echtes Geld).
   const thread = await db.query.threads.findFirst({ where: eq(schema.threads.id, args.threadId) });
@@ -168,7 +168,7 @@ async function refundOrderInner(args: {
 
   const amount = (args.amountCents / 100).toFixed(2);
   const note = `Support-Kulanz-Erstattung über ${amount} (ausgelöst von ${user.email})`;
-  let r: { refundedAmount: string; currency: string };
+  let r: { refundedAmount: string; currency: string; pending?: boolean };
   try {
     r = await refundOrderAmount(creds, args.orderId, amount, note);
   } catch (e) {
@@ -188,7 +188,7 @@ async function refundOrderInner(args: {
       direction: "outbound",
       internal: true,
       fromEmail: user.email,
-      bodyText: `💶 Erstattung ausgelöst: ${r.refundedAmount} ${r.currency} für Bestellung ${args.orderName} (via Shopify).`,
+      bodyText: `💶 Erstattung ausgelöst: ${r.refundedAmount} ${r.currency} für Bestellung ${args.orderName} (via Shopify)${r.pending ? " — wird vom Zahlungsanbieter noch bearbeitet" : ""}.`,
       sentBy: user.id,
     });
     revalidatePath("/inbox");
