@@ -344,6 +344,24 @@ export function Conversation({
     }
   }
 
+  // Aus dem Shopify-Panel: YunExpress-Nummer (und jeden Link, der sie enthält) gegen DHL-Nummer + dhl.de-Link tauschen.
+  useEffect(() => {
+    const onReplace = (e: Event) => {
+      const { from, to } = (e as CustomEvent<{ from: string; to: string }>).detail ?? {};
+      if (!from || !to) return;
+      const esc = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const dhlUrl = `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${encodeURIComponent(to)}`;
+      setText((prev) =>
+        prev
+          .replace(new RegExp(`https?:\\/\\/\\S*${esc}\\S*`, "g"), dhlUrl)
+          .replace(new RegExp(esc, "g"), to)
+          .replace(/YunExpress|Yun Express/gi, "DHL"),
+      );
+    };
+    window.addEventListener("sb:replace-tracking", onReplace);
+    return () => window.removeEventListener("sb:replace-tracking", onReplace);
+  }, []);
+
   // Ticket geöffnet, letzte Nachricht vom Kunden, aber noch kein passender Entwurf -> sofort starten.
   const autoStarted = useRef(false);
   useEffect(() => {

@@ -137,6 +137,63 @@ function RefundBox({ ctx, order, onRefunded }: { ctx: RefundCtx; order: ShopifyO
   );
 }
 
+const isYun = (t: { company: string | null; number: string | null }) =>
+  /yun/i.test(t.company ?? "") || /^YT\d{10,}/i.test(t.number ?? "");
+
+/** Eine Sendung. Bei YunExpress: direkt auf yuntrack.com öffnen + DHL-Nummer im Antwortentwurf einsetzen. */
+function TrackRow({ t }: { t: { company: string | null; number: string | null; url: string | null } }) {
+  const url = trackingUrl(t);
+  const yun = isYun(t) && t.number;
+  const [dhl, setDhl] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const clean = dhl.replace(/\s/g, "");
+  return (
+    <div style={{ display: "grid", gap: 6, marginBottom: 6 }}>
+      <div className="track">
+        <span className="carrier">{t.company || "Carrier"}</span>
+        {url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer">{t.number || "Sendung verfolgen"}</a>
+        ) : (
+          <span>{t.number || "—"}</span>
+        )}
+      </div>
+      {yun && (
+        <div className="yunbox">
+          <a
+            className="btnlink"
+            href={`https://www.yuntrack.com/parcelTracking?id=${encodeURIComponent(t.number!)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Öffnet YunExpress mit dieser Nummer — dort die DHL-Nummer (meist 00340…) kopieren"
+          >
+            Bei YunExpress öffnen ↗
+          </a>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              value={dhl}
+              onChange={(e) => { setDhl(e.target.value); setMsg(null); }}
+              placeholder="DHL-Nummer einfügen"
+              inputMode="numeric"
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <button
+              type="button"
+              disabled={clean.length < 10}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent("sb:replace-tracking", { detail: { from: t.number, to: clean } }));
+                setMsg("Im Entwurf ersetzt — bitte kurz gegenlesen.");
+              }}
+            >
+              Im Entwurf ersetzen
+            </button>
+          </div>
+          {msg && <span className="ok-text" style={{ fontSize: 12 }}>{msg}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OrderBlock({ order: orderIn, refundCtx }: { order: ShopifyOrder; refundCtx?: RefundCtx }) {
   // Gerade im Tool ausgelöste Erstattungen sofort mit anzeigen (Shopify-Daten kommen beim nächsten Laden)
   const [justRefunded, setJustRefunded] = useState<{ at: string; amount: string; currency: string; note: string | null; pending?: boolean }[]>([]);
@@ -229,19 +286,7 @@ function OrderBlock({ order: orderIn, refundCtx }: { order: ShopifyOrder; refund
       {order.tracking.length > 0 && (
         <div className="sec">
           <div className="sec-label">Sendungsverfolgung</div>
-          {order.tracking.map((t, i) => {
-            const url = trackingUrl(t);
-            return (
-              <div className="track" key={i}>
-                <span className="carrier">{t.company || "Carrier"}</span>
-                {url ? (
-                  <a href={url} target="_blank" rel="noopener noreferrer">{t.number || "Sendung verfolgen"}</a>
-                ) : (
-                  <span>{t.number || "—"}</span>
-                )}
-              </div>
-            );
-          })}
+          {order.tracking.map((t, i) => <TrackRow key={i} t={t} />)}
         </div>
       )}
 
