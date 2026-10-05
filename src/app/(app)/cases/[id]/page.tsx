@@ -110,6 +110,7 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
           }}
           decision={(c.decision as "fight" | "accept" | null) ?? null}
           mode={ppRow ? (ppRow.mode === "live" ? "live" : "sandbox") : null}
+          liveLocked={ppRow?.mode === "live" && process.env.PAYPAL_LIVE_ACTIONS !== "1"}
           allowed={allowedActions(c.raw)}
           amount={c.amount}
           currency={c.currency || "EUR"}

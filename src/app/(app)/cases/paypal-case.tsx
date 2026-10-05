@@ -50,7 +50,9 @@ export function PaypalCase({
   allowed,
   amount,
   currency,
+  liveLocked = false,
 }: {
+  liveLocked?: boolean;
   caseId: string;
   externalUrl: string | null;
   stage: string;
@@ -209,6 +211,7 @@ export function PaypalCase({
         </div>
       </section>
       <PaypalActions
+        liveLocked={liveLocked}
         caseId={caseId}
         mode={mode}
         allowed={allowed}

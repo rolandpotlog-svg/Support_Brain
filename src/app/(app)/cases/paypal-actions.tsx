@@ -16,7 +16,9 @@ export function PaypalActions({
   tracking,
   buyerMessage,
   statement,
+  liveLocked = false,
 }: {
+  liveLocked?: boolean;
   caseId: string;
   mode: "sandbox" | "live" | null;
   allowed: string[];
@@ -54,6 +56,15 @@ export function PaypalActions({
   }
 
   if (!mode) return null;
+  if (liveLocked)
+    return (
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Direkt in PayPal erledigen</h2>
+        <p className="muted" style={{ marginBottom: 0 }}>
+          Im Live-Betrieb noch gesperrt, bis der Sandbox-Test bestanden ist. Bis dahin: Entwurf oben kopieren und mit „In PayPal öffnen“ dort senden.
+        </p>
+      </section>
+    );
   const none = !can("send_message") && !can("provide_evidence") && !canRefund;
 
   return (

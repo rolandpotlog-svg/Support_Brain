@@ -156,6 +156,10 @@ export async function paypalAction(caseId: string, input: PaypalActionInput): Pr
     const { user } = await requireBrandCap(c.shopId, "cases");
     const creds = await loadPaypalCreds(c.shopId);
     if (!creds) return { ok: false, error: "Kein PayPal-Zugang für diesen Shop." };
+    // Live erst nach erfolgreichem Sandbox-Test freischalten (PAYPAL_LIVE_ACTIONS=1 auf Render setzen)
+    if (creds.mode === "live" && process.env.PAYPAL_LIVE_ACTIONS !== "1") {
+      return { ok: false, error: "Direkt-Aktionen sind im Live-Betrieb noch gesperrt, bis der Sandbox-Test bestanden ist. Bitte vorerst in PayPal selbst antworten." };
+    }
 
     // Eingaben prüfen, bevor irgendetwas an PayPal geht
     if (input.kind === "refund") {
