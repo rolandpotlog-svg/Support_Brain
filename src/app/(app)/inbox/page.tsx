@@ -137,12 +137,18 @@ export default async function InboxPage({
   function listWhere(shopId: string): SQL {
     if (search) {
       const like = `%${search}%`;
+      const digits = search.replace(/^#/, "");
       const parts: SQL[] = [
         ilike(schema.threads.subject, like),
         ilike(schema.threads.customerEmail, like),
         ilike(schema.threads.customerName, like),
+        // zugeordnete / manuell gemerkte Bestellnummer (mit oder ohne #)
+        ilike(schema.threads.orderName, `%${digits}%`),
+        ilike(schema.threads.manualOrderName, `%${digits}%`),
+        // Text der Mails (z. B. Bestellnummer oder Name nur in der Nachricht)
+        sql`exists (select 1 from messages m where m.thread_id = ${schema.threads.id} and m.body_text ilike ${like})`,
       ];
-      if (/^\d+$/.test(search)) parts.push(eq(schema.threads.number, Number(search)));
+      if (/^#?\d+$/.test(search) && digits.length <= 7) parts.push(eq(schema.threads.number, Number(digits)));
       return and(eq(schema.threads.shopId, shopId), isNull(schema.threads.deletedAt), or(...parts)!)!;
     }
     const conds = folderConds(folder, user.id, shopId);
@@ -390,7 +396,7 @@ export default async function InboxPage({
         {hasShops && (
           <form className="searchbar" action="/inbox">
             <input type="hidden" name="folder" value={folder} />
-            <input name="q" defaultValue={search} placeholder="Suchen… (Name, E-Mail, Betreff, #Nr.)" />
+            <input name="q" defaultValue={search} placeholder="Suchen… (Name, E-Mail, Bestellnr., Text, #Ticket)" />
             {search && <Link href={`/inbox?folder=${folder}`} className="clear" title="Suche löschen">✕</Link>}
           </form>
         )}
