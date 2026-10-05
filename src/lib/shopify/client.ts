@@ -561,7 +561,25 @@ export async function getCustomerOrders(
 }
 
 /** Tracking-Link: gelieferte URL bevorzugen, sonst aus Carrier + Nummer bauen. */
+/** DHL-Sendung? (Versanddienst „DHL…“ oder typische DHL-Nummer 00340…/JJD…) */
+export function isDhl(t: Tracking): boolean {
+  const c = (t.company ?? "").toLowerCase();
+  const n = (t.number ?? "").replace(/\s/g, "");
+  return c.includes("dhl") || c.includes("deutsche post") || /^(00340|JJD|JVGL)\d{8,}/i.test(n);
+}
+
+/**
+ * Welche Sendungsnummer bekommt der Kunde? Gibt es eine DHL-Nummer (z. B. vom Lieferanten als Last-Mile
+ * nachgetragen), NUR diese — die Vorlauf-Nummer (YunExpress u. ä.) zeigt den Weg ab China und erzeugt Rückfragen.
+ */
+export function customerTracking(list: Tracking[]): Tracking[] {
+  const dhl = list.filter((t) => t.number && isDhl(t));
+  return dhl.length ? dhl.map((t) => ({ ...t, company: t.company && /dhl/i.test(t.company) ? t.company : "DHL" })) : list;
+}
+
 export function trackingUrl(t: Tracking): string | null {
+  // DHL immer über den offiziellen DHL-Link (nicht über Fremd-Tracker wie 17track)
+  if (t.number && isDhl(t)) return `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${encodeURIComponent(t.number.replace(/\s/g, ""))}`;
   if (t.url) return t.url;
   if (!t.number) return null;
   const c = (t.company ?? "").toLowerCase();

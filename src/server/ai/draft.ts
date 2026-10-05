@@ -9,7 +9,7 @@ import type { Resolution } from "@/lib/shopify/order-match";
 import { checksForPrompt, linkThreadOrder } from "@/server/order-link";
 import { intentLabel } from "@/lib/support/intents";
 import { activeLessonsForPrompt } from "@/server/ai/learn";
-import { trackingUrl } from "@/lib/shopify/client";
+import { customerTracking, trackingUrl } from "@/lib/shopify/client";
 import { bestBodyText } from "@/lib/mailbox/html-text";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
 import { draftSystemPrompt, parseDraft, type DraftDecision } from "@/server/ai/draft-prompt";
@@ -26,7 +26,7 @@ function money(m: { amount: string; currencyCode: string } | null): string {
 
 function orderLines(o: import("@/lib/shopify/client").ShopifyOrder): string {
   // Tracking inkl. echtem Sendungslink (Carrier-korrekt), damit die KI den richtigen Link einsetzt.
-  const tracking = o.tracking
+  const tracking = customerTracking(o.tracking)
     .map((t) => {
       const label = `${t.company ?? "Carrier"} ${t.number ?? ""}`.trim();
       const url = trackingUrl(t);

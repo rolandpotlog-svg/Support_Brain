@@ -1,7 +1,7 @@
 // PayPal-Fälle: Fakten aus der Shopify-Bestellung + Empfehlung, die den PayPal-Score schützt.
 // Grundsatz (Roland): lieber kulant lösen als Fälle verlieren — verlorene Fälle drücken das Verkäuferkonto.
 // Kämpfen nur mit klarem Beleg (sicher zugeordnet + Zustellung belegt). Reine Logik (Client + Server).
-import type { ShopifyOrder } from "@/lib/shopify/client";
+import { customerTracking, trackingUrl, type ShopifyOrder } from "@/lib/shopify/client";
 
 /** Unter diesem Betrag im Zweifel erstatten statt diskutieren. */
 export const KULANZ_EUR = 30;
@@ -33,7 +33,7 @@ export function factsFromOrder(o: ShopifyOrder): CaseFacts {
     fulfillment: o.fulfillmentStatus,
     delivery: o.delivery?.status ?? null,
     deliveredAt: o.delivery?.deliveredAt ?? null,
-    tracking: o.tracking,
+    tracking: customerTracking(o.tracking).map((t) => ({ ...t, url: trackingUrl(t) })),
     shipTo: o.shippingAddress
       ? [o.shippingAddress.name, o.shippingAddress.address1, [o.shippingAddress.zip, o.shippingAddress.city].filter(Boolean).join(" "), o.shippingAddress.country]
           .filter(Boolean)
