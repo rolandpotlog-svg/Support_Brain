@@ -176,7 +176,14 @@ async function replyToThreadInner(threadId: string, bodyText: string, filesForm?
   const newMsgId = `<${randomUUID().replace(/-/g, "")}@support-brain>`;
 
   // KI-Entwurf-Nutzung messen: 1:1 übernommen, bearbeitet oder ganz ohne Entwurf.
-  const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+  // Sendungsnummer/Link (z. B. YunExpress -> DHL getauscht) zählen nicht als inhaltliche Änderung.
+  const norm = (s: string) =>
+    s
+      .replace(/https?:\/\/\S+/g, "<link>")
+      .replace(/\b[A-Z]{0,4}\d{8,}[A-Z]{0,3}\b/g, "<nr>")
+      .replace(/\b(YunExpress|Yun Express|DHL|17track)\b/gi, "<carrier>")
+      .replace(/\s+/g, " ")
+      .trim();
   const aiOutcome = t.lastAiDraft
     ? norm(bodyText) === norm(t.lastAiDraft)
       ? "verbatim"

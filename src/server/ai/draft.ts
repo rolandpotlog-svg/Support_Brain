@@ -9,7 +9,15 @@ import type { Resolution } from "@/lib/shopify/order-match";
 import { checksForPrompt, linkThreadOrder } from "@/server/order-link";
 import { intentLabel } from "@/lib/support/intents";
 import { activeLessonsForPrompt } from "@/server/ai/learn";
-import { customerTracking, trackingUrl } from "@/lib/shopify/client";
+import { customerTracking, findOrdersByName, trackingUrl, type ShopifyOrder } from "@/lib/shopify/client";
+/** Streng: ALLE Namensteile (Vor- und Nachname) des Absenders stehen im Namen der Lieferadresse. */
+function fullNameMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const w = (x: string | null | undefined) =>
+    (x ?? "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zß ]/g, " ").split(/\s+/).filter((t) => t.length >= 2);
+  const need = w(a);
+  const have = new Set(w(b));
+  return need.length >= 2 && need.every((t) => have.has(t));
+}
 import { bestBodyText } from "@/lib/mailbox/html-text";
 import { buildSystemPrompt, emptyProfile } from "@/lib/profile/types";
 import { draftSystemPrompt, parseDraft, type DraftDecision } from "@/server/ai/draft-prompt";
@@ -164,6 +172,22 @@ export async function prepareDraft(threadId: string, intent?: string): Promise<D
           "oder passt nicht zu E-Mail/Name). Nenne KEINE Bestelldetails (keine Artikel, Adresse, Trackingnummer, Beträge) und bestätige nichts. " +
           "Bitte den Kunden freundlich um die richtige Bestellnummer oder die E-Mail-Adresse, mit der bestellt wurde " +
           "(evtl. Tippfehler oder Verwechslung mit einem anderen Shop). Das darfst du selbst beantworten (AUTO).";
+      } else if (!link.order && (r.mode === "none" || r.mode === "candidates") && thread.customerName) {
+        // Keine Zuordnung über E-Mail/Nummer: über den Namen suchen (auch Gastbestellungen). Genau EIN Kunde mit
+        // jüngerer Bestellung -> als VORSCHLAG in den Entwurf, Entscheidung MENSCH (Mitarbeiter bestätigt).
+        const byName = (await findOrdersByName(creds, thread.customerName).catch(() => [] as ShopifyOrder[])).filter(
+          (o) => fullNameMatch(thread.customerName, o.shippingAddress?.name) && Date.now() - new Date(o.createdAt).getTime() < 90 * 86_400_000,
+        );
+        const people = new Set(byName.map((o) => (o.email ?? o.shippingAddress?.name ?? "").toLowerCase()));
+        if (byName.length && people.size === 1) {
+          const o = byName[0];
+          orderContext =
+            `VORSCHLAG — Bestellung nur über den NAMEN gefunden (E-Mail stimmt nicht überein), daher NICHT sicher:\n${orderLines(o)}\n` +
+            "Schreibe den Entwurf so, als gehöre diese Bestellung zum Kunden (Status, Sendungsnummer, Link nennen), aber KEINE Lieferadresse und keine Beträge nennen. " +
+            `Entscheidung IMMER MENSCH; im Grund vermerken: „Bestellung ${o.name} nur über den Namen gefunden — bitte prüfen“.`;
+        } else {
+          orderContext = formatResolution(r) + (byName.length ? `\n(Über den Namen ${people.size} verschiedene Kunden gefunden — nicht eindeutig.)` : "");
+        }
       } else {
         orderContext = link.order ? orderLines(link.order) : formatResolution(r);
       }

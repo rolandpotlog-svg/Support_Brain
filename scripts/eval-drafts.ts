@@ -27,7 +27,7 @@ const CASES: Case[] = [
     history: "Sabine Krüger: Hallo, ich habe vor 12 Tagen bestellt und immer noch nichts bekommen. Wann kommt meine Kette?",
     shopify: ORDER({ tracking: "00340434161094042557", ageDays: 12, items: "1× Mutter-Tochter-Halskette Gravur (Gelbgold)" }),
     want: "auto",
-    expect: "Entschuldigung, Versandpartner-Verzögerung, echte Trackingnummer+Link, SORRY20, Einladung sich zu melden, kein Liefertermin",
+    expect: "Entschuldigung, Versandpartner-Verzögerung, echte Trackingnummer+Link, KEIN Rabattcode (Regel 06.10.), Einladung sich zu melden, kein Liefertermin",
   },
   {
     title: "Sehr verärgert, droht mit Bewertung",
@@ -35,7 +35,7 @@ const CASES: Case[] = [
     history: "Thomas Brandt: Das ist eine absolute Frechheit. 3 Wochen warte ich schon, das Geschenk war für den Geburtstag meiner Frau. Ich werde überall schlechte Bewertungen schreiben! Wo ist mein Paket???",
     shopify: ORDER({ tracking: "00340434161094099911", ageDays: 21, items: "1× Lovebox Deluxe ewige Rose mit Herzschmuck" }),
     want: "auto",
-    expect: "ruhig, Ärger ernst nehmen, nicht defensiv, Tracking, SORRY20, kein Liefertermin versprechen",
+    expect: "ruhig, Ärger ernst nehmen, nicht defensiv, Tracking, KEIN Rabattcode bei Verzögerung, kein Liefertermin versprechen",
   },
   {
     title: "Fragt erneut nach (SORRY20 schon erhalten)",
@@ -162,11 +162,11 @@ const JUDGE_SYSTEM =
   "Du bekommst die Richtlinien des Shops, die Kundenanfrage mit Bestelldaten, die Erwartung und den Antwortentwurf. " +
   "Prüfe hart: Würde der Inhaber diese Mail OHNE jede Änderung abschicken? Prüfe insbesondere: Sie-Form; persönliche Anrede; " +
   "nichts erfunden (Tracking, Termine, Status, erledigte Aktionen, Anhänge); verbotene Wörter (Dropshipping, China-Lieferant, AliExpress, Fulfillment); " +
-  "keine Haftungs-/Verantwortungsabwehr; keine Belehrung; kein 'wir melden uns'; SORRY20 nur wenn passend und nicht doppelt; " +
+  "keine Haftungs-/Verantwortungsabwehr; keine Belehrung; kein 'wir melden uns'; SORRY20 nur wenn passend und nicht doppelt, NIE bei reinen Lieferverzögerungen (Regel seit 06.10.); " +
   "Rabatte über SORRY20 hinaus sind verboten; Eskalationsfälle dürfen nichts zusagen; keine Grußformel/Signatur (wird angehängt). " +
   "GENAUSO WICHTIG — MENSCHLICHER TON: Die Mail muss klingen, als hätte sie eine nette, erfahrene Support-Mitarbeiterin persönlich geschrieben. Sie fällt durch, wenn sie nach KI klingt: " +
   "Gedankenstriche als Satzzeichen, Listen in einer normalen Antwort, „Zögern Sie nicht“, mehrere Floskeln direkt hintereinander, wörtliches Zurückspiegeln des Anliegens, aufgeblähte oder generische Sätze. " +
-  "Markenstil Lovenja (erwünscht, KEIN Fehler): eine kurze Entschuldigung, ein kurzer wertschätzender Satz, SORRY20 als Geste, freundliche Einladung sich zu melden, Standard-Lieferzeiten laut Richtlinie. " +
+  "Markenstil Lovenja (erwünscht, KEIN Fehler): eine kurze Entschuldigung, ein kurzer wertschätzender Satz, SORRY20 als Geste NUR bei Unzufriedenheit/abgelehntem Storno/defektem Code, freundliche Einladung sich zu melden, Standard-Lieferzeiten laut Richtlinie. " +
   'Antworte NUR mit JSON: {"sendefertig":true|false,"note":1-10,"menschlich":1-10,"verstoesse":["..."],"verbesserung":"ein Satz"}';
 
 async function main() {
