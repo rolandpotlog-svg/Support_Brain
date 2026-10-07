@@ -35,6 +35,7 @@ type Msg = {
   createdAt: string;
   sendStatus?: "pending" | "sent" | "failed" | null;
   sentByName?: string | null;
+  viaWebmail?: boolean;
   sendError?: string | null;
   sendStuck?: boolean;
   autoAt?: string | null;
@@ -551,6 +552,9 @@ export function Conversation({
               </div>
               <MailBody text={m.bodyText} />
               <AttachmentList atts={m.attachments ?? []} />
+              {m.direction === "outbound" && m.viaWebmail && (
+                <div className="sendstatus muted" style={{ marginTop: 6, fontSize: 12 }}>✓ außerhalb des Tools gesendet (Webmail)</div>
+              )}
               {m.direction === "outbound" && m.sendStatus && (
                 <div className="sendstatus" style={{ marginTop: 6 }}>
                   {m.sendStatus === "sent" && <span className="ok-text" style={{ fontSize: 12 }}>✓ {m.isAuto ? "automatisch gesendet (KI, geprüft)" : `gesendet${m.sentByName ? ` von ${m.sentByName}` : ""}`}</span>}

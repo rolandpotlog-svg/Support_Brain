@@ -312,6 +312,7 @@ export default async function InboxPage({
           // Automatische Antwort im Sicherheitsfenster: wann sie rausgeht
           autoAt: m.aiOutcome === "auto" && obMap.get(m.id)?.status === "pending" ? (obMap.get(m.id)!.sendAfter?.toISOString() ?? new Date().toISOString()) : null,
           isAuto: m.aiOutcome === "auto",
+          viaWebmail: m.aiOutcome === "webmail",
           attachments: (attMap.get(m.id) ?? []).map((a) => ({
             id: a.id,
             filename: a.filename,
@@ -530,6 +531,7 @@ type Msg = {
   createdAt: string;
   sendStatus: "pending" | "sent" | "failed" | null;
   sentByName: string | null;
+  viaWebmail?: boolean;
   sendError: string | null;
   sendStuck: boolean;
   autoAt: string | null;
