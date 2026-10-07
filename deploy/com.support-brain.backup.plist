@@ -9,7 +9,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/rolandpotlog/Documents/support-brain/scripts/backup.sh</string>
+    <string>/Users/rolandpotlog/Projekte/30_ECom_Alpennord/Support-Brain/scripts/backup.sh</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
@@ -17,8 +17,8 @@
     <key>Minute</key><integer>0</integer>
   </dict>
   <key>StandardOutPath</key>
-  <string>/Users/rolandpotlog/Documents/support-brain/backups/backup.log</string>
+  <string>/Users/rolandpotlog/Projekte/30_ECom_Alpennord/Support-Brain/backups/backup.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/rolandpotlog/Documents/support-brain/backups/backup.log</string>
+  <string>/Users/rolandpotlog/Projekte/30_ECom_Alpennord/Support-Brain/backups/backup.log</string>
 </dict>
 </plist>
